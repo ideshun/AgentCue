@@ -2,7 +2,15 @@
  * 设置仓库：接口地址始终是可直接显示、可恢复的默认值。
  * 旧版本存成空串（表示“用官方地址”），或粘贴文档里的基础地址时，都补成实际请求的 URL。
  */
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -78,5 +86,46 @@ describe('SettingsStore 云 TTS 接口地址', () => {
       };
       expect(saved.voice.cloudEndpoint).toBe(DEFAULT_CLOUD_ENDPOINT);
     }
+  });
+});
+
+describe.skipIf(process.platform === 'win32')('SettingsStore 私有文件权限', () => {
+  it('读取旧文件时收紧为 0600，不改写内容', () => {
+    const { file } = storeWith({ schemaVersion: 1, voice: { cloudApiKey: 'synthetic-key' } });
+    chmodSync(file, 0o644);
+    const original = readFileSync(file, 'utf8');
+    const store = new SettingsStore(file);
+    expect(store.get().voice.cloudApiKey).toBe('synthetic-key');
+    expect(statSync(file).mode & 0o777).toBe(0o600);
+    expect(readFileSync(file, 'utf8')).toBe(original);
+  });
+
+  it('首次保存与多次原子替换均不开放组或其他用户的访问', () => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'awm-settings-'));
+    directories.push(directory);
+    const file = path.join(directory, 'settings.json');
+    const store = new SettingsStore(file);
+    store.update({ voice: { cloudApiKey: 'synthetic-first' } });
+    expect(statSync(file).mode & 0o777).toBe(0o600);
+    // 模拟旧版本崩溃后留下的宽权限临时文件。
+    writeFileSync(`${file}.tmp`, 'stale', { mode: 0o644 });
+    chmodSync(`${file}.tmp`, 0o644);
+    store.update({ voice: { cloudApiKey: 'synthetic-next' } });
+    expect(statSync(file).mode & 0o777).toBe(0o600);
+    expect(JSON.parse(readFileSync(file, 'utf8')).voice.cloudApiKey).toBe('synthetic-next');
+  });
+
+  it('损坏文件的备份同样仅当前用户可读写', () => {
+    const { file } = storeWith({ schemaVersion: 1 });
+    writeFileSync(file, '{"voice":{"cloudApiKey":"synthetic"},broken', 'utf8');
+    chmodSync(file, 0o644);
+    const store = new SettingsStore(file);
+    expect(store.get().voice.cloudApiKey).toBe('');
+    const backup = readdirSync(path.dirname(file)).find((name) =>
+      name.startsWith('settings.json.corrupt-'),
+    );
+    expect(backup).toBeDefined();
+    expect(statSync(path.join(path.dirname(file), backup!)).mode & 0o777).toBe(0o600);
+    expect(statSync(file).mode & 0o777).toBe(0o600);
   });
 });

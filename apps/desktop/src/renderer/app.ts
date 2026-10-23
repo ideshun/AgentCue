@@ -30,6 +30,35 @@ let stream: EventSource | null = null;
 let refreshTimer: number | null = null;
 let searchTimer: number | null = null;
 let loadSequence = 0;
+type RefreshKey =
+  | 'board'
+  | 'overview'
+  | 'tools'
+  | 'adapters'
+  | 'notifications'
+  | 'settings'
+  | 'rules'
+  | 'snippets'
+  | 'servers'
+  | 'hooks';
+const refreshTtl: Record<RefreshKey, number> = {
+  board: 30_000,
+  overview: 30_000,
+  notifications: 30_000,
+  tools: 60_000,
+  settings: 60_000,
+  rules: 60_000,
+  servers: 60_000,
+  hooks: 60_000,
+  adapters: 300_000,
+  snippets: 300_000,
+};
+const refreshVersions = new Map<RefreshKey, number>();
+const refreshCache = new Map<RefreshKey, { at: number; version: number }>();
+let refreshesInFlight = 0;
+let backgroundRefreshAt = 0;
+let boardLoadsInFlight = 0;
+let boardWindowVersion = 0;
 let drawerSequence = 0;
 let nativeVoicesSequence = 0;
 let renderedRoute: RouteName | null = null;
@@ -365,22 +394,20 @@ function releasePending(selector: string): void {
 
 function scheduleRefresh(delay = 650): void {
   if (document.hidden || refreshTimer !== null) return;
-  refreshTimer = window.setTimeout(() => {
-    refreshTimer = null;
-    void refresh();
-  }, delay);
+  refreshTimer = window.setTimeout(
+    () => {
+      refreshTimer = null;
+      void refresh(true);
+    },
+    Math.max(delay, backgroundRefreshAt - Date.now()),
+  );
 }
-function boardUrl(group?: BoardGroupId, cursor?: string): string {
+function invalidateResources(...keys: RefreshKey[]): void {
+  for (const key of keys) refreshVersions.set(key, (refreshVersions.get(key) ?? 0) + 1);
+}
+function boardUrl(group?: BoardGroupId, cursor?: string, limit?: number): string {
   const params = new URLSearchParams({
-    limit:
-      state.route === 'overview'
-        ? '8'
-        : String(
-            Math.min(
-              100,
-              Math.max(20, ...(state.board?.groups.map((item) => item.items.length) ?? [])),
-            ),
-          ),
+    limit: String(limit ?? (state.route === 'overview' ? 8 : 20)),
   });
   if (state.route === 'board') {
     if (state.boardQuery.q) params.set('q', state.boardQuery.q);
@@ -389,6 +416,42 @@ function boardUrl(group?: BoardGroupId, cursor?: string): string {
   if (group) params.set('group', group);
   if (cursor) params.set('cursor', cursor);
   return `/api/v1/board?${params}`;
+}
+
+/** @description: 从新游标重读已展开的各列，移除已迁移/归档的记录，保留加载深度。 */
+async function refreshBoard(
+  sequence: number,
+  get: (url: string) => Promise<BoardResponse>,
+): Promise<BoardResponse> {
+  const route = state.route;
+  const query = JSON.stringify(state.boardQuery);
+  const current = (): boolean =>
+    sequence === loadSequence &&
+    route === currentRoute() &&
+    query === JSON.stringify(state.boardQuery);
+  const targets = new Map(state.board?.groups.map((group) => [group.id, group.items.length]));
+  const response = await get(boardUrl());
+  if (route !== 'board' || !current()) return response;
+  for (const group of response.groups) {
+    const target = targets.get(group.id) ?? 20;
+    while (group.nextCursor && group.items.length < Math.min(target, group.total)) {
+      if (!current()) return response;
+      const cursor = group.nextCursor;
+      const page = await get(
+        boardUrl(group.id, cursor, Math.min(100, target - group.items.length)),
+      );
+      if (!current()) return response;
+      const incoming = page.groups.find((item) => item.id === group.id);
+      if (!incoming || incoming.nextCursor === cursor) throw new Error('看板分页响应无效，请重试');
+      const unique = new Map(
+        [...group.items, ...incoming.items].map((item) => [`${item.kind}:${item.sessionId}`, item]),
+      );
+      group.items = Array.from(unique.values());
+      group.total = incoming.total;
+      group.nextCursor = incoming.nextCursor;
+    }
+  }
+  return response;
 }
 function synchronizeSessions(): void {
   state.sessions = (state.board?.groups ?? [])
@@ -407,91 +470,140 @@ function synchronizeSessions(): void {
 }
 
 /** @description: Independent sections retain successful data and report their own failed requests. */
-async function refresh(): Promise<void> {
-  const route = currentRoute();
-  if (route !== state.route) captureDrafts();
-  const changedRoute = route !== state.route;
-  if (changedRoute) {
-    ++nativeVoicesSequence;
-    state.nativeVoicesLoading = false;
+async function refresh(background = false): Promise<void> {
+  // 自动刷新不与手动刷新/路由加载叠加；变更版本会保留到下一次成功读取。
+  if (
+    background &&
+    (refreshesInFlight > 0 || boardLoadsInFlight > 0 || Date.now() < backgroundRefreshAt)
+  ) {
+    scheduleRefresh();
+    return;
   }
-  state.route = route;
-  if (changedRoute && (route === 'board' || route === 'overview')) state.board = null;
-  state.boardLoading = (route === 'board' || route === 'overview') && state.board === null;
-  if (renderedRoute !== route) render();
-  const sequence = ++loadSequence;
-  const requests: Array<{
-    key: string;
-    promise: Promise<unknown>;
-    commit: (value: unknown) => void;
-  }> = [];
-  const add = <T>(key: string, path: string, commit: (value: T) => void): void => {
-    requests.push({ key, promise: Api.get<T>(path), commit: (value) => commit(value as T) });
-  };
-  if (route === 'overview' || route === 'board') {
-    add<BoardResponse>('board', boardUrl(), (value) => {
-      state.board = value;
-      synchronizeSessions();
-    });
-    add<ToolSummary[]>('tools', '/api/v1/tools', (value) => {
-      state.tools = value;
-    });
-    if (route === 'overview')
-      add<OverviewSummary>('overview', '/api/v1/overview', (value) => {
-        state.overview = value;
-      });
-  }
-  if (route === 'adapters') {
-    add<AdapterManifest[]>('adapters', '/api/v1/adapters', (value) => {
-      state.adapters = value;
-    });
-    add<ToolSummary[]>('tools', '/api/v1/tools', (value) => {
-      state.tools = value;
-    });
-  }
-  if (route === 'notifications')
-    add<ToolSummary[]>('tools', '/api/v1/tools', (value) => {
-      state.tools = value;
-    });
-  add<NotificationItem[]>('notifications', '/api/v1/notifications', (value) => {
-    state.notifications = value;
-  });
-  add<Settings>('settings', '/api/v1/settings', (value) => {
-    // 设置页可能有未保存的预览：服务端的新值作为基准，未保存字段覆盖回去。
-    if (!settingsSaveCount) rebasePendingSettings(value);
-  });
-  if (route === 'settings') {
-    if (state.nativeVoices === null && !state.nativeVoicesLoading && !state.sectionErrors.voices)
-      void loadNativeVoices();
-    if (settingsNeedModel(state.settings)) {
-      // 两套本地模型状态都取一次：切换引擎时不必等待网络往返。
-      if (state.modelStatus === null) void loadModelState('kokoro');
-      if (state.zipvoiceModelStatus === null) void loadModelState('zipvoice');
+  refreshesInFlight += 1;
+  let requestCount = 0;
+  try {
+    const route = currentRoute();
+    if (route !== state.route) captureDrafts();
+    const changedRoute = route !== state.route;
+    if (changedRoute) {
+      ++nativeVoicesSequence;
+      state.nativeVoicesLoading = false;
     }
-    add<VoiceRule[]>('rules', '/api/v1/voice/rules', (value) => {
-      state.rules = value;
+    state.route = route;
+    if (changedRoute && (route === 'board' || route === 'overview')) state.board = null;
+    state.boardLoading = (route === 'board' || route === 'overview') && state.board === null;
+    if (renderedRoute !== route) render();
+    const sequence = ++loadSequence;
+    const windowVersion = boardWindowVersion;
+    const requests: Array<{
+      key: RefreshKey;
+      version: number;
+      promise: Promise<unknown>;
+      commit: (value: unknown) => void;
+    }> = [];
+    const get = <T>(path: string): Promise<T> => {
+      requestCount += 1;
+      return Api.get<T>(path);
+    };
+    const add = <T>(key: RefreshKey, path: string, commit: (value: T) => void): void => {
+      const version = refreshVersions.get(key) ?? 0;
+      const cached = refreshCache.get(key);
+      if (
+        background &&
+        !changedRoute &&
+        !state.sectionErrors[key] &&
+        cached?.version === version &&
+        Date.now() - cached.at < refreshTtl[key]
+      )
+        return;
+      requests.push({
+        key,
+        version,
+        promise: key === 'board' ? refreshBoard(sequence, get<BoardResponse>) : get<T>(path),
+        commit: (value) => commit(value as T),
+      });
+    };
+    if (route === 'overview' || route === 'board') {
+      add<BoardResponse>('board', boardUrl(), (value) => {
+        // 请求期间用户刚加载了更多记录：保留用户的新窗口，下轮按新深度重读。
+        if (windowVersion !== boardWindowVersion) {
+          invalidateResources('board');
+          scheduleRefresh();
+          return;
+        }
+        state.board = value;
+        synchronizeSessions();
+      });
+      add<ToolSummary[]>('tools', '/api/v1/tools', (value) => {
+        state.tools = value;
+      });
+      if (route === 'overview')
+        add<OverviewSummary>('overview', '/api/v1/overview', (value) => {
+          state.overview = value;
+        });
+    }
+    if (route === 'adapters') {
+      add<AdapterManifest[]>('adapters', '/api/v1/adapters', (value) => {
+        state.adapters = value;
+      });
+      add<ToolSummary[]>('tools', '/api/v1/tools', (value) => {
+        state.tools = value;
+      });
+    }
+    if (route === 'notifications')
+      add<ToolSummary[]>('tools', '/api/v1/tools', (value) => {
+        state.tools = value;
+      });
+    add<NotificationItem[]>('notifications', '/api/v1/notifications', (value) => {
+      state.notifications = value;
     });
-    add<McpSnippet[]>('snippets', '/api/v1/mcp/snippets', (value) => {
-      state.mcpSnippets = value;
+    add<Settings>('settings', '/api/v1/settings', (value) => {
+      // 设置页可能有未保存的预览：服务端的新值作为基准，未保存字段覆盖回去。
+      if (!settingsSaveCount) rebasePendingSettings(value);
     });
-    add<McpServerItem[]>('servers', '/api/v1/mcp/servers', (value) => {
-      state.mcpServers = value;
+    if (route === 'settings') {
+      if (state.nativeVoices === null && !state.nativeVoicesLoading && !state.sectionErrors.voices)
+        void loadNativeVoices();
+      if (settingsNeedModel(state.settings)) {
+        // 两套本地模型状态都取一次：切换引擎时不必等待网络往返。
+        if (state.modelStatus === null) void loadModelState('kokoro');
+        if (state.zipvoiceModelStatus === null) void loadModelState('zipvoice');
+      }
+      add<VoiceRule[]>('rules', '/api/v1/voice/rules', (value) => {
+        state.rules = value;
+      });
+      add<McpSnippet[]>('snippets', '/api/v1/mcp/snippets', (value) => {
+        state.mcpSnippets = value;
+      });
+      add<McpServerItem[]>('servers', '/api/v1/mcp/servers', (value) => {
+        state.mcpServers = value;
+      });
+      add<HookIntegration[]>('hooks', '/api/v1/integrations/hooks', (value) => {
+        state.hookIntegrations = value;
+      });
+    }
+    const results = await Promise.allSettled(requests.map((item) => item.promise));
+    if (sequence !== loadSequence || route !== currentRoute()) return;
+    results.forEach((result, index) => {
+      const request = requests[index];
+      if (result.status === 'fulfilled') {
+        request.commit(result.value);
+        refreshCache.set(request.key, { at: Date.now(), version: request.version });
+        delete state.sectionErrors[request.key];
+      } else state.sectionErrors[request.key] = errorMessage(result.reason);
     });
-    add<HookIntegration[]>('hooks', '/api/v1/integrations/hooks', (value) => {
-      state.hookIntegrations = value;
-    });
+    state.boardLoading = false;
+    render();
+  } finally {
+    refreshesInFlight -= 1;
+    // 自动读取最多约 40 次/分钟，给 Hooks、手动操作和 MCP 留出限流余量。
+    // 多页看板按实际请求数延长间隔，避免深分页抵消局部刷新的收益。
+    if (requestCount > 0)
+      backgroundRefreshAt = Math.max(
+        backgroundRefreshAt,
+        Date.now() + Math.max(5_000, requestCount * 1_500),
+      );
   }
-  const results = await Promise.allSettled(requests.map((item) => item.promise));
-  if (sequence !== loadSequence || route !== currentRoute()) return;
-  results.forEach((result, index) => {
-    const request = requests[index];
-    if (result.status === 'fulfilled') {
-      request.commit(result.value);
-      delete state.sectionErrors[request.key];
-    } else state.sectionErrors[request.key] = errorMessage(result.reason);
-  });
-  state.boardLoading = false;
-  render();
 }
 
 const MODEL_STATES = ['missing', 'downloading', 'extracting', 'ready', 'error'] as const;
@@ -583,26 +695,32 @@ async function loadNativeVoices(): Promise<void> {
 
 /** @description: A cursor request is discarded after a filter or route change. */
 async function loadBoardGroup(groupId: BoardGroupId, cursor: string): Promise<void> {
-  const sequence = loadSequence;
-  const query = JSON.stringify(state.boardQuery);
-  const response = await Api.get<BoardResponse>(boardUrl(groupId, cursor));
-  if (
-    sequence !== loadSequence ||
-    state.route !== 'board' ||
-    query !== JSON.stringify(state.boardQuery)
-  )
-    return;
-  const incoming = response.groups.find((group) => group.id === groupId);
-  const current = state.board?.groups.find((group) => group.id === groupId);
-  if (!incoming || !current) return;
-  const unique = new Map(
-    [...current.items, ...incoming.items].map((item) => [`${item.kind}:${item.sessionId}`, item]),
-  );
-  current.items = Array.from(unique.values());
-  current.total = incoming.total;
-  current.nextCursor = incoming.nextCursor;
-  synchronizeSessions();
-  render();
+  boardLoadsInFlight += 1;
+  try {
+    const sequence = loadSequence;
+    const query = JSON.stringify(state.boardQuery);
+    const response = await Api.get<BoardResponse>(boardUrl(groupId, cursor));
+    if (
+      sequence !== loadSequence ||
+      state.route !== 'board' ||
+      query !== JSON.stringify(state.boardQuery)
+    )
+      return;
+    const incoming = response.groups.find((group) => group.id === groupId);
+    const current = state.board?.groups.find((group) => group.id === groupId);
+    if (!incoming || !current) return;
+    const unique = new Map(
+      [...current.items, ...incoming.items].map((item) => [`${item.kind}:${item.sessionId}`, item]),
+    );
+    current.items = Array.from(unique.values());
+    current.total = incoming.total;
+    current.nextCursor = incoming.nextCursor;
+    boardWindowVersion += 1;
+    synchronizeSessions();
+    render();
+  } finally {
+    boardLoadsInFlight -= 1;
+  }
 }
 
 /** @description: Capture drawer identity and focus to reject stale timeline responses. */
@@ -1672,6 +1790,12 @@ function connectStream(): void {
       }
       return;
     }
+    if (type === 'state.transition' || type === 'board.updated')
+      invalidateResources('board', 'overview');
+    else if (type === 'notify') invalidateResources('notifications');
+    else if (type === 'settings.changed') invalidateResources('settings', 'rules');
+    else if (type === 'tools.updated' || type === 'scan.completed')
+      invalidateResources('tools', 'board', 'overview', 'hooks');
     scheduleRefresh();
   });
   stream.onerror = () => {
@@ -1696,7 +1820,7 @@ async function main(): Promise<void> {
     void handleConfirmClose(request);
   });
   window.setInterval(() => {
-    if (!document.hidden) void refresh();
+    if (!document.hidden) scheduleRefresh(0);
   }, 30_000);
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) scheduleRefresh(300);

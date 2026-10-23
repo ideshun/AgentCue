@@ -6,7 +6,17 @@
  * - 解析失败不抛错：备份损坏文件后回落默认值，保证应用永远能启动
  * - schemaVersion 独立演进，升级逻辑集中在 migrate()
  */
-import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  closeSync,
+  existsSync,
+  fchmodSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from 'node:fs';
 import path from 'node:path';
 import { resolveCloudEndpoint } from '@awm/core';
 import { defaultSettings, settingsSchema, type Settings } from '@awm/schema';
@@ -78,6 +88,8 @@ export class SettingsStore {
       return defaultSettings();
     }
     try {
+      // 旧版本按系统 umask 创建文件，启动时收紧权限但不改写内容。
+      chmodSync(this.filePath, 0o600);
       const raw = readFileSync(this.filePath, 'utf8');
       const parsed: unknown = JSON.parse(raw);
       const result = settingsSchema.safeParse(parsed);
@@ -97,7 +109,10 @@ export class SettingsStore {
    */
   private backupCorrupted(): void {
     try {
-      copyFileSync(this.filePath, `${this.filePath}.corrupt-${Date.now()}`);
+      writeFileSync(`${this.filePath}.corrupt-${Date.now()}`, readFileSync(this.filePath), {
+        mode: 0o600,
+        flag: 'wx',
+      });
     } catch {
       // 备份失败不阻断启动流程
     }
@@ -137,9 +152,16 @@ export class SettingsStore {
    */
   save(value: Settings = this.current): void {
     const dir = path.dirname(this.filePath);
-    mkdirSync(dir, { recursive: true });
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
     const temp = `${this.filePath}.tmp`;
-    writeFileSync(temp, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+    const fd = openSync(temp, 'w', 0o600);
+    try {
+      // mode 只影响新建文件；崩溃残留的临时文件也必须先收紧权限再写入密钥。
+      fchmodSync(fd, 0o600);
+      writeFileSync(fd, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+    } finally {
+      closeSync(fd);
+    }
     renameSync(temp, this.filePath);
   }
 }

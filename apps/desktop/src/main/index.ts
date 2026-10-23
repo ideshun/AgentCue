@@ -202,7 +202,9 @@ async function bootstrap(): Promise<void> {
         'zipvoiceReferenceText',
       ] as const
     ).some((key) => previous.voice[key] !== next.voice[key]);
-    if (playbackChanged || 'quiet' in patch) {
+    const policyChanged =
+      previous.voice.scope !== next.voice.scope || previous.voice.content !== next.voice.content;
+    if (playbackChanged || policyChanged || 'quiet' in patch) {
       voice.reconfigure();
       if (playbackChanged)
         ttsChain = createTtsChain(next, {

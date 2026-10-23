@@ -116,6 +116,34 @@ describe('renderer settings', () => {
     expect(plain(evaluate(context, 'buildPatch("voice.content", "text")'))).toEqual({});
   });
 
+  it('maps legacy all to the three milestones without offering a duplicate scope', () => {
+    const context = renderer();
+    context.settingsFixture = structuredClone(settings);
+    evaluate(context, 'state.settings = settingsFixture; state.settings.voice.scope = "all"');
+    const markup = evaluate<string>(context, 'renderSettings(state)');
+    expect(markup).toMatch(/value="milestones" selected[^>]*>待确认与开始\/完成/);
+    expect(markup).not.toContain('<option value="all"');
+    expect(evaluate(context, 'state.settings.voice.scope')).toBe('all');
+  });
+
+  it('disables rate only for cloud speech and preserves the saved local rate', () => {
+    const context = renderer();
+    context.settingsFixture = structuredClone(settings);
+    evaluate(
+      context,
+      'state.settings = settingsFixture; state.settings.voice.rate = 1.4; state.settings.voice.cloudApiKey = ""',
+    );
+    for (const backend of ['cloud', 'native', 'local']) {
+      context.backendFixture = backend;
+      evaluate(context, 'state.settings.voice.backend = backendFixture');
+      const markup = evaluate<string>(context, 'renderSettings(state)');
+      const rate = /<input[^>]*data-setting="voice.rate"[^>]*>/.exec(markup)?.[0] ?? '';
+      expect(rate).toContain('value="1.4"');
+      expect(rate.includes('disabled')).toBe(backend === 'cloud');
+    }
+    expect(evaluate(context, 'state.settings.voice.rate')).toBe(1.4);
+  });
+
   it('builds queued patches from the last successful save', async () => {
     const context = renderer();
     context.settingsFixture = structuredClone(settings);
@@ -216,6 +244,184 @@ describe('renderer board', () => {
     expect(evaluate<string>(context, 'renderOverview(state)')).toContain(
       'Older task still waiting',
     );
+  });
+
+  it('refreshes more than 100 loaded rows with new cursors and removes moved records', async () => {
+    const context = renderer();
+    const items = Array.from({ length: 135 }, (_, index) => ({
+      kind: 'session',
+      sessionId: `current-${index}`,
+      toolId: 'demo',
+      title: `任务 ${index}`,
+      currentState: 'completed',
+      updatedAt: '2026-10-22T00:00:00Z',
+    }));
+    context.boardFixture = {
+      groups: [
+        {
+          id: 'completed',
+          total: 135,
+          nextCursor: 'old-120',
+          items: [{ ...items[0], sessionId: 'moved-away' }, ...items.slice(1, 120)],
+        },
+      ],
+      generatedAt: 'old',
+    };
+    const requests: string[] = [];
+    context.get = async (requestPath: string) => {
+      requests.push(requestPath);
+      if (requestPath.startsWith('/api/v1/board?')) {
+        const params = new URLSearchParams(requestPath.split('?')[1]);
+        const offset = Number(params.get('cursor') ?? 0);
+        const end = Math.min(items.length, offset + Number(params.get('limit')));
+        return {
+          groups: [
+            {
+              id: 'completed',
+              total: items.length,
+              items: items.slice(offset, end),
+              nextCursor: end < items.length ? String(end) : null,
+            },
+          ],
+          generatedAt: 'new',
+        };
+      }
+      return requestPath === '/api/v1/settings' ? structuredClone(settings) : [];
+    };
+    evaluate(
+      context,
+      'state.route = "board"; window.location.hash = "#/board"; state.board = boardFixture; Api.get = get',
+    );
+    await evaluate(context, 'refresh()');
+    expect(evaluate(context, 'state.board.groups[0].items.length')).toBe(120);
+    expect(evaluate(context, 'state.board.groups[0].nextCursor')).toBe('120');
+    expect(evaluate(context, 'state.board.groups[0].total')).toBe(135);
+    expect(evaluate(context, 'state.sessions.some(item => item.sessionId === "moved-away")')).toBe(
+      false,
+    );
+    expect(requests.filter((url) => url.startsWith('/api/v1/board?'))).toEqual([
+      '/api/v1/board?limit=20',
+      '/api/v1/board?limit=100&group=completed&cursor=20',
+    ]);
+    await evaluate(context, 'loadBoardGroup("completed", "120")');
+    expect(evaluate(context, 'state.board.groups[0].items.length')).toBe(135);
+    expect(evaluate(context, 'state.board.groups[0].nextCursor')).toBeNull();
+  });
+
+  it('keeps a page loaded during refresh and defers automatic refresh while loading more', async () => {
+    const context = renderer();
+    const items = Array.from({ length: 160 }, (_, index) => ({
+      kind: 'session',
+      sessionId: `s-${index}`,
+      toolId: 'demo',
+      title: '任务',
+      currentState: 'completed',
+      updatedAt: '2026-10-22T00:00:00Z',
+    }));
+    context.boardFixture = {
+      groups: [{ id: 'completed', total: 160, items: items.slice(0, 120), nextCursor: '120' }],
+    };
+    let releaseHead: (value: unknown) => void = () => {};
+    let releaseMore: (value: unknown) => void = () => {};
+    let delayHead = true;
+    let delayMore = false;
+    let calls = 0;
+    const page = (offset: number, limit: number) => ({
+      groups: [
+        {
+          id: 'completed',
+          total: 160,
+          items: items.slice(offset, offset + limit),
+          nextCursor: String(offset + limit),
+        },
+      ],
+    });
+    context.get = async (url: string) => {
+      calls += 1;
+      if (!url.startsWith('/api/v1/board?'))
+        return url === '/api/v1/settings' ? structuredClone(settings) : [];
+      const params = new URLSearchParams(url.split('?')[1]);
+      if (!params.has('cursor') && delayHead)
+        return new Promise((resolve) => {
+          releaseHead = resolve;
+        });
+      if (params.get('cursor') === '140' && delayMore)
+        return new Promise((resolve) => {
+          releaseMore = resolve;
+        });
+      return page(Number(params.get('cursor') ?? 0), Number(params.get('limit')));
+    };
+    evaluate(
+      context,
+      `state.route = 'board'; window.location.hash = '#/board'; state.board = boardFixture;
+      Api.get = get; window.setTimeout = () => 1;`,
+    );
+    const refresh = evaluate<Promise<void>>(context, 'refresh()');
+    await evaluate(context, 'loadBoardGroup("completed", "120")');
+    releaseHead(page(0, 20));
+    await refresh;
+    expect(evaluate(context, 'state.board.groups[0].items.length')).toBe(140);
+    expect(evaluate(context, 'state.board.groups[0].nextCursor')).toBe('140');
+    delayHead = false;
+    await evaluate(context, 'refresh()');
+    expect(evaluate(context, 'state.board.groups[0].items.length')).toBe(140);
+    delayMore = true;
+    const more = evaluate<Promise<void>>(context, 'loadBoardGroup("completed", "140")');
+    const before = calls;
+    evaluate(context, 'backgroundRefreshAt = 0');
+    await evaluate(context, 'refresh(true)');
+    expect(calls).toBe(before);
+    releaseMore({
+      groups: [{ id: 'completed', total: 160, items: items.slice(140), nextCursor: null }],
+    });
+    await more;
+    expect(evaluate(context, 'state.board.groups[0].items.length')).toBe(160);
+  });
+
+  it('keeps the full loaded window on a failed later page and discards pages after a filter change', async () => {
+    const context = renderer();
+    const items = Array.from({ length: 120 }, (_, index) => ({
+      kind: 'session',
+      sessionId: `s-${index}`,
+      toolId: 'demo',
+      title: '任务',
+      currentState: 'completed',
+      updatedAt: '2026-10-22T00:00:00Z',
+    }));
+    context.boardFixture = { groups: [{ id: 'completed', total: 130, items, nextCursor: '120' }] };
+    let release: ((value: unknown) => void) | null = null;
+    let failPage = true;
+    context.get = async (requestPath: string) => {
+      if (requestPath.startsWith('/api/v1/board?')) {
+        if (requestPath.includes('cursor=')) {
+          if (failPage) throw new Error('synthetic page failure');
+          return new Promise((resolve) => {
+            release = resolve;
+          });
+        }
+        return {
+          groups: [{ id: 'completed', total: 130, items: items.slice(0, 20), nextCursor: '20' }],
+        };
+      }
+      return requestPath === '/api/v1/settings' ? structuredClone(settings) : [];
+    };
+    evaluate(
+      context,
+      'state.route = "board"; window.location.hash = "#/board"; state.board = boardFixture; Api.get = get',
+    );
+    await evaluate(context, 'refresh()');
+    expect(evaluate(context, 'state.board.groups[0].items.length')).toBe(120);
+    expect(evaluate(context, 'state.sectionErrors.board')).toContain('synthetic page failure');
+    failPage = false;
+    const pending = evaluate<Promise<void>>(context, 'refresh()');
+    for (let index = 0; index < 10 && !release; index += 1) await Promise.resolve();
+    expect(release).not.toBeNull();
+    evaluate(context, 'state.boardQuery.q = "new filter"; state.board = null; ++loadSequence');
+    release!({
+      groups: [{ id: 'completed', total: 130, items: items.slice(20), nextCursor: null }],
+    });
+    await pending;
+    expect(evaluate(context, 'state.board')).toBeNull();
   });
 });
 
@@ -1570,6 +1776,115 @@ describe('renderer pending settings', () => {
 });
 
 describe('renderer request order', () => {
+  /** Synthetic clock and stream: no timers, sockets, or application data. */
+  function refreshFixture(route = 'overview') {
+    const context = renderer();
+    const requests: string[] = [];
+    const delays: number[] = [];
+    let emit = (_type: string, _data: unknown): void => {};
+    context.clock = 0;
+    context.get = async (requestPath: string) => {
+      requests.push(requestPath);
+      if (requestPath.startsWith('/api/v1/board?')) return { groups: [], generatedAt: 'synthetic' };
+      if (requestPath === '/api/v1/settings') return structuredClone(settings);
+      if (requestPath === '/api/v1/voice/voices') return { voices: [] };
+      return [];
+    };
+    context.subscribe = (callback: typeof emit) => {
+      emit = callback;
+      return { close() {} };
+    };
+    context.schedule = (_callback: () => void, delay: number) => {
+      delays.push(delay);
+      return delays.length;
+    };
+    context.routeFixture = route;
+    evaluate(
+      context,
+      `state.route = routeFixture; window.location.hash = '#/' + routeFixture;
+      Date.now = () => clock; window.setTimeout = schedule; Api.get = get;
+      Api.stream = subscribe; toast = () => {}; connectStream();`,
+    );
+    return { context, requests, delays, emit: (type: string) => emit(type, {}) };
+  }
+
+  it('coalesces 25 overview events within one minute and reuses stable settings/tools', async () => {
+    const f = refreshFixture();
+    await evaluate(f.context, 'refresh()');
+    expect(f.requests).toHaveLength(5);
+    for (let index = 1; index <= 25; index += 1) {
+      f.context.clock = index * 2_300;
+      evaluate(f.context, 'refreshTimer = null');
+      f.emit('state.transition');
+      f.emit('board.updated');
+      await evaluate(f.context, 'refresh(true)');
+    }
+    expect(f.requests.length).toBeLessThan(40);
+    expect(f.requests.filter((url) => url === '/api/v1/settings')).toHaveLength(1);
+    expect(f.requests.filter((url) => url === '/api/v1/tools')).toHaveLength(1);
+    expect(f.requests.filter((url) => url.startsWith('/api/v1/board?')).length).toBeGreaterThan(3);
+    expect(f.delays.some((delay) => delay >= 5_000)).toBe(true);
+    // 用户主动刷新立即读取，不受后台间隔与缓存限制。
+    const before = f.requests.length;
+    await evaluate(f.context, 'refresh()');
+    expect(f.requests.length - before).toBe(5);
+  });
+
+  it('refreshes settings changes locally, preserving drafts and ignoring board-only events', async () => {
+    const f = refreshFixture('settings');
+    await evaluate(f.context, 'refresh()');
+    f.requests.length = 0;
+    evaluate(f.context, 'stagePatch(buildPatch("voice.rate", 1.5))');
+    f.context.clock = 15_000;
+    f.emit('settings.changed');
+    await evaluate(f.context, 'refresh(true)');
+    expect(f.requests).toEqual(['/api/v1/settings', '/api/v1/voice/rules']);
+    expect(evaluate(f.context, 'workingSettings().voice.rate')).toBe(1.5);
+    expect(evaluate(f.context, 'state.settings.voice.rate')).toBe(1);
+    f.requests.length = 0;
+    f.context.clock = 25_000;
+    f.emit('board.updated');
+    await evaluate(f.context, 'refresh(true)');
+    expect(f.requests).toHaveLength(0);
+  });
+
+  it('retains invalidations received during an in-flight refresh and retries failed sections', async () => {
+    const f = refreshFixture();
+    await evaluate(f.context, 'refresh()');
+    let release: (value: unknown) => void = () => {};
+    let failTools = true;
+    f.context.get = async (requestPath: string) => {
+      f.requests.push(requestPath);
+      if (requestPath.startsWith('/api/v1/board?'))
+        return new Promise((resolve) => {
+          release = resolve;
+        });
+      if (requestPath === '/api/v1/tools' && failTools) throw new Error('synthetic tools failure');
+      return [];
+    };
+    evaluate(f.context, 'Api.get = get');
+    f.context.clock = 10_000;
+    f.emit('state.transition');
+    f.emit('tools.updated');
+    const pending = evaluate<Promise<void>>(f.context, 'refresh(true)');
+    f.emit('board.updated');
+    const during = f.requests.length;
+    await evaluate(f.context, 'refresh(true)');
+    expect(f.requests).toHaveLength(during);
+    release({ groups: [], generatedAt: 'first' });
+    await pending;
+    expect(evaluate(f.context, 'state.sectionErrors.tools')).toContain('synthetic tools failure');
+    f.requests.length = 0;
+    failTools = false;
+    f.context.clock = 25_000;
+    const retry = evaluate<Promise<void>>(f.context, 'refresh(true)');
+    release({ groups: [], generatedAt: 'second' });
+    await retry;
+    expect(f.requests).toContain('/api/v1/board?limit=8');
+    expect(f.requests).toContain('/api/v1/tools');
+    expect(evaluate(f.context, 'state.sectionErrors.tools')).toBeUndefined();
+  });
+
   it('discards previous-route responses without hiding successful settings sections', async () => {
     const context = renderer();
     const pending: Array<{ path: string; resolve: (value: unknown) => void }> = [];

@@ -308,7 +308,7 @@ export class VoiceService {
 
   private async play(item: QueuedSpeak): Promise<VoiceOutcome> {
     if (this.stopped) return { action: 'skipped', reason: 'service-stopped' };
-    // 排队时可能跨过免打扰边界，或者规则刚刚被修改，出声前再核对一次。
+    // 排队期间设置或规则可能改变，出声前重新核对范围、静音和文案。
     const resolved = resolveAction(this.rules(), item.signal);
     if (resolved.action === 'mute') {
       this.playNext();
@@ -316,8 +316,13 @@ export class VoiceService {
     }
     const blocked = this.blockedReason(item.signal);
     const notificationOnly = !AUTOMATIC_SPEECH_EVENTS.has(item.signal.eventType);
-    if (resolved.action === 'notify' || blocked || notificationOnly) {
-      const reason = notificationOnly ? 'event-notification-only' : (blocked ?? 'rule-notify');
+    const inScope = inBroadcastScope(this.deps.getSettings().voice.scope, item.signal.eventType);
+    if (resolved.action === 'notify' || blocked || notificationOnly || !inScope) {
+      const reason = !inScope
+        ? 'out-of-scope'
+        : notificationOnly
+          ? 'event-notification-only'
+          : (blocked ?? 'rule-notify');
       this.notify(item.signal, reason);
       this.playNext();
       return { action: 'notify', reason };
@@ -331,6 +336,9 @@ export class VoiceService {
     try {
       await this.playbackBarrier;
       if (generation !== this.generation) return { action: 'skipped', reason: 'interrupted' };
+      item.text = normalizeForSpeech(
+        this.announcementText(resolved.text ?? '', item.signal, resolved.rule?.template),
+      );
       const playback = chain.speak({
         text: item.text,
         voiceProfile: settings.voice.voiceProfile,

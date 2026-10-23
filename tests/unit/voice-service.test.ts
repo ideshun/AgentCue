@@ -271,6 +271,68 @@ describe('VoiceService', () => {
     expect(f.played[0]).toContain('pnpm build');
   });
 
+  it('排队后缩小播报范围，完成事件只通知一次而不继续出声', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(noon);
+    let finish = (): void => {};
+    const started: string[] = [];
+    const f = fixture({
+      name: 'controlled',
+      isAvailable: () => true,
+      speak: ({ text }) =>
+        new Promise<void>((resolve) => {
+          started.push(text);
+          finish = resolve;
+        }),
+    });
+    const playing = f.service.announce(signal('playing'), new Date());
+    await flush();
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect((await f.service.announce(signal('queued'), new Date())).reason).toBe('queued');
+    f.settings.voice.scope = 'attention';
+    finish();
+    await playing;
+    await flush();
+    expect(started).toHaveLength(1);
+    expect(f.notices).toHaveLength(1);
+    expect(f.notices[0]).toMatchObject({ sessionId: 'demo:p:queued', reason: 'out-of-scope' });
+    f.service.stop();
+  });
+
+  it('排队后更改内容模式，出声时重新生成当前模式的文案', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(noon);
+    const finish: Array<() => void> = [];
+    const started: string[] = [];
+    const f = fixture({
+      name: 'controlled',
+      isAvailable: () => true,
+      speak: ({ text }) =>
+        new Promise<void>((resolve) => {
+          started.push(text);
+          finish.push(resolve);
+        }),
+    });
+    f.settings.voice.content = 'prompt';
+    const playing = f.service.announce(signal('playing'), new Date());
+    await flush();
+    await vi.advanceTimersByTimeAsync(3_000);
+    await f.service.announce(
+      { ...signal('queued'), title: '重构登录模块。顺便处理日志' },
+      new Date(),
+    );
+    f.settings.voice.content = 'title';
+    finish[0]();
+    await playing;
+    await flush();
+    expect(started).toHaveLength(2);
+    expect(started[1]).toContain('重构登录模块');
+    expect(started[1]).not.toContain('顺便处理日志');
+    finish[1]();
+    await flush();
+    f.service.stop();
+  });
+
   it('标题只有代码或为空时回退到简短任务编号', async () => {
     const f = fixture();
     await f.service.announce({ ...signal('code'), title: '```\nnpm i\n```' }, noon);
