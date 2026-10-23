@@ -1,0 +1,27 @@
+{
+  "name": "@awm/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "productName": "AI Workflow Monitor",
+  "description": "Electron 桌面壳：主进程、托盘、渲染层宿主",
+  "main": "dist/main/entry.js",
+  "scripts": {
+    "build": "pnpm --filter @awm/mcp-stdio run build && tsc -p tsconfig.json && tsc -p tsconfig.renderer.json && node scripts/copy-assets.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
+    "dev": "electron-builder install-app-deps && pnpm build && electron .",
+    "dist": "electron-builder",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "dependencies": {
+    "@awm/adapters": "workspace:*",
+    "@awm/core": "workspace:*",
+    "@awm/schema": "workspace:*",
+    "@awm/store": "workspace:*",
+    "sherpa-onnx-node": "^1.13.8"
+  },
+  "devDependencies": {
+    "electron": "44.9.0",
+    "electron-builder": "^26.0.0",
+    "typescript": "^5.7.3"
+  }
+}

@@ -1,0 +1,21 @@
+# Claude Code 适配器契约（详细设计 5.4 示例落地）
+# 字段由 @awm/schema 的 adapterManifestSchema 校验，非法字段在加载时指明具体路径。
+id: claude-code
+name: Claude Code
+detect:
+  configPaths:
+    - mac: "~/.claude/settings.json"
+      win: "%USERPROFILE%/.claude/settings.json"
+      envOverride: ["CLAUDE_CONFIG_DIR"]
+  processNames: ["claude"]
+  apis: []                            # 如 { host: "127.0.0.1", port: 23001, probePath: "/health" }
+sessionSource:
+  type: jsonl
+  pathPattern: "~/.claude/projects/**/*.jsonl"
+eventMapping:
+  waiting_human: { match: "permission_request", reason: "tool_approval" }
+  completed: { match: "result", ok: true }
+  failed: { match: "result", ok: false }
+heartbeat: { intervalSec: 30, probe: "file_mtime" }
+mcp: { clientConfigFormat: "claude-code" }
+# extractor: ./extract.ts             # 复杂解析走 TS 提取器（M1 接入）

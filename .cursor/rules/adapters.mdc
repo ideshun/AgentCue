@@ -1,0 +1,9 @@
+---
+description: 适配器 manifest 与提取器约束
+globs: "packages/adapters/**/*"
+alwaysApply: false
+---
+
+修改适配器时读取 `.agents/rules/adapter-contract.md`，流程见 `.agents/skills/add-adapter/SKILL.md`。
+
+新增工具只加 YAML 与可选提取器，不改 core。没有真实会话样本时保持 `eventMapping: {}`，禁止编造匹配规则。

@@ -1,0 +1,4 @@
+{"type":"user","sessionId":"sess-1","timestamp":"2026-10-19T10:00:00.000Z","message":{"role":"user","content":"重构登录模块"}}
+{"type":"assistant","sessionId":"sess-1","timestamp":"2026-10-19T10:00:30.000Z","message":{"role":"assistant","content":[{"type":"text","text":"开始分析代码结构"}]}}
+{"type":"permission_request","sessionId":"sess-1","timestamp":"2026-10-19T10:01:00.000Z","toolName":"Bash"}
+{"type":"result","sessionId":"sess-1","timestamp":"2026-10-19T10:05:00.000Z","is_error":false,"result":"done"}

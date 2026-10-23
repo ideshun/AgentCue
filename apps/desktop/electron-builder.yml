@@ -1,0 +1,45 @@
+appId: com.awm.app
+productName: AI Workflow Monitor
+copyright: Copyright © 2026
+# 显式固定版本：electron-builder 无法从 "^x.y.z" 范围解析平台二进制版本
+electronVersion: 44.9.0
+directories:
+  output: release
+files:
+  # 显式列出 node_modules：一旦声明 files，默认 patterns 即被整体替换，
+  # 不写这条会把生产依赖全部漏掉，打出来的包装完即崩（找不到 @awm/core）。
+  - dist/**/*
+  - package.json
+  - node_modules/**/*
+  # 剔除无需进入安装包的开发期文件，缩小包体
+  - '!node_modules/**/*.md'
+  - '!node_modules/**/*.ts'
+  - '!node_modules/**/*.map'
+  - '!node_modules/**/test/**'
+  - '!**/*.test.js'
+  - '!**/*.{iml,o,hpro,ts,js.map}'
+# workspace 使用 hoisted node_modules，打包前端口未必包含根目录直接依赖。
+# afterPack 按目标架构把 sherpa JS 包与对应原生运行时复制到 Resources/sherpa-tts。
+afterPack: scripts/after-pack.cjs
+# better-sqlite3 是原生模块，asar 内无法 require .node，必须解包到磁盘。
+asarUnpack:
+  - '**/node_modules/better-sqlite3/**'
+mac:
+  category: public.app.category.developer-tools
+  darkModeSupport: true
+  # 公证需要 Apple 账号与 CSC_* / APPLE_ID；未配置时只出未签名内测包
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+win:
+  # 代码签名需要 CSC_LINK / CSC_KEY_PASSWORD；未配置时仍可打内测 NSIS 包
+  target:
+    - target: nsis
+linux:
+  # AppImage 默认不签名；发行渠道需要时自行配置 GPG
+  target:
+    - target: AppImage

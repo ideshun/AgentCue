@@ -1,0 +1,25 @@
+# OpenAI Codex CLI 适配器契约
+# 事件语义依据公开 rollout JSONL（timestamp + type=event_msg + payload.type）：
+#   task_started / task_complete / turn_aborted
+# 审批对话框是瞬时 EventMsg，不写入 JSONL，因此没有 waiting_human 映射。
+# 合成 fixture 见 tests/contract/adapters/codex/，不含真实用户会话。
+id: codex
+name: Codex CLI
+detect:
+  configPaths:
+    - mac: "~/.codex"
+      win: "%USERPROFILE%/.codex"
+      linux: "~/.codex"
+      envOverride: ["CODEX_HOME"]
+  processNames: ["codex"]
+  apis: []
+sessionSource:
+  type: jsonl
+  pathPattern: "~/.codex/sessions/**/*.jsonl"
+heartbeat: { intervalSec: 30, probe: "file_mtime" }
+eventMapping:
+  started: { match: "task_started" }
+  completed: { match: "task_complete", ok: true }
+  failed: { match: "task_complete", ok: false }
+  cancelled: { match: "turn_aborted" }
+mcp: { clientConfigFormat: "codex" }

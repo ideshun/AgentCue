@@ -1,0 +1,10 @@
+---
+description: 项目共同边界与阅读入口
+alwaysApply: true
+---
+
+工作入口是根目录 `AGENTS.md`，手册是 `.agents/AI-CODING.md`。规则正文只维护在 `.agents/rules/`，本文件不复制。
+
+修改前核对仓库根与已有改动；只在批准范围内实施。不自动 commit、push 或 `git init`。不读取 `.env*`、`runtime.json` token、或用户会话原文。
+
+按任务读取：包边界 → `.agents/rules/package-boundaries.md`；适配器 → `.agents/rules/adapter-contract.md`；渲染层 → `.agents/rules/renderer-native.md`；扫描/API/隐私 → `.agents/rules/local-first.md`。验证命令见 `.agents/knowledge/verification.md`。

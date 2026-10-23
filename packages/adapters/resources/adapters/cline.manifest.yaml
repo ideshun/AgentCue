@@ -1,0 +1,37 @@
+# 公开扩展清单身份及 4.1.25 公开代码验证的索引格式；不读取任何对话正文。
+id: cline
+name: Cline
+sessionCapability: metadata
+capabilityReason: '只读历史索引；未证实的任务状态显示为未知，不参与活跃任务与超时判断。'
+detect:
+  configPaths: []
+  processNames: []
+  apis: []
+  extensions:
+    - id: saoudrizwan.claude-dev
+      host: Cursor
+      roots:
+        - mac: '~/.cursor/extensions'
+          win: '%USERPROFILE%/.cursor/extensions'
+          linux: '~/.cursor/extensions'
+sessionSource:
+  type: json-index
+  indexes:
+    - format: cline-history-v1
+      paths:
+        - mac: '~/.cline/data/state/taskHistory.json'
+          win: '%USERPROFILE%/.cline/data/state/taskHistory.json'
+          linux: '~/.cline/data/state/taskHistory.json'
+        - mac: '~/.cline/data/tasks/taskHistory.json'
+          win: '%USERPROFILE%/.cline/data/tasks/taskHistory.json'
+          linux: '~/.cline/data/tasks/taskHistory.json'
+        - mac: '~/Library/Application Support/Cursor/User/globalStorage/saoudrizwan.claude-dev/state/taskHistory.json'
+          win: '%APPDATA%/Cursor/User/globalStorage/saoudrizwan.claude-dev/state/taskHistory.json'
+          linux: '~/.config/Cursor/User/globalStorage/saoudrizwan.claude-dev/state/taskHistory.json'
+    - format: cline-sessions-v1
+      paths:
+        - mac: '~/.cline/data/sessions/sessions.index.json'
+          win: '%USERPROFILE%/.cline/data/sessions/sessions.index.json'
+          linux: '~/.cline/data/sessions/sessions.index.json'
+heartbeat: { intervalSec: 60, probe: file_mtime }
+eventMapping: {}

@@ -1,0 +1,19 @@
+{
+  "name": "@awm/core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "事件总线、状态机、迁移判定与规则编排",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@awm/schema": "workspace:*",
+    "xstate": "^5.19.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}

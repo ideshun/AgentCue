@@ -1,0 +1,20 @@
+# Cursor 适配器契约
+# 状态：探测层可用。会话在 workspaceStorage 的 state.vscdb，无公开稳定契约。
+# eventMapping 必须保持空：禁止在无实测样本时编造映射。UI 应标明「仅探测、无会话事件」。
+id: cursor
+name: Cursor
+sessionCapability: detect-only
+capabilityReason: '已识别安装；内置对话存储尚无经过验证的公开契约。'
+detect:
+  configPaths:
+    - mac: '~/Library/Application Support/Cursor'
+      win: '%APPDATA%/Cursor'
+      linux: '~/.config/Cursor'
+  processNames: ['Cursor']
+  apis: []
+sessionSource:
+  type: none
+  # 占位模式：Cursor 会话格式实测确认后替换为真实路径
+  pathPattern: '~/Library/Application Support/Cursor/User/workspaceStorage/**/state.vscdb'
+heartbeat: { intervalSec: 60, probe: 'file_mtime' }
+eventMapping: {}

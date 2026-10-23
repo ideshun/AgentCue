@@ -1,0 +1,9 @@
+---
+description: 渲染层保持原生 TS 与 CSS
+globs: "apps/desktop/src/renderer/**"
+alwaysApply: false
+---
+
+修改渲染层时读取 `.agents/rules/renderer-native.md`。
+
+`tsconfig.renderer.json` 为 `"module": "none"`，文件内无 import/export。不引入 React、Vite 或其他渲染期依赖。数据只走本地控制 API。

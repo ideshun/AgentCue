@@ -1,0 +1,8 @@
+{"timestamp":"2026-10-20T10:00:00.000Z","type":"session_meta","payload":{"id":"sess-demo","cwd":"/tmp/demo"}}
+{"timestamp":"2026-10-20T10:00:01.000Z","type":"event_msg","payload":{"type":"task_started","turn_id":"t1"}}
+{"timestamp":"2026-10-20T10:00:01.100Z","type":"event_msg","payload":{"type":"user_message","message":"重构演示模块"}}
+{"timestamp":"2026-10-20T10:00:08.000Z","type":"event_msg","payload":{"type":"task_complete","turn_id":"t1","last_agent_message":"已完成演示任务","error":null}}
+{"timestamp":"2026-10-20T10:01:00.000Z","type":"event_msg","payload":{"type":"task_started","turn_id":"t2"}}
+{"timestamp":"2026-10-20T10:01:00.100Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"补充失败处理"}]}}
+{"timestamp":"2026-10-20T10:01:03.000Z","type":"event_msg","payload":{"type":"task_complete","turn_id":"t2","last_agent_message":null,"error":"command failed"}}
+{"timestamp":"2026-10-20T10:02:00.000Z","type":"event_msg","payload":{"type":"turn_aborted","turn_id":"t3","reason":"user interrupt"}}

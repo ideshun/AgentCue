@@ -1,0 +1,18 @@
+id: codebuddy
+name: CodeBuddy
+sessionCapability: detect-only
+capabilityReason: '可识别 Cursor 扩展；尚无经过验证的本地会话契约。'
+detect:
+  configPaths: []
+  processNames: []
+  apis: []
+  extensions:
+    - id: Tencent-Cloud.coding-copilot
+      host: Cursor
+      roots:
+        - mac: '~/.cursor/extensions'
+          win: '%USERPROFILE%/.cursor/extensions'
+          linux: '~/.cursor/extensions'
+sessionSource: { type: none }
+heartbeat: { intervalSec: 60, probe: file_mtime }
+eventMapping: {}

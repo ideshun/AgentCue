@@ -1,0 +1,27 @@
+[
+  {
+    "eventType": "task.started",
+    "occurredAt": "2026-10-20T10:00:01.000Z",
+    "actor": "tool"
+  },
+  {
+    "eventType": "task.completed",
+    "occurredAt": "2026-10-20T10:00:08.000Z",
+    "actor": "tool"
+  },
+  {
+    "eventType": "task.started",
+    "occurredAt": "2026-10-20T10:01:00.000Z",
+    "actor": "tool"
+  },
+  {
+    "eventType": "task.failed",
+    "occurredAt": "2026-10-20T10:01:03.000Z",
+    "actor": "tool"
+  },
+  {
+    "eventType": "task.cancelled",
+    "occurredAt": "2026-10-20T10:02:00.000Z",
+    "actor": "tool"
+  }
+]

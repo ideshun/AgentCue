@@ -1,0 +1,9 @@
+---
+description: core 包禁止出现具体工具名
+globs: "packages/core/**/*.ts"
+alwaysApply: false
+---
+
+修改 `packages/core` 时读取 `.agents/rules/adapter-contract.md`。
+
+不要在 core 源码写入具体工具名。禁止名单与 `tests/contract/no-tool-name.test.ts` 一致：`claude` / `cursor` / `codex` / `windsurf` / `copilot` / `gemini`（大小写不敏感）。工具识别只通过适配器 id 与 manifest。

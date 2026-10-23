@@ -1,0 +1,37 @@
+node_modules/
+dist/
+release/
+out/
+*.log
+.DS_Store
+coverage/
+.vite/
+
+# 本地运行态，不应入版本控制
+apps/desktop/src/renderer/dist/
+*.tsbuildinfo
+
+# L1 验证日志（scripts/l1-verify.sh 产出）
+.verify/
+
+# 本机配置、凭证与会话数据
+.env*
+runtime.json
+settings.json
+settings.json.*
+memory/
+*.sqlite
+*.sqlite3
+*.db
+*.sqlite-*
+*.sqlite3-*
+*.db-*
+*.pem
+*.key
+
+# 下载的模型、参考音频与本地语音环境
+models/
+voice-references/
+*.onnx
+.venv/
+__pycache__/
