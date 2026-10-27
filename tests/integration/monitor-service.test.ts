@@ -38,6 +38,8 @@ beforeEach(() => {
 
   const configPath = path.join(root, 'demo-config.json');
   writeFileSync(configPath, '{"enabled":true}');
+  const configPlatform =
+    process.platform === 'win32' ? 'win' : process.platform === 'darwin' ? 'mac' : 'linux';
 
   const sessionDir = path.join(root, 'sessions', 'proj-a');
   mkdirSync(sessionDir, { recursive: true });
@@ -64,12 +66,12 @@ beforeEach(() => {
       'name: Demo Tool',
       'detect:',
       '  configPaths:',
-      `    - mac: "${configPath}"`,
+      `    - ${configPlatform}: ${JSON.stringify(configPath)}`,
       '  processNames: ["awm-demo-not-running"]',
       '  apis: []',
       'sessionSource:',
       '  type: jsonl',
-      `  pathPattern: "${path.join(root, 'sessions')}/**/*.jsonl"`,
+      `  pathPattern: ${JSON.stringify(`${path.join(root, 'sessions')}/**/*.jsonl`)}`,
       'eventMapping:',
       '  waiting_human: { match: "permission_request", reason: "tool_approval" }',
       '  completed: { match: "result", ok: true }',
