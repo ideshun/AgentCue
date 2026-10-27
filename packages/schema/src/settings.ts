@@ -105,13 +105,6 @@ export const privacySettingsSchema = z.object({
   scanScope: z.enum(['minimal', 'standard', 'full']).default('minimal'),
 });
 
-/** MCP 设置 */
-export const mcpSettingsSchema = z.object({
-  serverEnabled: z.boolean().default(true),
-  transport: z.array(z.enum(['stdio', 'streamable-http'])).default(['stdio', 'streamable-http']),
-  port: z.number().int().min(1024).max(65535).default(47831),
-});
-
 /** 完整设置对象 */
 export const settingsSchema = z.object({
   schemaVersion: z.literal(1),
@@ -143,11 +136,6 @@ export const settingsSchema = z.object({
     sessionFileRead: true,
     auditLog: true,
     scanScope: 'minimal',
-  }),
-  mcp: mcpSettingsSchema.default({
-    serverEnabled: true,
-    transport: ['stdio', 'streamable-http'],
-    port: 47831,
   }),
 });
 

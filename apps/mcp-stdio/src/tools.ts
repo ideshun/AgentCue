@@ -79,7 +79,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'update_task_state',
     description:
       '注入一条状态事件。仅允许 human.responded / task.retried / task.archived / task.cancelled；' +
-      '这些动作只更新 AWM 的状态记录，不会向原工具发送操作；completed 只能先归档。',
+      '这些动作只更新 AgentCue 的状态记录，不会向原工具发送操作；completed 只能先归档。',
     inputSchema: {
       type: 'object',
       properties: {

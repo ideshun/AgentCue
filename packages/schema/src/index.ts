@@ -8,3 +8,4 @@ export * from './manifest';
 export * from './settings';
 export * from './api';
 export * from './board';
+export * from './office';

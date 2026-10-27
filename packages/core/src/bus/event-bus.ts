@@ -9,6 +9,31 @@ import type { EventType, StandardEvent } from '@awm/schema';
 export type EventHandler = (event: StandardEvent) => void | Promise<void>;
 
 /**
+ * 过期到达、无法插入既有时间线的事件降级为 anomaly，原类型保留在 payload。
+ * 总线（内存水位）与引擎宿主（库内水位）共用同一判定，避免两处语义漂移。
+ * @param event 原始事件
+ * @param lastSeen 该会话已见事件的最大 occurredAt（毫秒），未知传 undefined
+ * @returns 供处理器消费的事件
+ */
+export function demoteOutOfOrderEvent(
+  event: StandardEvent,
+  lastSeen: number | undefined,
+): StandardEvent {
+  if (lastSeen === undefined) return event;
+  const occurred = Date.parse(event.occurredAt);
+  if (Number.isNaN(occurred) || occurred >= lastSeen) return event;
+  return {
+    ...event,
+    eventType: 'anomaly' as EventType,
+    payload: {
+      ...event.payload,
+      reason: 'out-of-order',
+      originalEventType: event.eventType,
+    },
+  };
+}
+
+/**
  * 会话分片事件总线。
  */
 export class SessionEventBus {
@@ -101,21 +126,11 @@ export class SessionEventBus {
   private markAnomalyIfLate(event: StandardEvent): StandardEvent {
     const occurred = Date.parse(event.occurredAt);
     const last = this.lastOccurredAt.get(event.sessionId);
-    if (last === undefined || Number.isNaN(occurred) || occurred >= last) {
-      if (!Number.isNaN(occurred)) {
-        this.lastOccurredAt.set(event.sessionId, occurred);
-      }
-      return event;
+    const demoted = demoteOutOfOrderEvent(event, last);
+    if (demoted === event && !Number.isNaN(occurred)) {
+      this.lastOccurredAt.set(event.sessionId, occurred);
     }
-    return {
-      ...event,
-      eventType: 'anomaly' as EventType,
-      payload: {
-        ...event.payload,
-        reason: 'out-of-order',
-        originalEventType: event.eventType,
-      },
-    };
+    return demoted;
   }
 
   /**

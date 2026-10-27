@@ -1,10 +1,10 @@
-# OpenAI Codex CLI 适配器契约
+# OpenAI CodeX CLI 适配器契约
 # 事件语义依据公开 rollout JSONL（timestamp + type=event_msg + payload.type）：
 #   task_started / task_complete / turn_aborted
 # 审批对话框是瞬时 EventMsg，不写入 JSONL，因此没有 waiting_human 映射。
 # 合成 fixture 见 tests/contract/adapters/codex/，不含真实用户会话。
 id: codex
-name: Codex CLI
+name: CodeX CLI
 detect:
   configPaths:
     - mac: "~/.codex"
@@ -16,6 +16,8 @@ detect:
 sessionSource:
   type: jsonl
   pathPattern: "~/.codex/sessions/**/*.jsonl"
+  # 一个 rollout 文件包含多轮 turn，每轮是独立任务，事件按 payload.turn_id 拆分。
+  identityMode: turn
 heartbeat: { intervalSec: 30, probe: "file_mtime" }
 eventMapping:
   started: { match: "task_started" }

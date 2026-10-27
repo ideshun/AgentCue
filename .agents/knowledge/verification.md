@@ -42,8 +42,8 @@ pnpm lint
 
 ## 待确认
 
-- CI 工作流 `.github/workflows/l1.yml` 已写；本仓库若尚未接入远程则不会实际跑。
-- 渲染层与 Electron 主进程无自动测试。
+- `.github/workflows/l1.yml` 在 main/PR 执行；`.github/workflows/release.yml` 对已有版本标签运行 L1，并原生构建/自检 macOS 双架构、Windows x64 与 Linux x64，发布草稿预览版和 SHA-256。
+- 主进程模块（api-server / monitor-service / voice-service / hook-setup 等）与渲染层纯函数逻辑有单测覆盖（`tests/unit/`，渲染层经 vm 直跑原生脚本）；Electron 窗口与真实交互无自动测试。
 - 10×100 会话浸泡压测未做，现有预算测试不启动 Electron。
 
 ## 更新触发

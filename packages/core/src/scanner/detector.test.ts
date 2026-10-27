@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { AdapterManifest } from '@awm/schema';
-import { detectConfigPath, expandPath, mergeDetectStatus } from './detector';
+import { detectConfigPath, expandPath, matchProcessLine, mergeDetectStatus } from './detector';
 import { ScanOrchestrator } from './orchestrator';
 
 /** 构造 manifest */
@@ -56,6 +56,36 @@ describe('mergeDetectStatus', () => {
 
   it('配置与进程都缺失判定 not_installed', () => {
     expect(mergeDetectStatus(false, false, false)).toBe('not_installed');
+  });
+});
+
+describe('matchProcessLine', () => {
+  // 夹具用中性进程名：core 源码（含测试）不得出现任何具体工具名（契约 no-tool-name）。
+  const psOutput = [
+    '  501 /Applications/ProbeApp.app/Contents/MacOS/ProbeApp --type=renderer',
+    '  502 agentcli exec --task demo',
+    '  503 tail -f /Users/me/agentcli-notes.log',
+    '  504 /opt/homebrew/bin/watchtool --continue',
+    '',
+  ].join('\n');
+
+  it('按 command 首 token 精确命中进程名', () => {
+    expect(matchProcessLine(psOutput, 'agentcli', false)).toBe('  502 agentcli exec --task demo');
+    expect(matchProcessLine(psOutput, 'ProbeApp', false)).toContain('ProbeApp.app');
+    expect(matchProcessLine(psOutput, 'watchtool', false)).toContain('homebrew/bin/watchtool');
+  });
+
+  it('参数或路径中的子串不误报 running', () => {
+    expect(matchProcessLine(psOutput, 'agentcli-notes', false)).toBeNull();
+    expect(matchProcessLine('  999 tail -f ~/agentcli/trace\n', 'agentcli', false)).toBeNull();
+    expect(matchProcessLine(psOutput, 'agent', false)).toBeNull();
+  });
+
+  it('tasklist 按映像名命中（含 .exe 变体）', () => {
+    const csv = '"ProbeAgent.EXE","1234","Console","1","10,240 K"\n"explorer.exe","99","Console","1","5,120 K"';
+    expect(matchProcessLine(csv, 'probeagent', true)).toContain('ProbeAgent.EXE');
+    expect(matchProcessLine(csv, 'explorer', true)).toContain('explorer.exe');
+    expect(matchProcessLine(csv, 'probe', true)).toBeNull();
   });
 });
 

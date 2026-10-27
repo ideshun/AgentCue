@@ -1,18 +1,36 @@
 name: L1
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: l1-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      ELECTRON_MIRROR: https://github.com/electron/electron/releases/download/
+      ELECTRON_BUILDER_BINARIES_MIRROR: https://github.com/electron-userland/electron-builder-binaries/releases/download/
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v7.0.1
         with:
-          version: 10
-      - uses: actions/setup-node@v4
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6.1.0
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: 22
           cache: pnpm
-      - run: pnpm install
+      - run: pnpm install --frozen-lockfile
       - run: sh scripts/l1-verify.sh
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: l1-log
+          path: .verify/l1.log
+          include-hidden-files: true
+          retention-days: 7

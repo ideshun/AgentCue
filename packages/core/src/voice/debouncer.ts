@@ -19,6 +19,12 @@ export const GLOBAL_COOLDOWN_MS = 2_000;
 /** 触发合并的同类事件数量 */
 export const MERGE_THRESHOLD = 3;
 
+/** 已接受身份容量上限；超出按插入序淘汰最旧的，常驻进程不做无界增长。 */
+const ACCEPTED_IDS_MAX = 4096;
+
+/** 统计表触发清扫的规模阈值；会话长期运行后 key 会缓慢累积。 */
+const STATS_SWEEP_THRESHOLD = 1024;
+
 /** 待判定的播报候选 */
 export interface EmitCandidate {
   /** 稳定事件 id；兼容没有事件身份的调用方。 */
@@ -68,6 +74,7 @@ export class DebounceMerger {
    */
   decide(candidate: EmitCandidate, options: { bypassCooldown?: boolean } = {}): DebounceDecision {
     const { eventId, sessionId, toolId, eventType, at } = candidate;
+    this.sweepStaleStats(at);
     if (eventId && this.acceptedEventIds.has(eventId)) return { emit: false, reason: 'dedupe' };
 
     const dedupeKey = `${sessionId}|${eventType}`;
@@ -87,7 +94,15 @@ export class DebounceMerger {
     const bucketKey = `${toolId}|${eventType}`;
     const bucket = (this.buckets.get(bucketKey) ?? []).filter((ts) => at - ts < MERGE_WINDOW_MS);
     bucket.push(at);
-    if (eventId) this.acceptedEventIds.add(eventId);
+    if (eventId) {
+      this.acceptedEventIds.add(eventId);
+      // Set 按插入序迭代：淘汰最旧的已接受身份，保持容量有界。
+      while (this.acceptedEventIds.size > ACCEPTED_IDS_MAX) {
+        const oldest = this.acceptedEventIds.values().next().value;
+        if (oldest === undefined) break;
+        this.acceptedEventIds.delete(oldest);
+      }
+    }
 
     if (bucket.length >= MERGE_THRESHOLD) {
       this.buckets.set(bucketKey, []);
@@ -100,5 +115,21 @@ export class DebounceMerger {
     this.lastEmit.set(dedupeKey, at);
     this.lastGlobalEmitAt = at;
     return { emit: true, reason: 'ok' };
+  }
+
+  /**
+   * 统计表超过阈值时清掉合并窗口之外的旧条目；窗口内的 key 仍在去抖语义内，保留。
+   * @param at 当前候选时间戳
+   */
+  private sweepStaleStats(at: number): void {
+    if (this.lastEmit.size <= STATS_SWEEP_THRESHOLD && this.buckets.size <= STATS_SWEEP_THRESHOLD)
+      return;
+    for (const [key, ts] of this.lastEmit) if (at - ts > MERGE_WINDOW_MS) this.lastEmit.delete(key);
+    for (const [key, list] of this.buckets) {
+      const alive = list.filter((ts) => at - ts < MERGE_WINDOW_MS);
+      if (alive.length === list.length) continue;
+      if (alive.length) this.buckets.set(key, alive);
+      else this.buckets.delete(key);
+    }
   }
 }

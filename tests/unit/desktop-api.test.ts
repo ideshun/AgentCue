@@ -529,3 +529,75 @@ describe('external MCP validation persistence', () => {
     expect(listHttpMcpTools).not.toHaveBeenCalled();
   });
 });
+
+describe('stream tickets and rate limit buckets', () => {
+  /** SSE 专用请求：成功连接不会 end，首次 write 即视为完成（心跳已到）。 */
+  function requestSse(url: string, method = 'GET', body?: unknown): Promise<ApiResult & { chunks: string[] }> {
+    const stream = Readable.from(
+      body === undefined ? [] : [Buffer.from(JSON.stringify(body ?? {}))],
+    );
+    Object.assign(stream, { url, method, headers: {} });
+    return new Promise((resolve, reject) => {
+      let status = 200;
+      let settled = false;
+      const chunks: string[] = [];
+      const timer = setTimeout(() => reject(new Error(`SSE route did not finish: ${url}`)), 1000);
+      const finish = (): void => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve({ status, chunks: [...chunks], body: {} });
+      };
+      const response = {
+        setHeader: () => undefined,
+        writeHead: (value: number) => {
+          status = value;
+        },
+        write: (data: string) => {
+          chunks.push(data);
+          finish();
+          return true;
+        },
+        end: (_data?: string | Buffer) => {
+          finish();
+        },
+      };
+      api.server.emit('request', stream as IncomingMessage, response as unknown as ServerResponse);
+    });
+  }
+
+  it('issues single-use stream tickets; token query access is gone', async () => {
+    const issued = await request('/api/v1/stream-ticket', 'POST');
+    expect(issued.status).toBe(200);
+    const ticket = (issued.body.data as { ticket?: string }).ticket;
+    expect(typeof ticket).toBe('string');
+    // 旧式 token 查询参数不再放行。
+    expect(await requestSse(`/api/v1/stream?token=${TOKEN}`)).toMatchObject({ status: 401 });
+    expect(await requestSse('/api/v1/stream?ticket=not-a-ticket')).toMatchObject({ status: 401 });
+    // 有效票据可连一次并立刻收到心跳。
+    const connected = await requestSse(`/api/v1/stream?ticket=${ticket}`);
+    expect(connected.status).toBe(200);
+    expect(connected.chunks.join('')).toContain('event: heartbeat');
+    // 票据是一次性的：第二次连接被拒。
+    expect(await requestSse(`/api/v1/stream?ticket=${ticket}`)).toMatchObject({ status: 401 });
+  });
+
+  it('rate-limits control requests without starving hook ingestion', async () => {
+    for (let index = 0; index < 120; index += 1) {
+      const health = await request('/api/v1/health');
+      expect(health.status).toBe(200);
+    }
+    expect(await request('/api/v1/health')).toMatchObject({ status: 429 });
+    // 查询桶打满后，Hook 投递走独立桶，任务事件不受影响。
+    const hook = await request('/api/v1/integrations/hooks', 'POST', cursorHook('stop'));
+    expect(hook.status).toBe(200);
+  }, 20_000);
+
+  it('clamps event export filters via schema validation', async () => {
+    expect(await request('/api/v1/events?limit=9999')).toMatchObject({ status: 400 });
+    expect(await request('/api/v1/events?type=not-an-event')).toMatchObject({ status: 400 });
+    const ok = await request('/api/v1/events?limit=10');
+    expect(ok.status).toBe(200);
+    expect(ok.body.success).toBe(true);
+  });
+});

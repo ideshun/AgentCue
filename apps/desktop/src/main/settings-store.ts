@@ -22,7 +22,7 @@ import { resolveCloudEndpoint } from '@awm/core';
 import { defaultSettings, settingsSchema, type Settings } from '@awm/schema';
 
 /** 设置文件内可增量更新的分区名 */
-const SECTION_KEYS = ['scan', 'voice', 'quiet', 'privacy', 'mcp'] as const;
+const SECTION_KEYS = ['scan', 'voice', 'quiet', 'privacy'] as const;
 
 /** 分区名类型 */
 type SectionKey = (typeof SECTION_KEYS)[number];

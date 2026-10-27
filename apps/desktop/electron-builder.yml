@@ -1,6 +1,8 @@
 appId: com.awm.app
-productName: AI Workflow Monitor
+productName: AgentCue
 copyright: Copyright © 2026
+artifactName: '${productName}-${version}-${os}-${arch}.${ext}'
+compression: maximum
 # 显式固定版本：electron-builder 无法从 "^x.y.z" 范围解析平台二进制版本
 electronVersion: 44.9.0
 directories:
@@ -12,12 +14,21 @@ files:
   - package.json
   - node_modules/**/*
   # 剔除无需进入安装包的开发期文件，缩小包体
-  - '!node_modules/**/*.md'
+  - '!node_modules/**/{README,readme,CHANGELOG,HISTORY,CONTRIBUTING}*'
   - '!node_modules/**/*.ts'
   - '!node_modules/**/*.map'
   - '!node_modules/**/test/**'
   - '!**/*.test.js'
   - '!**/*.{iml,o,hpro,ts,js.map}'
+  # 仅保留 SQLite 的 JS 与编译完成的 .node，不分发编译源码和中间文件。
+  - '!node_modules/better-sqlite3/deps/**'
+  - '!node_modules/better-sqlite3/src/**'
+  - '!node_modules/better-sqlite3/build/Release/obj/**'
+  - '!node_modules/better-sqlite3/build/Release/obj.target/**'
+  - '!node_modules/better-sqlite3/build/Release/.deps/**'
+  - '!node_modules/**/*.{c,cc,cpp,h,hpp,gyp,gypi,a,pdb}'
+  # 本地 TTS 统一由 afterPack 复制到 Resources/sherpa-tts，避免重复打包。
+  - '!node_modules/sherpa-onnx*/**/*'
 # workspace 使用 hoisted node_modules，打包前端口未必包含根目录直接依赖。
 # afterPack 按目标架构把 sherpa JS 包与对应原生运行时复制到 Resources/sherpa-tts。
 afterPack: scripts/after-pack.cjs
@@ -25,6 +36,7 @@ afterPack: scripts/after-pack.cjs
 asarUnpack:
   - '**/node_modules/better-sqlite3/**'
 mac:
+  icon: build/icon.icns
   category: public.app.category.developer-tools
   darkModeSupport: true
   # 公证需要 Apple 账号与 CSC_* / APPLE_ID；未配置时只出未签名内测包
@@ -36,10 +48,13 @@ mac:
         - arm64
         - x64
 win:
+  icon: build/icon.ico
   # 代码签名需要 CSC_LINK / CSC_KEY_PASSWORD；未配置时仍可打内测 NSIS 包
   target:
     - target: nsis
 linux:
+  executableName: agentcue
+  icon: src/renderer/assets/brand/app-icon.png
   # AppImage 默认不签名；发行渠道需要时自行配置 GPG
   target:
     - target: AppImage

@@ -18,4 +18,3 @@ eventMapping:
   failed: { match: "result", ok: false }
 heartbeat: { intervalSec: 30, probe: "file_mtime" }
 mcp: { clientConfigFormat: "claude-code" }
-# extractor: ./extract.ts             # 复杂解析走 TS 提取器（M1 接入）

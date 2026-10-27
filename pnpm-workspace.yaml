@@ -1,3 +1,8 @@
 packages:
   - 'packages/*'
   - 'apps/*'
+
+# pnpm 10 首次安装需显式允许原生依赖的构建脚本。
+onlyBuiltDependencies:
+  - better-sqlite3
+  - electron

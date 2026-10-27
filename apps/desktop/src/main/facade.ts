@@ -20,6 +20,7 @@ import {
   type BoardPage,
   type BoardQuery,
   type BoardResponse,
+  type OfficeSnapshot,
   type Settings,
   type TaskState,
 } from '@awm/schema';
@@ -153,6 +154,36 @@ export class DesktopFacade implements EngineFacade {
         host: manifest?.detect.extensions?.[0]?.host,
       };
     });
+  }
+
+  /** @description: 完整统计每个工位，分组限量取任务预览，避免近期历史挤掉活跃任务。 */
+  async getOffice(): Promise<OfficeSnapshot> {
+    const db = this.engine.database;
+    const groups: TaskState[][] = [
+      ['waiting_human'],
+      ['running'],
+      ['failed', 'timeout'],
+      ['completed', 'cancelled', 'idle'],
+    ];
+    return {
+      workstations: listTools(db).map((tool) => ({
+        toolId: tool.toolId,
+        counts: Object.fromEntries(
+          TASK_STATES.map((state) => [state, countSessions(db, { toolId: tool.toolId, state })]),
+        ) as Record<TaskState, number>,
+        tasks: groups.flatMap((states) =>
+          listSessions(db, { toolId: tool.toolId, states, limit: 4 }),
+        ).map((row) => ({
+          kind: 'session' as const,
+          sessionId: row.sessionId,
+          toolId: row.toolId,
+          title: row.title,
+          currentState: row.currentState as TaskState,
+          updatedAt: row.updatedAt,
+        })),
+      })),
+      generatedAt: new Date().toISOString(),
+    };
   }
 
   /** @description: 按列查询和聚合，历史快照不写入 sessions 或状态机。 */
@@ -458,10 +489,11 @@ export class DesktopFacade implements EngineFacade {
   /**
    * 列出通知中心记录。
    * @param limit 条数
+   * @param offset 跳过条数，供「加载更多」翻页
    * @returns 通知列表
    */
-  async listNotifications(limit = 100): Promise<NotificationRow[]> {
-    return listNotifications(this.engine.database, limit);
+  async listNotifications(limit = 100, offset = 0): Promise<NotificationRow[]> {
+    return listNotifications(this.engine.database, limit, offset);
   }
 
   /**

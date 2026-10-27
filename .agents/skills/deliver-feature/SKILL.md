@@ -15,7 +15,7 @@ description: >-
 
 ## 步骤
 
-1. 核对仓库根为 `ai-workflow-monitor`。读 [AGENTS.md](../../../AGENTS.md) 与相关规则，不全量预加载。
+1. 确认仓库根包含项目 `package.json` 和 Git 元数据；目录可叫 `AgentCue` 或 `ai-workflow-monitor`。读 [AGENTS.md](../../../AGENTS.md) 与相关规则，不全量预加载。
 2. 用源码核对当前行为，区分证据与假设。产品文档 RTM 仍写「待开发」，以源码和 [README.md](../../../README.md) 已交付表为准，缺口见 [architecture.md](../../knowledge/architecture.md) 的待确认。
 3. 选最小方案：复用现有 DAO、FSM、`TRANSITION_TABLE`、控制 API。不引入新运行时依赖，除非已有 ADR。
 4. 按包边界改代码。涉及适配器时走 [add-adapter](../add-adapter/SKILL.md)。涉及渲染层时遵守 [renderer-native.md](../../rules/renderer-native.md)。

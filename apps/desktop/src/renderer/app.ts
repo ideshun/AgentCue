@@ -2,6 +2,7 @@
 const state: AppState = {
   route: 'overview',
   overview: null,
+  office: null,
   sessions: [],
   board: null,
   boardQuery: { q: '', toolId: '' },
@@ -10,12 +11,12 @@ const state: AppState = {
   settings: null,
   rules: [],
   notifications: [],
+  noticeHasMore: false,
   boardLoading: false,
   noticeLevelFilter: '',
   mcpSnippets: [],
   mcpServers: [],
   hookIntegrations: [],
-  selectedMcpId: '',
   externalTransport: 'stdio',
   nativeVoices: null,
   nativeVoicesLoading: false,
@@ -33,6 +34,7 @@ let loadSequence = 0;
 type RefreshKey =
   | 'board'
   | 'overview'
+  | 'office'
   | 'tools'
   | 'adapters'
   | 'notifications'
@@ -44,6 +46,7 @@ type RefreshKey =
 const refreshTtl: Record<RefreshKey, number> = {
   board: 30_000,
   overview: 30_000,
+  office: 30_000,
   notifications: 30_000,
   tools: 60_000,
   settings: 60_000,
@@ -85,15 +88,22 @@ interface ControlDraft {
 const drafts = new Map<RouteName, Map<string, ControlDraft>>();
 const ROUTE_META: Record<RouteName, { title: string; subtitle: string }> = {
   overview: { title: '总览', subtitle: '任务、工具与提醒，尽在本机。' },
+  office: { title: '办公室', subtitle: '在每一个工位，看见工作的进展。' },
   board: { title: '任务看板', subtitle: '从需要介入，到完成归档。' },
   notifications: { title: '通知中心', subtitle: '需要你关注的每一条进展。' },
+  integrations: { title: '播报接入', subtitle: '按工具配置 Hooks 与 MCP，接收任务进展。' },
   adapters: { title: '工具与扩展', subtitle: '看清安装状态，也看清监控能力。' },
   settings: { title: '设置', subtitle: '按你的节奏，安排监控与提醒。' },
 };
 
 function currentRoute(): RouteName {
   const raw = window.location.hash.replace(/^#\/?/, '');
-  return raw === 'board' || raw === 'adapters' || raw === 'settings' || raw === 'notifications'
+  return raw === 'board' ||
+    raw === 'office' ||
+    raw === 'integrations' ||
+    raw === 'adapters' ||
+    raw === 'settings' ||
+    raw === 'notifications'
     ? raw
     : 'overview';
 }
@@ -196,20 +206,26 @@ function render(force = false): void {
   const content =
     state.route === 'overview'
       ? renderOverview(state)
-      : state.route === 'board'
-        ? renderBoard(state)
-        : state.route === 'adapters'
-          ? renderAdapters(state)
-          : state.route === 'notifications'
-            ? renderNotifications(state)
-            : renderSettings(
-                state,
-                routeDrafts('settings').get('setting-voice-voiceProfile')?.value ??
-                  workingSettings()?.voice.voiceProfile,
-                workingSettings(),
-                previewRules(),
-              );
+      : state.route === 'office'
+        ? renderOffice(state)
+        : state.route === 'board'
+          ? renderBoard(state)
+          : state.route === 'adapters'
+            ? renderAdapters(state)
+            : state.route === 'integrations'
+              ? renderIntegrations(state)
+              : state.route === 'notifications'
+                ? renderNotifications(state)
+                : renderSettings(
+                    state,
+                    routeDrafts('settings').get('setting-voice-voiceProfile')?.value ??
+                      workingSettings()?.voice.voiceProfile,
+                    workingSettings(),
+                    previewRules(),
+                  );
   const template = document.createElement('template');
+  // 标记当前路由：设置页据此去掉画布顶部留白，吸顶导航紧贴页头上沿
+  view.dataset.route = state.route;
   template.innerHTML = `<div class="view-feedback" data-region="view-feedback">${state.error ? `<div class="inline-error" role="alert">${esc(state.error)}</div>` : ''}</div>${content}`;
   const incoming = Array.from(template.content.querySelectorAll<HTMLElement>('[data-region]'));
   const existing = Array.from(view.querySelectorAll<HTMLElement>('[data-region]'));
@@ -223,7 +239,10 @@ function render(force = false): void {
   } else {
     for (const node of incoming) {
       const old = existing.find((candidate) => candidate.dataset.region === node.dataset.region);
-      if (!old || old.innerHTML === node.innerHTML) continue;
+      if (!old) continue;
+      // 动效开关等纯类名状态不一定改变内容，也需要同步。
+      old.className = node.className;
+      if (old.innerHTML === node.innerHTML) continue;
       if (
         !force &&
         active &&
@@ -234,16 +253,20 @@ function render(force = false): void {
       )
         continue;
       old.innerHTML = node.innerHTML;
-      old.className = node.className;
     }
   }
   renderedRoute = state.route;
   restoreDisclosures(view);
   restoreDrafts();
   if (samePage) {
-    view.scrollTop = scrollTop;
-    for (const node of view.querySelectorAll<HTMLElement>('[data-scroll-key]'))
-      node.scrollTop = columnScroll.get(node.dataset.scrollKey) ?? node.scrollTop;
+    // 相同值的 scrollTop 赋值也会中断进行中的平滑滚动：点击分区导航后 focusout
+    // 触发的 0ms 重绘会把 scrollTo({behavior:'smooth'}) 吞掉，表现为要点两次。
+    // 因此仅在确实偏移（内容重建导致布局变化）时才恢复滚动位置。
+    if (view.scrollTop !== scrollTop) view.scrollTop = scrollTop;
+    for (const node of view.querySelectorAll<HTMLElement>('[data-scroll-key]')) {
+      const restore = columnScroll.get(node.dataset.scrollKey);
+      if (restore !== undefined && node.scrollTop !== restore) node.scrollTop = restore;
+    }
     if (activeId && !active?.isConnected) {
       const replacement = document.getElementById(activeId);
       replacement?.focus({ preventScroll: true });
@@ -256,6 +279,7 @@ function render(force = false): void {
   } else view.scrollTop = 0;
   renderChrome();
   applyPending();
+  if (state.route === 'office') positionOfficePopover();
 }
 
 let settingsSectionId = '';
@@ -418,6 +442,14 @@ function boardUrl(group?: BoardGroupId, cursor?: string, limit?: number): string
   return `/api/v1/board?${params}`;
 }
 
+/** 通知刷新取「当前已加载数量」为上限（100–500）：后台刷新不把已展开的更早记录截断。 */
+function noticeRequestLimit(): number {
+  return Math.min(Math.max(state.notifications.length, 100), 500);
+}
+function notificationsUrl(): string {
+  return `/api/v1/notifications?limit=${noticeRequestLimit()}`;
+}
+
 /** @description: 从新游标重读已展开的各列，移除已迁移/归档的记录，保留加载深度。 */
 async function refreshBoard(
   sequence: number,
@@ -542,6 +574,16 @@ async function refresh(background = false): Promise<void> {
           state.overview = value;
         });
     }
+    if (route === 'office') {
+      add<OfficeSnapshot>('office', '/api/v1/office', (value) => {
+        state.office = value;
+        state.sessions = value.workstations.flatMap((item) => item.tasks)
+          .filter((item): item is BoardItem & { currentState: TaskState } => item.currentState !== null)
+          .map((item) => ({ sessionId: item.sessionId, toolId: item.toolId, title: item.title,
+            currentState: item.currentState, updatedAt: item.updatedAt }));
+      });
+      add<ToolSummary[]>('tools', '/api/v1/tools', (value) => { state.tools = value; });
+    }
     if (route === 'adapters') {
       add<AdapterManifest[]>('adapters', '/api/v1/adapters', (value) => {
         state.adapters = value;
@@ -554,8 +596,10 @@ async function refresh(background = false): Promise<void> {
       add<ToolSummary[]>('tools', '/api/v1/tools', (value) => {
         state.tools = value;
       });
-    add<NotificationItem[]>('notifications', '/api/v1/notifications', (value) => {
+    add<NotificationItem[]>('notifications', notificationsUrl(), (value) => {
       state.notifications = value;
+      // 拉满请求条数视为还有更早记录；不足则已到底。
+      state.noticeHasMore = value.length >= noticeRequestLimit();
     });
     add<Settings>('settings', '/api/v1/settings', (value) => {
       // 设置页可能有未保存的预览：服务端的新值作为基准，未保存字段覆盖回去。
@@ -572,11 +616,13 @@ async function refresh(background = false): Promise<void> {
       add<VoiceRule[]>('rules', '/api/v1/voice/rules', (value) => {
         state.rules = value;
       });
-      add<McpSnippet[]>('snippets', '/api/v1/mcp/snippets', (value) => {
-        state.mcpSnippets = value;
-      });
       add<McpServerItem[]>('servers', '/api/v1/mcp/servers', (value) => {
         state.mcpServers = value;
+      });
+    }
+    if (route === 'integrations') {
+      add<McpSnippet[]>('snippets', '/api/v1/mcp/snippets', (value) => {
+        state.mcpSnippets = value;
       });
       add<HookIntegration[]>('hooks', '/api/v1/integrations/hooks', (value) => {
         state.hookIntegrations = value;
@@ -592,6 +638,7 @@ async function refresh(background = false): Promise<void> {
         delete state.sectionErrors[request.key];
       } else state.sectionErrors[request.key] = errorMessage(result.reason);
     });
+    if (route === 'office') syncOfficeSelection(state);
     state.boardLoading = false;
     render();
   } finally {
@@ -1243,6 +1290,13 @@ async function copyHookFile(integrationId: string, filePath: string): Promise<vo
   await navigator.clipboard.writeText(file.content);
 }
 
+/** @description: Copy the selected tool's original config, independent of rendered markup. */
+async function copyMcpSnippet(toolId: string): Promise<void> {
+  const snippet = state.mcpSnippets.find((item) => item.id === toolId);
+  if (!snippet) throw new Error('MCP 配置已更新，请刷新后重新复制');
+  await navigator.clipboard.writeText(snippet.json);
+}
+
 /** @description: Every async user action has pending state and a visible failure. */
 async function perform(key: string, selector: string, action: () => Promise<void>): Promise<void> {
   if (pendingActions.has(key)) return;
@@ -1289,7 +1343,7 @@ async function updateTask(button: HTMLElement): Promise<void> {
   if (!id || !event) return;
   await perform(`task:${id}`, `[data-task-id="${CSS.escape(id)}"]`, async () => {
     await Api.post(`/api/v1/tasks/${encodeURIComponent(id)}/state`, { event });
-    toast('AWM 记录已更新');
+    toast('AgentCue 记录已更新');
     closeDrawer();
     await refresh();
   });
@@ -1299,14 +1353,43 @@ async function updateTask(button: HTMLElement): Promise<void> {
 function bindEvents(): void {
   qs<HTMLElement>('#nav').addEventListener('click', (event) => {
     const button = (event.target as HTMLElement).closest<HTMLElement>('[data-route]');
-    const route = button?.dataset.route;
+    const route = button?.dataset.route as RouteName | undefined;
     if (!route) return;
-    // 离开设置页且有未保存修改时先确认；设置页内的分区跳转不经过这里。
-    if (state.route === 'settings' && route !== 'settings' && hasPendingChanges()) {
-      void requestLeaveSettings(`#/${route}`);
+    navigateTo(route);
+  });
+  // 键盘快捷键：Cmd/Ctrl+1..6 切页，/ 聚焦看板搜索；弹层打开或正在输入时不生效。
+  document.addEventListener('keydown', (event) => {
+    if (!qs<HTMLElement>('#confirm').hidden || !qs<HTMLElement>('#drawer').hidden) return;
+    const active = document.activeElement;
+    const typing =
+      active instanceof HTMLInputElement ||
+      active instanceof HTMLTextAreaElement ||
+      active instanceof HTMLSelectElement;
+    const key = event.key;
+    if ((event.metaKey || event.ctrlKey) && !event.altKey && key >= '1' && key <= '6') {
+      const routes: RouteName[] = [
+        'overview',
+        'board',
+        'notifications',
+        'integrations',
+        'adapters',
+        'settings',
+      ];
+      const target = routes[Number(key) - 1];
+      if (!target || target === state.route) return;
+      event.preventDefault();
+      navigateTo(target);
       return;
     }
-    window.location.hash = `#/${route}`;
+    if (key === '/' && !event.metaKey && !event.ctrlKey && !event.altKey && !typing) {
+      event.preventDefault();
+      if (state.route !== 'board') navigateTo('board');
+      // 路由切换经 hashchange 异步渲染，稍候聚焦；已在看板则立即聚焦。
+      window.setTimeout(() => {
+        const input = document.getElementById('board-search');
+        if (input instanceof HTMLInputElement) input.focus();
+      }, state.route === 'board' ? 0 : 150);
+    }
   });
   qs<HTMLElement>('#btn-refresh').addEventListener('click', () => {
     state.error = null;
@@ -1332,8 +1415,70 @@ function bindEvents(): void {
       }),
   );
   const view = qs<HTMLElement>('#view');
+  bindOfficeInteractions(view);
   view.addEventListener('click', (event) => {
     const target = event.target as HTMLElement;
+    const dismiss = target.closest<HTMLElement>('[data-office-dismiss]');
+    if (dismiss?.dataset.officeDismiss) {
+      dismissOfficeMessage(dismiss.dataset.officeDismiss, event.detail === 0);
+      return;
+    }
+    if (target.closest('[data-office-close]')) {
+      closeOfficePopover();
+      return;
+    }
+    const employee = target.closest<HTMLElement>('[data-office-select]');
+    if (employee?.dataset.officeSelect) {
+      const toolId = employee.dataset.officeSelect;
+      if (officeUi.openToolId === toolId) {
+        closeOfficePopover();
+        return;
+      }
+      officeUi.selectedToolId = toolId;
+      officeUi.openToolId = toolId;
+      officeUi.suppressedToolId = '';
+      const selected = officeEmployees(state).find((item) => item.tool.toolId === officeUi.selectedToolId);
+      officeUi.tab = officeDefaultTab(selected);
+      render(true);
+      document.getElementById('office-close')?.focus({ preventScroll: true });
+      return;
+    }
+    const officeFilter = target.closest<HTMLElement>('[data-office-filter]');
+    if (officeFilter && ['all', 'working', 'attention'].includes(officeFilter.dataset.officeFilter ?? '')) {
+      officeUi.filter = officeFilter.dataset.officeFilter as OfficeFilter;
+      syncOfficeSelection(state, true);
+      render(true);
+      return;
+    }
+    const officeTab = target.closest<HTMLElement>('[data-office-tab]');
+    if (officeTab && ['active', 'issues', 'ended'].includes(officeTab.dataset.officeTab ?? '')) {
+      officeUi.tab = officeTab.dataset.officeTab as OfficeTaskTab;
+      render(true);
+      return;
+    }
+    if (target.closest('[data-office-reset]')) {
+      officeUi.filter = 'all';
+      officeUi.query = '';
+      syncOfficeSelection(state, true);
+      routeDrafts('office').delete('office-search');
+      render(true);
+      document.getElementById('office-search')?.focus({ preventScroll: true });
+      return;
+    }
+    if (target.closest('[data-office-motion]')) {
+      officeUi.motion = !officeUi.motion;
+      render(true);
+      return;
+    }
+    const officeBoard = target.closest<HTMLElement>('[data-office-board]');
+    if (officeBoard?.dataset.officeBoard) {
+      state.boardQuery = { q: '', toolId: officeBoard.dataset.officeBoard };
+      state.board = null;
+      routeDrafts('board').delete('board-search');
+      routeDrafts('board').delete('board-tool');
+      navigateTo('board');
+      return;
+    }
     const task = target.closest<HTMLElement>('[data-task-event]');
     if (task) {
       void updateTask(task);
@@ -1542,9 +1687,7 @@ function bindEvents(): void {
         await window.awm?.scanNow();
         await refresh();
       } else if (action === 'copy-mcp') {
-        await navigator.clipboard.writeText(
-          document.getElementById('mcp-snippet-json')?.textContent ?? '',
-        );
+        await copyMcpSnippet(actionNode?.dataset.mcpId ?? '');
         toast('已复制 MCP 配置');
       } else if (action === 'validate-mcp') {
         state.mcpValidation = await Api.post<McpValidation>('/api/v1/mcp/validate');
@@ -1574,6 +1717,32 @@ function bindEvents(): void {
       } else if (action === 'mark-all-read') {
         await Api.post('/api/v1/notifications/read', {});
         await refresh();
+      } else if (action === 'load-notices') {
+        // 向后翻一页更早的通知：按 id 去重后追加；不足一页说明已到底。
+        const page = 50;
+        const more = await Api.get<NotificationItem[]>(
+          `/api/v1/notifications?limit=${page}&offset=${state.notifications.length}`,
+        );
+        const known = new Set(state.notifications.map((item) => item.notificationId));
+        const appended = more.filter((item) => !known.has(item.notificationId));
+        state.notifications = [...state.notifications, ...appended];
+        state.noticeHasMore = more.length >= page;
+        render(true);
+      } else if (action === 'export-events') {
+        // 主进程带 Content-Disposition；这里用带鉴权的 fetch 转 blob 下载。
+        if (!Api.config) throw new Error('控制 API 尚未初始化');
+        const response = await fetch(Api.url('/api/v1/events?download=1'), {
+          headers: { Authorization: `Bearer ${Api.config.token}` },
+          signal: AbortSignal.timeout(20_000),
+        });
+        if (!response.ok) throw new Error(`导出失败（HTTP ${response.status}）`);
+        const url = URL.createObjectURL(await response.blob());
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = 'awm-events.json';
+        anchor.click();
+        URL.revokeObjectURL(url);
+        toast('事件已导出为 JSON');
       } else if (action === 'clear-board') {
         state.boardQuery = { q: '', toolId: '' };
         routeDrafts('board').delete('board-search');
@@ -1602,6 +1771,12 @@ function bindEvents(): void {
     if (control.dataset.setting === 'voice.rate') {
       const label = document.getElementById('rate-value');
       if (label) label.textContent = `${Number(control.value).toFixed(1)}×`;
+    }
+    if (control.id === 'office-search') {
+      officeUi.query = control.value;
+      syncOfficeSelection(state);
+      render();
+      return;
     }
     if (control.id === 'board-search') {
       state.boardQuery.q = control.value;
@@ -1632,11 +1807,6 @@ function bindEvents(): void {
     if (control.id === 'notice-level-filter') {
       state.noticeLevelFilter =
         control.value === 'attention' || control.value === 'info' ? control.value : '';
-      render(true);
-      return;
-    }
-    if (control.id === 'mcp-snippet-select') {
-      state.selectedMcpId = control.value;
       render(true);
       return;
     }
@@ -1772,9 +1942,52 @@ function bindEvents(): void {
   });
 }
 
+/** 统一的路由跳转：离开设置页且有未保存修改时先确认。 */
+function navigateTo(route: RouteName): void {
+  if (state.route === 'settings' && route !== 'settings' && hasPendingChanges()) {
+    void requestLeaveSettings(`#/${route}`);
+    return;
+  }
+  window.location.hash = `#/${route}`;
+}
+
 function connectStream(): void {
+  void openStream();
+}
+
+/** SSE 断开后的退避时长；连接成功后归零。 */
+let streamBackoffMs = 0;
+let streamRetryTimer: number | null = null;
+
+function scheduleStreamRetry(): void {
+  if (streamRetryTimer !== null) return;
+  streamBackoffMs = streamBackoffMs ? Math.min(streamBackoffMs * 2, 15_000) : 500;
+  streamRetryTimer = window.setTimeout(() => {
+    streamRetryTimer = null;
+    void openStream();
+  }, streamBackoffMs);
+}
+
+/**
+ * @description: 连接票据是一次性的：先换票再建 EventSource；断开后必须换新票重建，
+ * EventSource 自带重连会拿已消耗的旧票得到 401。
+ */
+async function openStream(): Promise<void> {
   stream?.close();
-  stream = Api.stream((type, data) => {
+  stream = null;
+  if (streamRetryTimer !== null) {
+    window.clearTimeout(streamRetryTimer);
+    streamRetryTimer = null;
+  }
+  let ticket: string;
+  try {
+    ticket = await Api.createStreamTicket();
+  } catch {
+    qs<HTMLElement>('#runtime-hint').textContent = '实时连接暂时中断 · 正在自动重连';
+    scheduleStreamRetry();
+    return;
+  }
+  stream = Api.stream(ticket, (type, data) => {
     if (type === 'notify') {
       const notice = data as { title?: string; body?: string };
       toast(`${notice.title ?? '通知'}：${notice.body ?? ''}`);
@@ -1790,18 +2003,27 @@ function connectStream(): void {
       }
       return;
     }
-    if (type === 'state.transition' || type === 'board.updated')
-      invalidateResources('board', 'overview');
+    if (type === 'state.transition') {
+      invalidateResources('board', 'overview', 'hooks', 'office');
+      if (state.route === 'office') invalidateResources('tools');
+    }
+    else if (type === 'board.updated') invalidateResources('board', 'overview', 'office');
     else if (type === 'notify') invalidateResources('notifications');
-    else if (type === 'settings.changed') invalidateResources('settings', 'rules');
+    else if (type === 'settings.changed') invalidateResources('settings', 'rules', 'office');
     else if (type === 'tools.updated' || type === 'scan.completed')
-      invalidateResources('tools', 'board', 'overview', 'hooks');
+      invalidateResources('tools', 'board', 'overview', 'hooks', 'office');
     scheduleRefresh();
   });
-  stream.onerror = () => {
-    qs<HTMLElement>('#runtime-hint').textContent = '实时连接暂时中断 · 正在自动重连';
+  stream.onopen = () => {
+    streamBackoffMs = 0;
+    renderChrome();
   };
-  stream.onopen = () => renderChrome();
+  stream.onerror = () => {
+    stream?.close();
+    stream = null;
+    qs<HTMLElement>('#runtime-hint').textContent = '实时连接暂时中断 · 正在自动重连';
+    scheduleStreamRetry();
+  };
 }
 async function main(): Promise<void> {
   // macOS 用隐藏式标题栏：标记平台，让侧栏顶部给红绿灯让出高度。

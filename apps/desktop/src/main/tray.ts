@@ -5,10 +5,8 @@
  * Windows/Linux 无 setTitle，改为在菜单首行文字里体现。
  */
 import { Menu, Tray, nativeImage, type MenuItemConstructorOptions } from 'electron';
-
-/** 1x1 透明 PNG 占位图标，避免无图标导致 Tray 构造失败 */
-const PLACEHOLDER_ICON_DATA_URL =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==';
+import { APP_DISPLAY_NAME } from '@awm/core';
+import { TRAY_ICON_PATH } from './branding';
 
 /** 托盘动作 */
 export interface TrayActions {
@@ -51,9 +49,9 @@ export interface TrayHandle {
  * @returns 托盘句柄
  */
 export function createTray(actions: TrayActions): TrayHandle {
-  const icon = nativeImage.createFromDataURL(PLACEHOLDER_ICON_DATA_URL);
+  const icon = nativeImage.createFromPath(TRAY_ICON_PATH);
   const tray = new Tray(icon);
-  tray.setToolTip('AI Workflow Monitor · AI 工作流监控');
+  tray.setToolTip(APP_DISPLAY_NAME);
 
   /**
    * 按状态重建菜单。
@@ -68,7 +66,7 @@ export function createTray(actions: TrayActions): TrayHandle {
           : '暂无进行中的任务';
 
     const template: MenuItemConstructorOptions[] = [
-      { label: 'AI Workflow Monitor', enabled: false },
+      { label: APP_DISPLAY_NAME, enabled: false },
       { label: statusLine, enabled: false },
       { type: 'separator' },
       { label: '打开主窗口', accelerator: 'CmdOrCtrl+O', click: actions.onOpen },

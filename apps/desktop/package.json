@@ -2,8 +2,14 @@
   "name": "@awm/desktop",
   "version": "0.1.0",
   "private": true,
-  "productName": "AI Workflow Monitor",
-  "description": "Electron 桌面壳：主进程、托盘、渲染层宿主",
+  "productName": "AgentCue",
+  "description": "AgentCue — Local-first AI coding task monitoring and voice alerts",
+  "author": "ideshun",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ideshun/AgentCue.git"
+  },
   "main": "dist/main/entry.js",
   "scripts": {
     "build": "pnpm --filter @awm/mcp-stdio run build && tsc -p tsconfig.json && tsc -p tsconfig.renderer.json && node scripts/copy-assets.mjs",

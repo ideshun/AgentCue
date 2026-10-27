@@ -34,6 +34,7 @@ import {
 import type {
   AdapterManifest,
   BoardItem,
+  SourceCheckpoint,
   StandardEvent,
   Settings,
   SourceTaskContext,
@@ -46,6 +47,7 @@ export const WAITING_TIMEOUT_MS = 30 * 60_000;
 const FIRST_SCAN_WINDOW_MS = 6 * 60 * 60_000;
 const MAX_SESSION_FILES = 500;
 const READ_BUDGET = 4 * 1024 * 1024;
+const MAX_RECORD_BYTES = 32 * 1024 * 1024;
 const MAX_INDEX_SIZE = 16 * 1024 * 1024;
 const TITLE_READ_BUDGET = 512 * 1024;
 
@@ -68,6 +70,15 @@ export interface MonitorServiceDeps {
 interface Observation {
   mtimeMs: number;
   size: number;
+}
+/** 来源文件头部检查的缓存结构（sourceTitles 的值类型）。 */
+interface SourceTitleInspection {
+  identity: string;
+  title: string | null;
+  context: SourceTaskContext;
+  titles: Array<{ sessionId: string; title: string | null }>;
+  contextOffset: number | null;
+  repaired: boolean;
 }
 interface TrackedFile {
   file: string;
@@ -100,6 +111,62 @@ async function fingerprint(
   return digest(Buffer.concat([head, tail]));
 }
 
+/** @description: 普通批次限 4MB；首条记录跨块时按需扩读，半行与撤销不推进消费位置。 */
+async function readCompleteRecords(
+  handle: FileHandle,
+  offset: number,
+  end: number,
+  canRead: () => boolean,
+): Promise<Buffer | null> {
+  const chunks: Buffer[] = [];
+  let position = offset;
+  let total = 0;
+  while (position < end && total < MAX_RECORD_BYTES) {
+    if (!canRead()) return null;
+    const bytes = Buffer.alloc(Math.min(READ_BUDGET, end - position, MAX_RECORD_BYTES - total));
+    const { bytesRead } = await handle.read(bytes, 0, bytes.length, position);
+    if (!canRead() || bytesRead === 0) return null;
+    const chunk = bytes.subarray(0, bytesRead);
+    const newline = chunk.lastIndexOf(0x0a);
+    if (newline >= 0)
+      return Buffer.concat([...chunks, chunk.subarray(0, newline + 1)], total + newline + 1);
+    chunks.push(chunk);
+    position += bytesRead;
+    total += bytesRead;
+  }
+  if (position < end) throw new Error('单条会话记录超过 32MB 读取上限');
+  return null;
+}
+
+/**
+ * 段二·标题裁决：结合头部检查与上次检查点，得出当前标题与任务上下文。
+ */
+function resolveHeadTitle(
+  inspected: SourceTitleInspection,
+  previous: SourceCheckpoint | undefined,
+  reset: boolean,
+  offset: number,
+  sessionId: string,
+): { title: string | null; context: SourceTaskContext | null | undefined } {
+  let title = inspected.title;
+  let context: SourceTaskContext | null | undefined =
+    !reset && previous
+      ? inspected.contextOffset === offset
+        ? inspected.context
+        : previous.context
+      : undefined;
+  if (inspected.context.excluded !== undefined)
+    context = inspected.context.excluded ? { excluded: true } : { ...context, excluded: false };
+  if (context?.excluded) title = null;
+  else if (context?.taskId) {
+    const canonical = inspected.titles.find(
+      (item) => item.sessionId === `${sessionId}:turn:${context?.taskId}`,
+    );
+    if (canonical?.title) context = { ...context, title: canonical.title };
+  }
+  return { title, context };
+}
+
 export class MonitorService {
   private readonly registry = new AdapterRegistry();
   private readonly heartbeat = new HeartbeatMonitor();
@@ -108,18 +175,10 @@ export class MonitorService {
   private readonly metadata = new Map<string, BoardItem[]>();
   private readonly indexCache = new Map<string, { observation: Observation; items: BoardItem[] }>();
   private readonly sourceIssues = new Map<string, string>();
-  private readonly sourceTitles = new Map<
-    string,
-    {
-      identity: string;
-      title: string | null;
-      context: SourceTaskContext;
-      titles: Array<{ sessionId: string; title: string | null }>;
-      contextOffset: number | null;
-      repaired: boolean;
-    }
-  >();
+  private readonly sourceTitles = new Map<string, SourceTitleInspection>();
   private titleRevision = 0;
+  /** 来源元数据/问题的变更修订号：每 5 秒的采集用它判断要不要广播，替代全量序列化对比。 */
+  private sourceRevision = 0;
   private readonly adapterErrors: Array<{ file: string; message: string }> = [];
   private readonly deps: MonitorServiceDeps;
   private readonly orchestrator: ScanOrchestrator;
@@ -173,6 +232,16 @@ export class MonitorService {
   }
   sourceReason(toolId: string): string | undefined {
     return this.sourceIssues.get(toolId);
+  }
+  /** @description: 只有值真正变化才记修订，避免每轮采集都触发广播。 */
+  private setIssue(toolId: string, reason: string): void {
+    if (this.sourceIssues.get(toolId) !== reason) {
+      this.sourceIssues.set(toolId, reason);
+      this.sourceRevision += 1;
+    }
+  }
+  private clearIssue(toolId: string): void {
+    if (this.sourceIssues.delete(toolId)) this.sourceRevision += 1;
   }
   private allowed(toolId: string): boolean {
     const settings = this.deps.getSettings();
@@ -272,14 +341,16 @@ export class MonitorService {
   private async runCapture(): Promise<number> {
     const generation = this.generation;
     const titleRevision = this.titleRevision;
-    const before = JSON.stringify({ metadata: [...this.metadata], issues: [...this.sourceIssues] });
+    const revisionBefore = this.sourceRevision;
     let count = 0;
+    /** 本轮仍然存在（被发现或仍被心跳跟踪）的来源文件；之外的观察缓存随后收缩。 */
+    const liveFiles = new Set<string>();
     const knownTools = new Set(listTools(this.deps.db).map((item) => item.toolId));
     for (const manifest of this.registry.list()) {
       if (!this.allowed(manifest.id) || generation !== this.generation) continue;
       const capability = sessionCapability(manifest);
       if (capability === 'detect-only') continue;
-      this.sourceIssues.delete(manifest.id);
+      this.clearIssue(manifest.id);
       try {
         if (capability === 'metadata' && manifest.sessionSource.type === 'json-index') {
           await this.readIndexes(manifest, generation);
@@ -296,6 +367,7 @@ export class MonitorService {
         );
         for (const tracked of this.sessionFiles.values())
           if (tracked.toolId === manifest.id) files.add(tracked.file);
+        for (const file of files) liveFiles.add(file);
         for (const file of files) {
           if (!this.allowed(manifest.id) || generation !== this.generation) break;
           if (!knownTools.has(manifest.id)) {
@@ -310,18 +382,19 @@ export class MonitorService {
           try {
             count += await this.readEvents(manifest, file, generation);
           } catch {
-            this.sourceIssues.set(manifest.id, '会话来源暂不可读或超过读取预算；下轮将重试');
+            this.setIssue(manifest.id, '会话来源暂不可读或超过读取预算；下轮将重试');
           }
         }
       } catch {
-        this.sourceIssues.set(manifest.id, '来源读取失败；下轮将重试');
+        this.setIssue(manifest.id, '来源读取失败；下轮将重试');
       }
     }
-    if (
-      count > 0 ||
-      titleRevision !== this.titleRevision ||
-      before !== JSON.stringify({ metadata: [...this.metadata], issues: [...this.sourceIssues] })
-    )
+    // 观察缓存随来源文件收缩：旧会话文件不再发现时释放，常驻进程不做无界增长。
+    for (const file of this.observations.keys())
+      if (!liveFiles.has(file)) this.observations.delete(file);
+    for (const file of this.sourceTitles.keys())
+      if (!liveFiles.has(file)) this.sourceTitles.delete(file);
+    if (count > 0 || titleRevision !== this.titleRevision || revisionBefore !== this.sourceRevision)
       this.deps.onCaptureComplete?.();
     return count;
   }
@@ -331,6 +404,8 @@ export class MonitorService {
     const records = new Map<string, BoardItem>();
     let supported = 0;
     let invalid = false;
+    /** 索引文件内容是否真的重读：只有重读才可能产生新的历史记录。 */
+    let reloaded = false;
     for (const index of manifest.sessionSource.indexes ?? []) {
       for (const entry of index.paths) {
         const raw = platformPath(entry);
@@ -341,16 +416,18 @@ export class MonitorService {
           if (!this.allowed(manifest.id) || generation !== this.generation) return;
           if (!info.isFile() || info.isSymbolicLink() || info.size > MAX_INDEX_SIZE) continue;
           const cached = this.indexCache.get(file);
-          const rows =
+          const cacheHit =
             cached &&
             cached.observation.mtimeMs === info.mtimeMs &&
-            cached.observation.size === info.size
-              ? cached.items
-              : parseMetadataIndex(
-                  JSON.parse(await readFile(file, 'utf8')),
-                  index.format,
-                  manifest.id,
-                );
+            cached.observation.size === info.size;
+          if (!cacheHit) reloaded = true;
+          const rows = cacheHit
+            ? cached.items
+            : parseMetadataIndex(
+                JSON.parse(await readFile(file, 'utf8')),
+                index.format,
+                manifest.id,
+              );
           if (!this.allowed(manifest.id) || generation !== this.generation) return;
           this.indexCache.set(file, {
             observation: { mtimeMs: info.mtimeMs, size: info.size },
@@ -368,8 +445,9 @@ export class MonitorService {
     }
     if (!this.allowed(manifest.id) || generation !== this.generation) return;
     this.metadata.set(manifest.id, [...records.values()]);
+    if (reloaded) this.sourceRevision += 1;
     if (!supported)
-      this.sourceIssues.set(
+      this.setIssue(
         manifest.id,
         invalid
           ? '索引不可读或格式尚不支持；未读取对话正文'
@@ -412,61 +490,27 @@ export class MonitorService {
       const project = path.basename(path.dirname(file));
       const sessionKey = path.basename(file, path.extname(file));
       const sessionId = `${manifest.id}:${project}:${sessionKey}`;
-      let inspected = this.sourceTitles.get(file);
-      if (!inspected || inspected.identity !== identity) {
-        const head = Buffer.alloc(Math.min(stat.size, TITLE_READ_BUDGET));
-        const { bytesRead } = await handle.read(head, 0, head.length, 0);
-        if (!canCommit()) return 0;
-        const end = head.subarray(0, bytesRead).lastIndexOf(0x0a) + 1;
-        const { rows } = parseJsonl(head.subarray(0, end).toString('utf8'));
-        const metadata = extractSourceBatch(rows, manifest, {
-          toolId: manifest.id,
-          project,
-          sessionKey,
-          sourcePath: file,
-        });
-        const consumedContext =
-          offset > 0 && offset <= end
-            ? extractSourceBatch(
-                parseJsonl(head.subarray(0, offset).toString('utf8')).rows,
-                manifest,
-                { toolId: manifest.id, project, sessionKey, sourcePath: file },
-              ).context
-            : {};
-        inspected = {
-          identity,
-          title: metadata.context.excluded ? null : (extractSessionTitle(rows) ?? null),
-          context: metadata.context.excluded
-            ? { excluded: true }
-            : {
-                ...consumedContext,
-                ...(metadata.context.excluded === undefined
-                  ? {}
-                  : { excluded: metadata.context.excluded }),
-              },
-          titles: metadata.titles.filter((item) => !!item.title),
-          contextOffset: offset <= end ? offset : null,
-          repaired: false,
-        };
-        if (!canCommit()) return 0;
-        this.sourceTitles.set(file, inspected);
-      }
-      let title = inspected.title;
-      let context =
-        !reset && previous
-          ? inspected.contextOffset === offset
-            ? inspected.context
-            : previous.context
-          : undefined;
-      if (inspected.context.excluded !== undefined)
-        context = inspected.context.excluded ? { excluded: true } : { ...context, excluded: false };
-      if (context?.excluded) title = null;
-      else if (context?.taskId) {
-        const canonical = inspected.titles.find(
-          (item) => item.sessionId === `${sessionId}:turn:${context?.taskId}`,
-        );
-        if (canonical?.title) context = { ...context, title: canonical.title };
-      }
+      // 段二·头部检查：标题、任务上下文与轮次标题表。
+      const inspected = await this.inspectSourceHead(
+        handle,
+        stat,
+        identity,
+        offset,
+        manifest,
+        file,
+        project,
+        sessionKey,
+        canCommit,
+      );
+      if (!inspected) return 0;
+      const { title: headTitle, context } = resolveHeadTitle(
+        inspected,
+        previous,
+        reset,
+        offset,
+        sessionId,
+      );
+      let title = headTitle;
       if (!inspected.repaired) {
         const revised =
           previous &&
@@ -510,15 +554,8 @@ export class MonitorService {
       if (context?.taskId) track(`${sessionId}:turn:${context.taskId}`);
       for (const [taskId, tracked] of this.sessionFiles) if (tracked.file === file) track(taskId);
       if (stat.size === offset) return 0;
-      const bytes = Buffer.alloc(Math.min(READ_BUDGET, stat.size - offset));
-      const { bytesRead } = await handle.read(bytes, 0, bytes.length, offset);
-      if (!canCommit()) return 0;
-      const newline = bytes.subarray(0, bytesRead).lastIndexOf(0x0a);
-      if (newline < 0) {
-        if (bytesRead === READ_BUDGET) throw new Error('记录超过读取预算');
-        return 0;
-      }
-      const consumed = bytes.subarray(0, newline + 1);
+      const consumed = await readCompleteRecords(handle, offset, stat.size, canCommit);
+      if (!consumed || !canCommit()) return 0;
       const { rows, badLineNumbers } = parseJsonl(consumed.toString('utf8'));
       if (!context?.excluded) title ??= extractSessionTitle(rows) ?? null;
       if (title) inspected.title = title;
@@ -546,30 +583,8 @@ export class MonitorService {
           );
         })
         .sort((left, right) => Date.parse(left.occurredAt) - Date.parse(right.occurredAt));
-      const batch: StandardEvent[] = [];
-      const bootstrapIds = new Set<string>();
-      const seen = new Set<string>();
-      for (const event of events) {
-        if (!seen.has(event.sessionId)) {
-          seen.add(event.sessionId);
-          if (!getSession(this.deps.db, event.sessionId) && event.eventType !== 'task.started') {
-            const eventId = `evt_${digest(`${file}:${event.sessionId}:bootstrap`)}`;
-            bootstrapIds.add(eventId);
-            batch.push({
-              ...createStandardEvent({
-                sessionId: event.sessionId,
-                toolId: manifest.id,
-                eventType: 'task.started',
-                occurredAt: event.occurredAt,
-                actor: 'tool',
-                payload: { taskTitle: event.payload.taskTitle, reason: '扫描补全起始事件' },
-              }),
-              eventId,
-            });
-          }
-        }
-        batch.push(event);
-      }
+      // 段三·批次构建：首见会话补 task.started（标记为静默引导）。
+      const { batch, bootstrapIds } = this.buildSourceBatch(events, file, manifest);
       if (!this.allowed(manifest.id) || generation !== this.generation) return 0;
       const nextOffset = offset + consumed.length;
       const titles = extracted.context.excluded
@@ -610,12 +625,106 @@ export class MonitorService {
         track(taskId);
       for (const [taskId, tracked] of this.sessionFiles) if (tracked.file === file) track(taskId);
       if (badLineNumbers.length)
-        this.sourceIssues.set(manifest.id, '已跳过格式错误的完整行；未记录行内容');
+        this.setIssue(manifest.id, '已跳过格式错误的完整行；未记录行内容');
       const newIds = new Set(processed);
       return events.filter((event) => newIds.has(event.eventId)).length;
     } finally {
       await handle.close();
     }
+  }
+
+  /**
+   * 段二·头部检查：读取来源文件头部，解析标题、任务上下文与轮次标题表并缓存。
+   * 身份（inode + 创建时间）变化时重读；结果供 readEvents 与后续增量批次复用。
+   * @returns 检查结果；读取期间资格失效（设置变化/停止）返回 null
+   */
+  private async inspectSourceHead(
+    handle: FileHandle,
+    stat: { size: number },
+    identity: string,
+    offset: number,
+    manifest: AdapterManifest,
+    file: string,
+    project: string,
+    sessionKey: string,
+    canCommit: () => boolean,
+  ): Promise<SourceTitleInspection | null> {
+    let inspected = this.sourceTitles.get(file);
+    if (inspected && inspected.identity === identity) return inspected;
+    const head = Buffer.alloc(Math.min(stat.size, TITLE_READ_BUDGET));
+    const { bytesRead } = await handle.read(head, 0, head.length, 0);
+    if (!canCommit()) return null;
+    const end = head.subarray(0, bytesRead).lastIndexOf(0x0a) + 1;
+    const { rows } = parseJsonl(head.subarray(0, end).toString('utf8'));
+    const metadata = extractSourceBatch(rows, manifest, {
+      toolId: manifest.id,
+      project,
+      sessionKey,
+      sourcePath: file,
+    });
+    const consumedContext =
+      offset > 0 && offset <= end
+        ? extractSourceBatch(parseJsonl(head.subarray(0, offset).toString('utf8')).rows, manifest, {
+            toolId: manifest.id,
+            project,
+            sessionKey,
+            sourcePath: file,
+          }).context
+        : {};
+    inspected = {
+      identity,
+      title: metadata.context.excluded ? null : (extractSessionTitle(rows) ?? null),
+      context: metadata.context.excluded
+        ? { excluded: true }
+        : {
+            ...consumedContext,
+            ...(metadata.context.excluded === undefined
+              ? {}
+              : { excluded: metadata.context.excluded }),
+          },
+      titles: metadata.titles.filter((item) => !!item.title),
+      contextOffset: offset <= end ? offset : null,
+      repaired: false,
+    };
+    if (!canCommit()) return null;
+    this.sourceTitles.set(file, inspected);
+    return inspected;
+  }
+
+  /**
+   * 段三·批次构建：为库中不存在的首见会话补一条 task.started（标记为静默引导），
+   * 其余事件按传入顺序入批。
+   */
+  private buildSourceBatch(
+    events: StandardEvent[],
+    file: string,
+    manifest: AdapterManifest,
+  ): { batch: StandardEvent[]; bootstrapIds: Set<string> } {
+    const batch: StandardEvent[] = [];
+    const bootstrapIds = new Set<string>();
+    const seen = new Set<string>();
+    for (const event of events) {
+      if (!seen.has(event.sessionId)) {
+        seen.add(event.sessionId);
+        if (!getSession(this.deps.db, event.sessionId) && event.eventType !== 'task.started') {
+          const eventId = `evt_${digest(`${file}:${event.sessionId}:bootstrap`)}`;
+          bootstrapIds.add(eventId);
+          batch.push({
+            ...createStandardEvent({
+              sessionId: event.sessionId,
+              toolId: manifest.id,
+              eventType: 'task.started',
+              occurredAt: event.occurredAt,
+              actor: 'tool',
+              payload: { taskTitle: event.payload.taskTitle, reason: '扫描补全起始事件' },
+            }),
+            eventId,
+          });
+        }
+      }
+      batch.push(event);
+    }
+    return { batch, bootstrapIds };
   }
 
   start(autoIntervalHours: number): void {
@@ -681,8 +790,10 @@ export class MonitorService {
         /* 消失的来源交由心跳判定。 */
       }
     }
+    // 心跳丢失判定的会话按 id 建索引，避免 lost 多时对全表线性扫描。
+    const sessionsById = new Map(sessions.map((item) => [item.sessionId, item]));
     for (const sessionId of this.heartbeat.collectLost()) {
-      const session = sessions.find((item) => item.sessionId === sessionId);
+      const session = sessionsById.get(sessionId);
       if (!session || !this.allowed(session.toolId)) {
         this.heartbeat.unregister(sessionId);
         continue;

@@ -1,20 +1,24 @@
 /**
  * 本地控制 API（SM-4.2、详细设计 5.5）。
  *
- * 安全基线：仅绑定 127.0.0.1；Bearer token 校验；限流 120 req/min per token；全部调用记审计。
+ * 安全基线：仅绑定 127.0.0.1；Bearer token 常量时间校验；限流 120 req/min，
+ * Hook 投递与查询/控制分桶互不挤占；全部调用记审计。
  * 实时通道用 SSE 而非 ws：Node 内置即可实现单向推送，避免引入额外依赖（见 README 工程决策）。
+ * SSE 接入用一次性票据（POST /api/v1/stream-ticket 换取），token 不出现在 URL。
  *
  * CORS：渲染层从 `file://` 加载（origin 为 null），访问 127.0.0.1 属跨域，
  * 因此必须放行 `*` 并处理 OPTIONS 预检；鉴权仍由 Bearer token 兜底。
  */
-import { randomBytes } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { mcpSnippets } from '@awm/adapters';
 import {
   boardQuerySchema,
   getTimelineInputSchema,
+  listNotificationsInputSchema,
   listSessionsInputSchema,
+  searchEventsInputSchema,
   setVoiceRuleInputSchema,
   updateTaskStateInputSchema,
 } from '@awm/schema';
@@ -33,9 +37,18 @@ import type { DesktopMcpLaunch } from './mcp-launch';
 import type { DesktopFacade } from './facade';
 import type { Engine } from './engine-host';
 
-/** 限流窗口与阈值 */
+/** 限流窗口与阈值；查询面与 Hook 投递分桶计数，互不挤占 */
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = 120;
+/** Hook 投递端点使用独立的限流桶键 */
+const HOOK_BUCKET = 'hooks';
+/** 查询/控制端点共用的限流桶键 */
+const CONTROL_BUCKET = 'control';
+
+/** SSE 一次性连接票据的有效期 */
+const STREAM_TICKET_TTL_MS = 60_000;
+/** SSE 客户端心跳间隔：半开连接靠周期写入失败被清理 */
+const SSE_HEARTBEAT_MS = 30_000;
 
 /** 试听文本上限：500 字生成+播放远超 30 秒播放超时，统一收敛到 200 字 */
 const TEST_TEXT_LIMIT = 200;
@@ -45,10 +58,23 @@ export function generateToken(): string {
   return randomBytes(32).toString('hex');
 }
 
+/**
+ * 常量时间比较 Bearer token，避免逐字节短路泄漏。
+ * @param auth Authorization 头
+ * @param token 期望 token
+ */
+function bearerMatches(auth: string, token: string): boolean {
+  const expected = Buffer.from(`Bearer ${token}`, 'utf8');
+  const actual = Buffer.from(auth, 'utf8');
+  return expected.length === actual.length && timingSafeEqual(expected, actual);
+}
+
 /** SSE 客户端 */
 interface SseClient {
   /** 响应对象 */
   res: ServerResponse;
+  /** 周期心跳定时器；断开时清理 */
+  heartbeat?: NodeJS.Timeout;
 }
 
 /** 控制 API 配置 */
@@ -161,7 +187,58 @@ function sendJson(res: ServerResponse, status: number, payload: unknown): void {
 export async function startApiServer(options: ApiServerOptions): Promise<ApiServerHandle> {
   const clients = new Set<SseClient>();
   const hits = new Map<string, { count: number; start: number }>();
+  /** 一次性 SSE 连接票据 → 过期时间；签发时顺手清扫过期项 */
+  const streamTickets = new Map<string, number>();
   const startedAt = Date.now();
+
+  /**
+   * 记一次限流计数；超限返回 false（调用方回 429）。
+   * Hook 投递与查询/控制端点分桶：多会话并行投递任务事件不会被渲染层轮询挤掉。
+   * @param bucketKey 桶键
+   */
+  const hitRateLimit = (bucketKey: string): boolean => {
+    const now = Date.now();
+    const bucket = hits.get(bucketKey);
+    if (!bucket || now - bucket.start > RATE_LIMIT_WINDOW_MS) {
+      hits.set(bucketKey, { count: 1, start: now });
+      return false;
+    }
+    if (bucket.count >= RATE_LIMIT_MAX) return true;
+    bucket.count += 1;
+    return false;
+  };
+
+  /**
+   * 签发一张一次性 SSE 连接票据。
+   * @returns 票据值
+   */
+  const issueStreamTicket = (): string => {
+    const now = Date.now();
+    for (const [ticket, expiresAt] of streamTickets)
+      if (expiresAt <= now) streamTickets.delete(ticket);
+    const ticket = randomBytes(24).toString('hex');
+    streamTickets.set(ticket, now + STREAM_TICKET_TTL_MS);
+    return ticket;
+  };
+
+  /**
+   * 消费一张票据；不存在或已过期返回 false。每张只能连一次。
+   * @param ticket 票据值
+   */
+  const consumeStreamTicket = (ticket: string | null): boolean => {
+    if (!ticket) return false;
+    const expiresAt = streamTickets.get(ticket);
+    streamTickets.delete(ticket);
+    return expiresAt !== undefined && expiresAt > Date.now();
+  };
+
+  /**
+   * 摘除一个 SSE 客户端并停掉它的心跳定时器。
+   */
+  const dropClient = (client: SseClient): void => {
+    if (client.heartbeat) clearInterval(client.heartbeat);
+    clients.delete(client);
+  };
 
   const server = createServer((req, res) => {
     void handleRequest(req, res).catch(() => {
@@ -205,12 +282,13 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
       return;
     }
 
-    // SSE 通道放行在鉴权之前建立连接，但仍校验 token 查询参数
+    // SSE 通道放行在鉴权之前建立连接，凭一次性票据接入；
+    // 票据经 POST /api/v1/stream-ticket 以 Bearer 鉴权换取，token 不再出现在 URL 里。
     if (pathname === '/api/v1/stream') {
-      if (url.searchParams.get('token') !== options.token) {
+      if (!consumeStreamTicket(url.searchParams.get('ticket'))) {
         sendJson(res, 401, {
           success: false,
-          error: { code: 'INVALID_PARAM', message: 'token 无效' },
+          error: { code: 'INVALID_PARAM', message: '连接票据无效或已使用' },
         });
         return;
       }
@@ -222,13 +300,23 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
       });
       const client: SseClient = { res };
       clients.add(client);
-      req.on('close', () => clients.delete(client));
-      res.write(`event: heartbeat\ndata: ${JSON.stringify({ ts: new Date().toISOString() })}\n\n`);
+      // 周期心跳：睡眠/网络切换产生的半开连接，靠周期写入抛错或返回 false 被清理。
+      client.heartbeat = setInterval(() => {
+        try {
+          if (!client.res.write(`event: heartbeat\ndata: ${JSON.stringify({ ts: new Date().toISOString() })}\n\n`))
+            dropClient(client);
+        } catch {
+          dropClient(client);
+        }
+      }, SSE_HEARTBEAT_MS);
+      client.heartbeat.unref();
+      client.res.write(`event: heartbeat\ndata: ${JSON.stringify({ ts: new Date().toISOString() })}\n\n`);
+      req.on('close', () => dropClient(client));
+      res.on?.('error', () => dropClient(client));
       return;
     }
 
-    const auth = req.headers.authorization ?? '';
-    if (auth !== `Bearer ${options.token}`) {
+    if (!bearerMatches(req.headers.authorization ?? '', options.token)) {
       sendJson(res, 401, {
         success: false,
         error: { code: 'INVALID_PARAM', message: '缺少或错误的 token' },
@@ -236,19 +324,13 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
       return;
     }
 
-    // 限流
-    const now = Date.now();
-    const bucket = hits.get(options.token);
-    if (!bucket || now - bucket.start > RATE_LIMIT_WINDOW_MS) {
-      hits.set(options.token, { count: 1, start: now });
-    } else if (bucket.count >= RATE_LIMIT_MAX) {
+    // 限流：Hook 投递与查询/控制分桶
+    if (hitRateLimit(pathname === '/api/v1/integrations/hooks' && method === 'POST' ? HOOK_BUCKET : CONTROL_BUCKET)) {
       sendJson(res, 429, {
         success: false,
         error: { code: 'RATE_LIMITED', message: '请求过于频繁' },
       });
       return;
-    } else {
-      bucket.count += 1;
     }
 
     try {
@@ -312,8 +394,22 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
       return;
     }
 
+    // SSE 连接票据：Bearer 鉴权换一次性票据，EventSource 不支持自定义头时的安全替代。
+    if (pathname === '/api/v1/stream-ticket' && method === 'POST') {
+      sendJson(res, 200, {
+        success: true,
+        data: { ticket: issueStreamTicket(), expiresInMs: STREAM_TICKET_TTL_MS },
+      });
+      return;
+    }
+
     if (pathname === '/api/v1/overview' && method === 'GET') {
       sendJson(res, 200, { success: true, data: await facade.getOverview() });
+      return;
+    }
+
+    if (pathname === '/api/v1/office' && method === 'GET') {
+      sendJson(res, 200, { success: true, data: await facade.getOffice() });
       return;
     }
 
@@ -370,7 +466,7 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
         event,
         mode,
         canCommit,
-        HOOK_TOOLS[tool].name,
+        HOOK_TOOLS[tool],
       );
       sendJson(res, 200, { success: true, data: result });
       return;
@@ -449,13 +545,15 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
     }
 
     if (pathname === '/api/v1/events' && method === 'GET') {
-      const records = await facade.searchEvents({
+      // limit 上限与 eventType 白名单都在 schema 内收紧，避免一次拉走全表
+      const filter = searchEventsInputSchema.parse({
         eventType: url.searchParams.get('type') ?? undefined,
         toolId: url.searchParams.get('toolId') ?? undefined,
         from: url.searchParams.get('from') ?? undefined,
         to: url.searchParams.get('to') ?? undefined,
         limit: Number(url.searchParams.get('limit') ?? 200),
       });
+      const records = await facade.searchEvents(filter);
       if (url.searchParams.get('download') === '1') {
         const body = JSON.stringify({ exportedAt: new Date().toISOString(), records }, null, 2);
         setCors(res);
@@ -472,7 +570,14 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
     }
 
     if (pathname === '/api/v1/notifications' && method === 'GET') {
-      sendJson(res, 200, { success: true, data: await facade.listNotifications() });
+      const query = listNotificationsInputSchema.parse({
+        limit: Number(url.searchParams.get('limit') ?? 100),
+        offset: Number(url.searchParams.get('offset') ?? 0),
+      });
+      sendJson(res, 200, {
+        success: true,
+        data: await facade.listNotifications(query.limit, query.offset),
+      });
       return;
     }
 
@@ -647,8 +752,8 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
         try {
           client.res.write(payload);
         } catch {
-          // 客户端已断开：清理死连接，避免下次广播再次抛错
-          clients.delete(client);
+          // 客户端已断开：清理死连接（含心跳定时器），避免下次广播再次抛错
+          dropClient(client);
         }
       }
     },
@@ -659,6 +764,7 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
         } catch {
           // 关闭阶段单个客户端失败不中断整体关闭流程
         }
+        dropClient(client);
       }
       clients.clear();
       await new Promise<void>((resolve) => server.close(() => resolve()));

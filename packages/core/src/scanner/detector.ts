@@ -70,6 +70,8 @@ export interface ProcessProbeResult {
 /**
  * 第二层：进程探测。
  * macOS/Linux 走 `ps -ax -o pid=,command=`，Windows 走 `tasklist`。
+ * 只匹配命令名本身（ps 行 command 首 token 的 basename / tasklist 映像名），
+ * 参数或其他路径里的子串不再误报 running。
  * @param processNames 进程名列表
  * @returns 进程探测结果
  */
@@ -78,14 +80,12 @@ export async function detectProcess(processNames: string[]): Promise<ProcessProb
     return { running: false };
   }
   try {
-    const output =
-      platform() === 'win32'
-        ? await readTasklist()
-        : await readPs();
-    const lowered = output.toLowerCase();
+    const windows = platform() === 'win32';
+    const output = windows ? await readTasklist() : await readPs();
     for (const name of processNames) {
-      if (lowered.includes(name.toLowerCase())) {
-        return { running: true, executablePath: extractExecutable(output, name) };
+      const line = matchProcessLine(output, name, windows);
+      if (line !== null) {
+        return { running: true, executablePath: extractExecutable(line) };
       }
     }
     return { running: false };
@@ -93,6 +93,33 @@ export async function detectProcess(processNames: string[]): Promise<ProcessProb
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`进程探测失败：${message}`);
   }
+}
+
+/**
+ * 按命令名精确匹配进程列表中的某一行。
+ * @param output 进程列表输出
+ * @param name 进程名
+ * @param windows 是否为 tasklist CSV 输出
+ * @returns 命中的原始行，未命中返回 null
+ */
+export function matchProcessLine(output: string, name: string, windows: boolean): string | null {
+  const target = name.toLowerCase();
+  for (const raw of output.split('\n')) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (windows) {
+      const image = (line.split(',')[0] ?? '').replace(/^"|"$/g, '').toLowerCase();
+      if (image === target || image === `${target}.exe`) return raw;
+      continue;
+    }
+    // `ps -ax -o pid=,command=`：首 token 是数字 PID，其后是可执行命令与参数。
+    const tokens = line.split(/\s+/);
+    const command = /^\d+$/.test(tokens[0] ?? '') ? tokens[1] : tokens[0];
+    if (!command) continue;
+    const base = command.substring(command.lastIndexOf('/') + 1).toLowerCase();
+    if (base === target || base === `${target}.exe`) return raw;
+  }
+  return null;
 }
 
 /**
@@ -120,18 +147,11 @@ async function readTasklist(): Promise<string> {
 }
 
 /**
- * 从进程列表中提取可执行文件路径。
- * @param output 进程列表输出
- * @param name 匹配的进程名
+ * 从命中的进程行中提取可执行文件路径。
+ * @param line 命中的进程行
  * @returns 可执行文件路径，取不到返回 null
  */
-function extractExecutable(output: string, name: string): string | null {
-  const line = output
-    .split('\n')
-    .find((item) => item.toLowerCase().includes(name.toLowerCase()));
-  if (!line) {
-    return null;
-  }
+function extractExecutable(line: string): string | null {
   const match = /\S*\/[^\s]*|\S*\\[^\s]*/.exec(line.trim());
   return match ? match[0] : null;
 }

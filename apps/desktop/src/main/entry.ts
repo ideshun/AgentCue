@@ -5,6 +5,8 @@ function hookLoadFailed(): void {
   const tool = process.argv[process.argv.indexOf('--tool-hook') + 1];
   const phaseIndex = process.argv.indexOf('--hook-phase');
   const phase = phaseIndex >= 0 ? process.argv[phaseIndex + 1] : undefined;
+  // 与 hook-ack.ts 的 hookAcknowledgment 保持一致：兜底路径不依赖任何模块加载，
+  // tool-hook-client.test.ts 的 it.each 用例锁定两处输出不漂移。
   const acknowledgment = tool === 'cline' ? { cancel: false }
     : tool === 'codebuddy' ? { continue: true, suppressOutput: true }
       // Claude Code 会把 UserPromptSubmit 的纯文本 stdout 注入上下文，这里也只输出空 JSON 对象。

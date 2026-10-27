@@ -12,6 +12,7 @@ import {
   type CursorHookPhase,
 } from '@awm/adapters';
 import type { StandardEvent } from '@awm/schema';
+import { hookAcknowledgment } from './hook-ack';
 
 export type HookTool = 'claude-code' | 'cursor' | 'cline' | 'codebuddy';
 
@@ -79,15 +80,6 @@ function nativePhase(input: unknown): string | undefined {
   return typeof payload.hook_event_name === 'string' ? payload.hook_event_name : undefined;
 }
 
-function acknowledgment(tool: string | undefined, phase: string | undefined): object {
-  if (tool === 'cline') return { cancel: false };
-  // CodeBuddy IDE 会把未 suppress 的 UserPromptSubmit stdout 注入 Agent 上下文。
-  if (tool === 'codebuddy') return { continue: true, suppressOutput: true };
-  // Claude Code 同样会注入 UserPromptSubmit 的纯文本 stdout，所有阶段都只输出空 JSON 对象。
-  if (tool === 'claude-code') return {};
-  return tool === 'cursor' && phase === 'beforeSubmitPrompt' ? { continue: true } : {};
-}
-
 function normalize(tool: HookTool, input: unknown, phase: string | undefined, receivedAt: string): StandardEvent[] {
   if (tool === 'claude-code')
     return normalizeClaudeCodeHook(input, {
@@ -140,20 +132,44 @@ export async function runToolHookCli(
       runtime.apiPort < 1 || runtime.apiPort > 65535 || !runtime.token.trim() ||
       /[\r\n]/.test(runtime.token)) return;
     const fetcher = dependencies.fetch ?? globalThis.fetch;
+    /** @description: 可中止的短暂等待，重试退避不拖住总时限。 */
+    const pause = (ms: number): Promise<void> =>
+      new Promise((resolve) => {
+        const timer = setTimeout(() => {
+          controller.signal.removeEventListener('abort', onAbort);
+          resolve();
+        }, ms);
+        const onAbort = (): void => {
+          clearTimeout(timer);
+          resolve();
+        };
+        controller.signal.addEventListener('abort', onAbort, { once: true });
+      });
     for (const event of events) {
       if (controller.signal.aborted) return;
       const mode = tool === 'claude-code' || tool === 'cursor' ||
         (tool === 'codebuddy' && event.sessionId.includes(':turn:'))
         ? 'turn' : 'session';
-      const response = await fetcher(`http://127.0.0.1:${runtime.apiPort}/api/v1/integrations/hooks`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${runtime.token}` },
-        body: JSON.stringify({ mode, event }),
-        signal: controller.signal,
-      });
-      // 不读取响应正文，避免把服务器异常或正文带回 IDE 上下文。
-      await response.body?.cancel();
-      if (!response.ok) return;
+      // 429/5xx 做两次有界退避重试：瞬时拥塞不再静默丢任务事件；其余失败仍单次放行。
+      let attempt = 0;
+      for (;;) {
+        if (controller.signal.aborted) return;
+        const response = await fetcher(`http://127.0.0.1:${runtime.apiPort}/api/v1/integrations/hooks`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${runtime.token}` },
+          body: JSON.stringify({ mode, event }),
+          signal: controller.signal,
+        });
+        // 不读取响应正文，避免把服务器异常或正文带回 IDE 上下文。
+        await response.body?.cancel();
+        if (response.ok) break;
+        if ((response.status === 429 || response.status >= 500) && attempt < 2) {
+          attempt += 1;
+          await pause(attempt * 120);
+          continue;
+        }
+        return;
+      }
     }
   };
   try {
@@ -165,7 +181,7 @@ export async function runToolHookCli(
       const flushTimer = setTimeout(resolve, 20);
       const flushed = (): void => { clearTimeout(flushTimer); resolve(); };
       try {
-        output.write(`${JSON.stringify(acknowledgment(tool, phase))}\n`, flushed);
+        output.write(`${JSON.stringify(hookAcknowledgment(tool, phase))}\n`, flushed);
       } catch {
         // stdout 已关闭时同样结束，不输出任何原始异常、输入或凭据。
         flushed();

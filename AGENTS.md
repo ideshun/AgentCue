@@ -2,7 +2,7 @@
 
 ## 工作边界
 
-核对仓库根为 `ai-workflow-monitor`，并查看已有改动。区分只读、计划、实施；只在批准范围内改文件。
+确认仓库根目录包含项目 `package.json` 和 Git 元数据，并查看已有改动；仓库目录可叫 `AgentCue` 或 `ai-workflow-monitor`。区分只读、计划、实施；只在批准范围内改文件。
 
 本仓库是本地优先的 AI 编码工具任务监控桌面软件。不要把监控对象的会话文件、`runtime.json` token、或 `.env*` 写入仓库。不要自动 commit / push / `git init`。
 

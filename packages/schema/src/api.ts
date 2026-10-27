@@ -3,7 +3,7 @@
  * 所有对外返回走同一 envelope，错误统一三元组。
  */
 import { z } from 'zod';
-import { isoTimestampSchema } from './event';
+import { eventTypeSchema, isoTimestampSchema } from './event';
 import { taskStateSchema } from './state';
 
 /** 错误码枚举 */
@@ -49,22 +49,6 @@ export type ErrorEnvelope = z.infer<typeof errorEnvelopeSchema>;
 
 /** 统一响应类型 */
 export type Envelope = z.infer<typeof envelopeSchema>;
-
-/** WS 消息类型（详细设计 5.5 末尾） */
-export const WS_MESSAGE_TYPES = ['state.transition', 'tools.updated', 'notify', 'heartbeat'] as const;
-
-/** WS 消息类型枚举 */
-export type WsMessageType = (typeof WS_MESSAGE_TYPES)[number];
-
-/** WS 消息封套 */
-export const wsMessageSchema = z.object({
-  type: z.enum(WS_MESSAGE_TYPES),
-  data: z.unknown(),
-  ts: isoTimestampSchema,
-});
-
-/** WS 消息类型定义 */
-export type WsMessage = z.infer<typeof wsMessageSchema>;
 
 /**
  * MCP 工具入参契约（详细设计 5.7）。
@@ -129,4 +113,19 @@ export const setVoiceRuleInputSchema = z.object({
 export const getTimelineInputSchema = z.object({
   sessionId: z.string().min(1),
   limit: z.number().int().min(1).max(500).default(50),
+});
+
+/** 事件查询入参：eventType 走白名单，limit 设上限，避免一次拉走全表 */
+export const searchEventsInputSchema = z.object({
+  eventType: eventTypeSchema.optional(),
+  toolId: z.string().optional(),
+  from: isoTimestampSchema.optional(),
+  to: isoTimestampSchema.optional(),
+  limit: z.number().int().min(1).max(500).default(200),
+});
+
+/** 通知列表入参：offset 支持向后翻页 */
+export const listNotificationsInputSchema = z.object({
+  limit: z.number().int().min(1).max(500).default(100),
+  offset: z.number().int().min(0).default(0),
 });

@@ -1,0 +1,182 @@
+{
+  "name": "AgentCue · 汇流",
+  "version": 1,
+  "date": "2026-10-26",
+  "generator": "Built-in image_gen (user requested image2)",
+  "source": "image_gen final source (kept in the local image-generation cache)",
+  "initialGeneration": "image_gen initial source (kept in the local image-generation cache)",
+  "master": {
+    "file": "master.png",
+    "width": 1254,
+    "height": 1254,
+    "hasAlpha": true
+  },
+  "exports": [
+    {
+      "file": "png/icon-16.png",
+      "width": 16,
+      "height": 16,
+      "bytes": 739,
+      "sha256": "f4dfdf54d7629a9cee1213484a3396fb3c915a22bcab4a2ebd1016f2212646e8"
+    },
+    {
+      "file": "png/icon-20.png",
+      "width": 20,
+      "height": 20,
+      "bytes": 1077,
+      "sha256": "b92ff1e5039e36c2b28668cde32eb9fb59be7e51f825dc97ab9db281adfd8e7e"
+    },
+    {
+      "file": "png/icon-24.png",
+      "width": 24,
+      "height": 24,
+      "bytes": 1437,
+      "sha256": "ff85e0633383e08a65a46719a23610efc1835323cb2d36fe5c3d38f7f890ec6b"
+    },
+    {
+      "file": "png/icon-32.png",
+      "width": 32,
+      "height": 32,
+      "bytes": 2221,
+      "sha256": "75e753dd6cd0557acb5dc60f6570b41e3645b4a74b87a67ebf3114cf73cb64ba"
+    },
+    {
+      "file": "png/icon-48.png",
+      "width": 48,
+      "height": 48,
+      "bytes": 4308,
+      "sha256": "84a95d189b9f605d61d7982acf96c8971b82fe5a4df3053b30b5d899a17c8ef2"
+    },
+    {
+      "file": "png/icon-64.png",
+      "width": 64,
+      "height": 64,
+      "bytes": 6889,
+      "sha256": "0981e441fbe99dc817e929232ef5dc0b96e74951a564575ec7d90a1e1e494cc2"
+    },
+    {
+      "file": "png/icon-128.png",
+      "width": 128,
+      "height": 128,
+      "bytes": 21258,
+      "sha256": "0ea0b8ceb16370eb3f87093b1f385eb88d2500d7c5609edf0feb5e04371d012c"
+    },
+    {
+      "file": "png/icon-256.png",
+      "width": 256,
+      "height": 256,
+      "bytes": 67480,
+      "sha256": "2c128aa72089befaa016258a947c5fa1e384a4ccca75e2cea9e05e78816147df"
+    },
+    {
+      "file": "png/icon-512.png",
+      "width": 512,
+      "height": 512,
+      "bytes": 234399,
+      "sha256": "ded231c70c01ac020256b4b22a2cacef3436795a826cff90523ae5f052e944b0"
+    },
+    {
+      "file": "png/icon-1024.png",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 859235,
+      "sha256": "3b490598d8462bf0e96832e74112de95fb028db5ee33030f4cb140959b51a890"
+    }
+  ],
+  "platformFiles": [
+    {
+      "file": "master.png",
+      "bytes": 1254242,
+      "sha256": "c1a067f0ab3f1bf47a3438e20e88c0485879fae9ab362877289dbd9e71104bae"
+    },
+    {
+      "file": "app-icon.ico",
+      "bytes": 105543,
+      "sha256": "984859d1f1fdb9bead3eb628359f2fb7197899bc5469e9a2cd1d4fcb42261787"
+    },
+    {
+      "file": "app-icon.icns",
+      "bytes": 1549829,
+      "sha256": "6eea1810b17f2ec678525f52aabff8741fefa3fc9c407e72e8150c17459fbae9"
+    }
+  ],
+  "validation": {
+    "pngDimensionsAndHashes": 10,
+    "icoSizes": [
+      16,
+      20,
+      24,
+      32,
+      48,
+      64,
+      128,
+      256
+    ],
+    "macOSRoundTripFrames": [
+      {
+        "file": "icon_128x128.png",
+        "width": 128,
+        "height": 128
+      },
+      {
+        "file": "icon_128x128@2x.png",
+        "width": 256,
+        "height": 256
+      },
+      {
+        "file": "icon_16x16.png",
+        "width": 16,
+        "height": 16
+      },
+      {
+        "file": "icon_16x16@2x.png",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "file": "icon_256x256.png",
+        "width": 256,
+        "height": 256
+      },
+      {
+        "file": "icon_256x256@2x.png",
+        "width": 512,
+        "height": 512
+      },
+      {
+        "file": "icon_32x32.png",
+        "width": 32,
+        "height": 32
+      },
+      {
+        "file": "icon_32x32@2x.png",
+        "width": 64,
+        "height": 64
+      },
+      {
+        "file": "icon_512x512.png",
+        "width": 512,
+        "height": 512
+      },
+      {
+        "file": "icon_512x512@2x.png",
+        "width": 1024,
+        "height": 1024
+      }
+    ],
+    "staticPreviewSizes": [
+      16,
+      24,
+      32,
+      48,
+      64,
+      128,
+      256
+    ],
+    "backgrounds": [
+      "light",
+      "dark"
+    ],
+    "osInstallationVisualCheck": "not_performed"
+  }
+}

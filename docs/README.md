@@ -4,7 +4,7 @@
 | ------------ | ---------------------------------------------------------- | ------------------------------------------------------------------- |
 | 产品设计方案 | [product/product-design.md](./product/product-design.md)   | 上游需求：定位、用户场景、功能需求 FR-01~29、里程碑                 |
 | 详细设计文档 | [design/detailed-design.md](./design/detailed-design.md)   | 开发依据：架构、模块拆解、流程、数据模型、接口、验收标准、TODO 清单 |
-| 产品命名方案 | [naming/naming-proposal.md](./naming/naming-proposal.md)   | 命名决策记录，终选 AI Workflow Monitor（AI 工作流监控）             |
+| 产品命名方案 | [naming/naming-proposal.md](./naming/naming-proposal.md)   | 命名决策记录，终选 AgentCue；包含历史命名与兼容约定             |
 | 隐私白皮书   | [privacy.md](./privacy.md)                                 | 本地数据、出网边界、可关闭开关                                      |
 | 任务播报接入 | [integrations/task-hooks.md](./integrations/task-hooks.md) | Claude Code、Cursor、Cline、CodeBuddy 官方 Hooks 配置与能力边界     |
 | 文档站入口   | [site/index.html](./site/index.html)                       | 静态文档首页                                                        |
@@ -16,6 +16,8 @@
 3. 命名方案在需要对外文案（官网、应用商店、菜单栏 tooltip）时查阅。
 
 ## ADR 存放
+
+首次安装、资源体积和版本发布流程见[AgentCue 发版手册](./releasing.md)。
 
 历史决策见详细设计第 1.3 章（ADR-01~10）。实现期新增决策见
 [adr/ADR-11-implementation-decisions.md](./adr/ADR-11-implementation-decisions.md)（ADR-11~16）、

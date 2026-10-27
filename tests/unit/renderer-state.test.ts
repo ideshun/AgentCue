@@ -26,7 +26,7 @@ function renderer(): vm.Context {
     HTMLSelectElement: class {},
     HTMLTextAreaElement: class {},
   });
-  for (const name of ['api', 'ui', 'views', 'app']) {
+  for (const name of ['api', 'ui', 'views', 'office', 'app']) {
     const source = readFileSync(path.resolve('apps/desktop/src/renderer', `${name}.ts`), 'utf8');
     const compiled = ts.transpileModule(source, {
       compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
@@ -65,7 +65,6 @@ const settings = {
     ],
   },
   privacy: { sessionFileRead: true, auditLog: true, scanScope: 'minimal' },
-  mcp: { serverEnabled: true, transport: ['stdio'], port: 47831 },
 };
 
 describe('renderer settings', () => {
@@ -447,7 +446,7 @@ describe('renderer hook integrations', () => {
     const context = renderer();
     context.integrationFixture = structuredClone(integration);
     evaluate(context, 'state.hookIntegrations = [integrationFixture]');
-    const waiting = evaluate<string>(context, 'renderHookIntegrations(state)');
+    const waiting = evaluate<string>(context, 'renderIntegrations(state)');
     expect(waiting).toContain('等待首次任务事件');
     expect(waiting).toContain('不代表持续连接');
     expect(waiting).toContain('收到事件后，是否出声仍取决于语音开关、全局静音、免打扰与事件规则');
@@ -456,17 +455,17 @@ describe('renderer hook integrations', () => {
     expect(waiting).not.toContain('data-action="speak-test"');
     expect(waiting).not.toMatch(/data-action="(?:test-hook|send-event|start-task|stop-task)"/);
     evaluate(context, 'state.hookIntegrations[0].lastEventAt = "2020-01-01T00:00:00Z"');
-    const received = evaluate<string>(context, 'renderHookIntegrations(state)');
+    const received = evaluate<string>(context, 'renderIntegrations(state)');
     expect(received).toContain('已收到任务事件');
     expect(received).toContain('最近收到');
     expect(received).toContain('2020');
     expect(received).not.toContain('已连接');
     evaluate(context, 'state.hookIntegrations[0].enabled = false');
-    const paused = evaluate<string>(context, 'renderHookIntegrations(state)');
+    const paused = evaluate<string>(context, 'renderIntegrations(state)');
     expect(paused).toContain('暂停接收');
     expect(paused).toContain('2020');
     evaluate(context, 'state.hookIntegrations[0].commandReady = false');
-    const unavailable = evaluate<string>(context, 'renderHookIntegrations(state)');
+    const unavailable = evaluate<string>(context, 'renderIntegrations(state)');
     expect(unavailable).toContain('入口不可用');
     expect(unavailable).toContain('data-copy-unavailable="true"');
     expect(unavailable).toMatch(/aria-label="复制 Cline 配置 1" disabled/);
@@ -488,7 +487,7 @@ describe('renderer hook integrations', () => {
       },
     };
     evaluate(context, 'state.hookIntegrations = [integrationFixture]');
-    const markup = evaluate<string>(context, 'renderHookIntegrations(state)');
+    const markup = evaluate<string>(context, 'renderIntegrations(state)');
     expect(markup).toContain('&lt;script&gt;synthetic&lt;/script&gt;');
     expect(markup).toContain('~/Hooks/&lt;TaskStart&gt;');
     expect(markup).not.toContain('<script>');
@@ -533,7 +532,7 @@ describe('renderer hook integrations', () => {
     };
     evaluate(
       context,
-      'Api.get = get; state.route = "settings"; window.location.hash = "#/settings"; state.hookIntegrations = [integrationFixture]',
+      'Api.get = get; state.route = "integrations"; window.location.hash = "#/integrations"; state.hookIntegrations = [integrationFixture]',
     );
     await evaluate<Promise<void>>(context, 'refresh()');
     expect(evaluate(context, 'state.settings.voice.enabled')).toBe(true);
@@ -544,7 +543,7 @@ describe('renderer hook integrations', () => {
     expect(evaluate(context, 'state.sectionErrors.settings')).toBeUndefined();
   });
 
-  it('discards a hook response after navigating away from settings', async () => {
+  it('discards a hook response after navigating away from integrations', async () => {
     const context = renderer();
     let resolveHooks: (value: unknown) => void = () => {};
     context.integrationFixture = structuredClone(integration);
@@ -559,7 +558,7 @@ describe('renderer hook integrations', () => {
     };
     evaluate(
       context,
-      'Api.get = get; state.route = "settings"; window.location.hash = "#/settings"',
+      'Api.get = get; state.route = "integrations"; window.location.hash = "#/integrations"',
     );
     const old = evaluate<Promise<void>>(context, 'refresh()');
     evaluate(context, 'window.location.hash = "#/overview"');
@@ -1790,7 +1789,7 @@ describe('renderer request order', () => {
       if (requestPath === '/api/v1/voice/voices') return { voices: [] };
       return [];
     };
-    context.subscribe = (callback: typeof emit) => {
+    context.subscribe = (_ticket: string, callback: typeof emit) => {
       emit = callback;
       return { close() {} };
     };
@@ -1803,6 +1802,7 @@ describe('renderer request order', () => {
       context,
       `state.route = routeFixture; window.location.hash = '#/' + routeFixture;
       Date.now = () => clock; window.setTimeout = schedule; Api.get = get;
+      Api.createStreamTicket = async () => 'synthetic-ticket';
       Api.stream = subscribe; toast = () => {}; connectStream();`,
     );
     return { context, requests, delays, emit: (type: string) => emit(type, {}) };

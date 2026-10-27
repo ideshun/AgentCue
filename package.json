@@ -2,8 +2,14 @@
   "name": "ai-workflow-monitor",
   "version": "0.1.0",
   "private": true,
-  "description": "AI Workflow Monitor · AI 工作流监控：本地优先的 AI 编码工具任务监控与语音提醒",
+  "description": "AgentCue：本地优先的 AI 编码工具任务监控与语音提醒",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ideshun/AgentCue.git"
+  },
+  "bugs": "https://github.com/ideshun/AgentCue/issues",
+  "homepage": "https://github.com/ideshun/AgentCue#readme",
   "packageManager": "pnpm@10.6.0",
   "engines": {
     "node": ">=20.19.0"
@@ -18,6 +24,9 @@
     "format": "prettier --write .",
     "dev": "pnpm --filter @awm/desktop run dev",
     "dist": "pnpm --filter @awm/desktop run dist",
+    "release:verify": "node scripts/verify-package.mjs",
+    "release:check": "node scripts/release.mjs check",
+    "release:checksums": "node scripts/release.mjs checksums",
     "rebuild:native": "pnpm --filter @awm/store run rebuild",
     "adapter:validate": "pnpm --filter @awm/adapters exec node dist/validate-cli.js",
     "latency-report": "node scripts/run-tests.mjs run tests/perf/latency-report.test.ts"

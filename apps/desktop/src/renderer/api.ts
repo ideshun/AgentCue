@@ -45,6 +45,8 @@ interface ToolSummary extends CoreToolSummary {
   ignored?: boolean;
   hookSupported?: boolean;
   hookLastEventAt?: string | null;
+  /** 真实应用图标（data URL 或本机 API 地址）；缺失时不显示占位符。 */
+  icon?: string | null;
 }
 interface HookIntegration {
   id: string;
@@ -60,6 +62,8 @@ type BoardGroupId = import('@awm/schema').BoardGroupId;
 type BoardItem = import('@awm/schema').BoardItem;
 type BoardPage = import('@awm/schema').BoardPage;
 type BoardResponse = import('@awm/schema').BoardResponse;
+type OfficeSnapshot = import('@awm/schema').OfficeSnapshot;
+type OfficeWorkstation = import('@awm/schema').OfficeWorkstation;
 interface NotificationItem {
   notificationId: string;
   ts: string;
@@ -74,6 +78,7 @@ interface McpSnippet {
   name: string;
   hint: string;
   json: string;
+  format?: 'json' | 'toml';
   steps?: string[];
   commandReady?: boolean;
 }
@@ -127,7 +132,7 @@ const Api = {
    */
   async init(): Promise<void> {
     if (!window.awm) {
-      throw new Error('未检测到桌面桥接，请在 AI Workflow Monitor 应用内打开本页面');
+      throw new Error('未检测到桌面桥接，请在 AgentCue 应用内打开本页面');
     }
     Api.config = await window.awm.getConfig();
   },
@@ -207,15 +212,25 @@ const Api = {
   },
 
   /**
-   * 建立 SSE 连接。
+   * 换取一次性 SSE 连接票据（60 秒内有效，仅可使用一次）。
+   * EventSource 不支持自定义请求头，用票据替代把 token 放进 URL 的做法。
+   * @returns 票据值
+   */
+  createStreamTicket(): Promise<string> {
+    return Api.post<{ ticket: string }>('/api/v1/stream-ticket').then((data) => data.ticket);
+  },
+
+  /**
+   * 用一次性票据建立 SSE 连接。票据用尽后连接断开，调用方需重新换票重连。
+   * @param ticket 一次性票据
    * @param onEvent 事件回调
    * @returns EventSource 实例，调用方负责关闭
    */
-  stream(onEvent: (type: string, data: unknown) => void): EventSource {
+  stream(ticket: string, onEvent: (type: string, data: unknown) => void): EventSource {
     if (!Api.config) {
       throw new Error('控制 API 尚未初始化');
     }
-    const source = new EventSource(Api.url(`/api/v1/stream?token=${Api.config.token}`));
+    const source = new EventSource(Api.url(`/api/v1/stream?ticket=${encodeURIComponent(ticket)}`));
     for (const type of [
       'state.transition',
       'notify',

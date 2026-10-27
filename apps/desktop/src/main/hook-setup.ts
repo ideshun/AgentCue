@@ -11,8 +11,9 @@ import { standardEventSchema, type StandardEvent } from '@awm/schema';
 import type { DesktopMcpLaunch } from './mcp-launch';
 
 export const HOOK_TOOLS = {
-  // Claude Code 为主接入工具，排在首位。
-  'claude-code': { name: 'Claude Code', mode: 'turn' },
+  // Claude Code 为主接入工具，排在首位。reopenOnStart：会话身份跨轮次复用，
+  // 新任务开始前要把上一轮终态记录静默归档回 idle（引擎按此标志处理，不认识工具名）。
+  'claude-code': { name: 'Claude Code', mode: 'turn', reopenOnStart: true },
   cursor: { name: 'Cursor', mode: 'turn' },
   cline: { name: 'Cline', mode: 'session' },
   codebuddy: { name: 'CodeBuddy', mode: 'session' },
@@ -59,7 +60,7 @@ export function hookIntegrations(
   return (Object.keys(HOOK_TOOLS) as HookToolId[]).map((id) => {
     const { command, ready } = toolHookCommand(launch, id);
     const common = [
-      '保持 AWM 桌面应用运行，并开启本地来源读取；被忽略的工具不接收任务事件。',
+      '保持 AgentCue 桌面应用运行，并开启本地来源读取；被忽略的工具不接收任务事件。',
       '配置由你粘贴；保留已有设置、Hooks 和脚本，不覆盖其他逻辑。',
       '配置后发送一个新任务，观察下方最近事件时间；收到开始或结束后才表示任务播报已接入。',
     ];

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# dev-check：一条命令回答「AI Workflow Monitor 能不能起来」。
+# dev-check：一条命令回答「AgentCue 能不能起来」。
 #
 # 分四步，全部输出落盘到 .verify/dev.log（Electron 运行输出单独落 .verify/smoke.log）：
 #   1/4 全量构建（5 个 workspace 包，幂等）

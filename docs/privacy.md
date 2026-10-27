@@ -1,10 +1,10 @@
 # 隐私白皮书
 
-AI Workflow Monitor（AI 工作流监控）默认本地运行。本页说明数据如何停留在本机，以及用户可以关闭的读取面。
+AgentCue 默认本地运行。本页说明数据如何停留在本机，以及用户可以关闭的读取面。
 
 ## 数据存在哪
 
-- 应用数据目录（macOS：`~/Library/Application Support/AI Workflow Monitor`）保存 SQLite、`settings.json`、`runtime.json`。
+- 应用数据目录（macOS：`~/Library/Application Support/AI Workflow Monitor`）保存 SQLite、`settings.json`、`runtime.json`；更名后仍沿用历史目录。
 - `runtime.json` 权限为 `0600`，含本机控制 API 的随机端口与 token。不要把它拷贝到仓库或发给他人。
 - 会话原文只从适配器声明的路径读取（例如 `~/.claude/projects/**/*.jsonl`、`~/.codex/sessions/**/*.jsonl`），不递归家目录。
 

@@ -54,6 +54,59 @@ afterEach(async () => {
 });
 
 describe('hook ingestion', () => {
+  it('reopens a terminal record on the next turn only when the tool declares reopenOnStart', async () => {
+    const f = fixture();
+    const sessionId = 'fixture:hooks:conversation';
+    await f.engine.consumeHookEvent(
+      event('reopen-start', 'task.started', 0, '第一轮', sessionId),
+      'turn',
+      () => true,
+      { name: 'Fixture Hooks', reopenOnStart: true },
+    );
+    await f.engine.consumeHookEvent(
+      event('reopen-complete', 'task.completed', 10, undefined, sessionId),
+      'turn',
+      () => true,
+      { name: 'Fixture Hooks', reopenOnStart: true },
+    );
+    // 声明 reopenOnStart：终态记录先静默归档回 idle，新一轮正常开始。
+    const reopened = await f.engine.consumeHookEvent(
+      event('reopen-next', 'task.started', 20, '第二轮', sessionId),
+      'turn',
+      () => true,
+      { name: 'Fixture Hooks', reopenOnStart: true },
+    );
+    expect(reopened).toEqual({ accepted: true, sessionId });
+    expect(getSession(f.engine.database, sessionId)?.currentState).toBe('running');
+    expect(
+      listTimeline(f.engine.database, sessionId).some(
+        (entry) => entry.reason === 'hook-turn-reopen',
+      ),
+    ).toBe(true);
+    // 未声明的工具走回跳防护：同一起始事件被拒绝，状态保持 completed。
+    const other = 'fixture:hooks:plain';
+    await f.engine.consumeHookEvent(
+      event('plain-start', 'task.started', 0, undefined, other),
+      'turn',
+      () => true,
+      { name: 'Fixture Hooks' },
+    );
+    await f.engine.consumeHookEvent(
+      event('plain-complete', 'task.completed', 10, undefined, other),
+      'turn',
+      () => true,
+      { name: 'Fixture Hooks' },
+    );
+    const rejected = await f.engine.consumeHookEvent(
+      event('plain-next', 'task.started', 20, undefined, other),
+      'turn',
+      () => true,
+      { name: 'Fixture Hooks' },
+    );
+    expect(rejected).toEqual({ accepted: false, sessionId: other });
+    expect(getSession(f.engine.database, other)?.currentState).toBe('completed');
+  });
+
   it('keeps native turn identity, original event ids and existing tool metadata; duplicates stay silent', async () => {
     const f = fixture();
     upsertTool(f.engine.database, {
@@ -79,11 +132,11 @@ describe('hook ingestion', () => {
       },
     );
     f.engine.onTransition = onTransition;
-    expect(await f.engine.consumeHookEvent(start, 'turn', () => true, 'Fixture Hooks')).toEqual({
+    expect(await f.engine.consumeHookEvent(start, 'turn', () => true, { name: 'Fixture Hooks' })).toEqual({
       accepted: true,
       sessionId: start.sessionId,
     });
-    expect(await f.engine.consumeHookEvent(start, 'turn', () => true, 'Fixture Hooks')).toEqual({
+    expect(await f.engine.consumeHookEvent(start, 'turn', () => true, { name: 'Fixture Hooks' })).toEqual({
       accepted: false,
       sessionId: start.sessionId,
     });
@@ -104,27 +157,27 @@ describe('hook ingestion', () => {
   it('splits session-only hooks into separate turns and deduplicates against the original event after restart', async () => {
     const f = fixture();
     const first = event('first-start', 'task.started', 0, '第一轮任务');
-    const one = await f.engine.consumeHookEvent(first, 'session', () => true, 'Fixture Hooks');
+    const one = await f.engine.consumeHookEvent(first, 'session', () => true, { name: 'Fixture Hooks' });
     expect(one.sessionId).toMatch(/^fixture:hooks:conversation:turn:[a-f0-9]{24}$/);
     const endOne = await f.engine.consumeHookEvent(
       event('first-stop', 'task.completed', 1),
       'session',
       () => true,
-      'Fixture Hooks',
+      { name: 'Fixture Hooks' },
     );
     expect(endOne).toEqual({ accepted: true, sessionId: one.sessionId });
     const two = await f.engine.consumeHookEvent(
       event('second-start', 'task.started', 2, '第二轮任务'),
       'session',
       () => true,
-      'Fixture Hooks',
+      { name: 'Fixture Hooks' },
     );
     expect(two.sessionId).not.toBe(one.sessionId);
     await f.engine.consumeHookEvent(
       event('second-stop', 'task.completed', 3),
       'session',
       () => true,
-      'Fixture Hooks',
+      { name: 'Fixture Hooks' },
     );
     expect(getSession(f.engine.database, one.sessionId)).toMatchObject({
       title: '第一轮任务',
@@ -143,7 +196,7 @@ describe('hook ingestion', () => {
     f.engine = new Engine(f.root);
     const onTransition = vi.fn();
     f.engine.onTransition = onTransition;
-    expect(await f.engine.consumeHookEvent(first, 'session', () => true, 'Fixture Hooks')).toEqual({
+    expect(await f.engine.consumeHookEvent(first, 'session', () => true, { name: 'Fixture Hooks' })).toEqual({
       accepted: false,
       sessionId: one.sessionId,
     });
@@ -167,7 +220,7 @@ describe('hook ingestion', () => {
       const onTransition = vi.fn();
       f.engine.onTransition = onTransition;
       const stop = event('stop-without-start', 'task.completed', 1, '缺失开始事件的任务');
-      const result = await f.engine.consumeHookEvent(stop, mode, () => true, 'Fixture Hooks');
+      const result = await f.engine.consumeHookEvent(stop, mode, () => true, { name: 'Fixture Hooks' });
       expect(result.accepted).toBe(true);
       expect(getSession(f.engine.database, result.sessionId)).toMatchObject({
         title: '缺失开始事件的任务',
@@ -183,7 +236,7 @@ describe('hook ingestion', () => {
         ['task.completed', true],
       ]);
       expect(getEventSessionId(f.engine.database, stop.eventId)).toBe(result.sessionId);
-      expect(await f.engine.consumeHookEvent(stop, mode, () => true, 'Fixture Hooks')).toEqual({
+      expect(await f.engine.consumeHookEvent(stop, mode, () => true, { name: 'Fixture Hooks' })).toEqual({
         accepted: false,
         sessionId: result.sessionId,
       });
@@ -197,7 +250,7 @@ describe('hook ingestion', () => {
     async (second) => {
       const f = fixture();
       const stop = event('early-stop', 'task.completed', 1);
-      const completed = await f.engine.consumeHookEvent(stop, 'session', () => true, 'Fixture Hooks');
+      const completed = await f.engine.consumeHookEvent(stop, 'session', () => true, { name: 'Fixture Hooks' });
       const before = getSession(f.engine.database, completed.sessionId)!;
       await f.engine.stop();
       f.engine = new Engine(f.root);
@@ -205,7 +258,7 @@ describe('hook ingestion', () => {
       f.engine.onTransition = onTransition;
       const lateStart = event('delayed-start', 'task.started', second, '迟到的真实任务标题');
       expect(
-        await f.engine.consumeHookEvent(lateStart, 'session', () => true, 'Fixture Hooks'),
+        await f.engine.consumeHookEvent(lateStart, 'session', () => true, { name: 'Fixture Hooks' }),
       ).toEqual({ accepted: false, sessionId: completed.sessionId });
       expect(getSession(f.engine.database, completed.sessionId)).toMatchObject({
         title: '迟到的真实任务标题',
@@ -234,7 +287,7 @@ describe('hook ingestion', () => {
         }),
       });
       expect(
-        await f.engine.consumeHookEvent(lateStart, 'session', () => true, 'Fixture Hooks'),
+        await f.engine.consumeHookEvent(lateStart, 'session', () => true, { name: 'Fixture Hooks' }),
       ).toEqual({ accepted: false, sessionId: completed.sessionId });
       expect(listEvents(f.engine.database)).toHaveLength(3);
       expect(onTransition).not.toHaveBeenCalled();
@@ -253,7 +306,7 @@ describe('hook ingestion', () => {
         event('orphan-stop-' + id, 'task.completed', second, undefined, `${base}:turn:${id}`),
         'turn',
         () => true,
-        'Fixture Hooks',
+      { name: 'Fixture Hooks' },
       );
     }
     const onTransition = vi.fn();
@@ -262,13 +315,13 @@ describe('hook ingestion', () => {
       event('late-first', 'task.started', 0, '第一轮'),
       'session',
       () => true,
-      'Fixture Hooks',
+      { name: 'Fixture Hooks' },
     );
     const two = await f.engine.consumeHookEvent(
       event('late-second', 'task.started', 1, '第二轮'),
       'session',
       () => true,
-      'Fixture Hooks',
+      { name: 'Fixture Hooks' },
     );
     expect(one).toEqual({ accepted: false, sessionId: `${base}:turn:earlier` });
     expect(two).toEqual({ accepted: false, sessionId: `${base}:turn:later` });
@@ -280,7 +333,7 @@ describe('hook ingestion', () => {
       event('another-past-start', 'task.started', 2, '独立的过去任务'),
       'session',
       () => true,
-      'Fixture Hooks',
+      { name: 'Fixture Hooks' },
     );
     expect(unrelated.accepted).toBe(true);
     expect(unrelated.sessionId).not.toBe(one.sessionId);
@@ -295,7 +348,7 @@ describe('hook ingestion', () => {
       event('unfinished', 'task.started', 0, '旧任务'),
       'session',
       () => true,
-      'Fixture Hooks',
+      { name: 'Fixture Hooks' },
     );
     const onTransition = vi.fn();
     f.engine.onTransition = onTransition;
@@ -303,7 +356,7 @@ describe('hook ingestion', () => {
       event('next', 'task.started', 1, '新任务'),
       'session',
       () => true,
-      'Fixture Hooks',
+      { name: 'Fixture Hooks' },
     );
     expect(getSession(f.engine.database, previous.sessionId)).toMatchObject({
       title: '旧任务',
@@ -327,13 +380,13 @@ describe('hook ingestion', () => {
       event('start-waiting', 'task.started', 0, '等待中的任务'),
       'turn',
       () => true,
-      'Fixture Hooks',
+      { name: 'Fixture Hooks' },
     );
     await f.engine.consumeHookEvent(
       event('waiting', 'task.waiting_human', 1),
       'turn',
       () => true,
-      'Fixture Hooks',
+      { name: 'Fixture Hooks' },
     );
     const onTransition = vi.fn();
     f.engine.onTransition = onTransition;
@@ -341,7 +394,7 @@ describe('hook ingestion', () => {
       event('done-waiting', 'task.completed', 2),
       'turn',
       () => true,
-      'Fixture Hooks',
+      { name: 'Fixture Hooks' },
     );
     expect(
       onTransition.mock.calls.map(([result, , delivery]) => [result.eventType, delivery.announce]),
@@ -371,7 +424,7 @@ describe('hook ingestion', () => {
       event('revoked', 'task.started', 0),
       'session',
       canCommit,
-      'Fixture Hooks',
+      { name: 'Fixture Hooks' },
     );
     expect(canCommit).not.toHaveBeenCalled();
     allowed = false;
@@ -394,7 +447,7 @@ describe('hook ingestion', () => {
         "CREATE TRIGGER reject_hook BEFORE INSERT ON source_receipts BEGIN SELECT RAISE(ABORT, 'synthetic receipt failure'); END;",
       );
       await expect(
-        f.engine.consumeHookEvent(start, 'session', () => true, 'Fixture Hooks'),
+        f.engine.consumeHookEvent(start, 'session', () => true, { name: 'Fixture Hooks' }),
       ).rejects.toThrow('synthetic receipt failure');
       expect(listTools(f.engine.database)).toEqual([]);
       expect(listSessions(f.engine.database)).toEqual([]);
@@ -402,7 +455,7 @@ describe('hook ingestion', () => {
       expect(hasSourceEvent(f.engine.database, start.eventId)).toBe(false);
       expect(onTransition).not.toHaveBeenCalled();
       inspection.sqlite.exec('DROP TRIGGER reject_hook;');
-      const result = await f.engine.consumeHookEvent(start, 'session', () => true, 'Fixture Hooks');
+      const result = await f.engine.consumeHookEvent(start, 'session', () => true, { name: 'Fixture Hooks' });
       expect(result.accepted).toBe(true);
       expect(f.engine.getState(result.sessionId)).toBe('running');
       expect(getSession(f.engine.database, result.sessionId)?.title).toBe('原子提交任务');

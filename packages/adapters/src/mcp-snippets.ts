@@ -25,9 +25,9 @@ export function mcpSnippets(launch: string | McpLaunchConfig = 'awm-mcp'): McpSn
   const server = { type: 'stdio', command: config.command, args: config.args ?? [] };
   const json = (value: unknown): string => JSON.stringify(value, null, 2);
   const common = [
-    '保持 AI Workflow Monitor 桌面应用运行。',
+    '保持 AgentCue 桌面应用运行。',
     '将配置合并进现有 MCP 配置，保留其他服务条目。',
-    '保存后在客户端刷新 MCP，确认出现 6 个 AWM 工具；在 AWM 中也可验证桥接。',
+    '保存后在客户端刷新 MCP，确认出现 6 个 AgentCue 工具；在 AgentCue 中也可验证桥接。',
   ];
   const define = (
     id: string,
@@ -104,7 +104,7 @@ export function mcpSnippets(launch: string | McpLaunchConfig = 'awm-mcp'): McpSn
       'VS Code',
       '.vscode/mcp.json',
       json({ servers: { 'ai-workflow-monitor': server } }),
-      ['在项目的 .vscode/mcp.json 中添加 servers 条目。', '从 MCP 服务列表启动并信任 AWM。'],
+      ['在项目的 .vscode/mcp.json 中添加 servers 条目。', '从 MCP 服务列表启动并信任 AgentCue。'],
     ),
     define(
       'codex',

@@ -6,7 +6,7 @@
  *
  * 不引入构建工具，保持零依赖：Node 内置 fs 足够。
  */
-import { cpSync, existsSync, mkdirSync, readdirSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -45,6 +45,38 @@ for (const name of readdirSync(rendererSrc)) {
   }
 }
 process.stdout.write(`[copy-assets] 渲染层静态资源 → ${path.relative(appDir, rendererDist)}\n`);
+
+// 1b) 本地打包字体（Inter / JetBrains Mono 拉丁子集，离线可用）
+copyDir(path.join(rendererSrc, 'fonts'), path.join(rendererDist, 'fonts'), '本地字体');
+
+// 1c) 只分发当前代码引用的工位插画；历史设计稿仍保留在源码目录。
+const assetsSrc = path.join(rendererSrc, 'assets');
+const assetsDist = path.join(rendererDist, 'assets');
+const officeSource = readFileSync(path.join(rendererSrc, 'office.ts'), 'utf8');
+const officeImages = new Set(
+  [...officeSource.matchAll(/[\x27\x22\x60](desk-(?:books|creative|tech|focus|empty)[a-z0-9-]*)[\x27\x22\x60]/g)].map(
+    (match) => match[1],
+  ),
+);
+if (officeImages.size === 0) throw new Error('没有找到办公室插画引用，停止构建以免漏打包');
+for (const image of officeImages) {
+  if (!existsSync(path.join(assetsSrc, 'office', `${image}.webp`))) {
+    throw new Error(`办公室插画缺失：${image}`);
+  }
+}
+rmSync(assetsDist, { recursive: true, force: true });
+cpSync(assetsSrc, assetsDist, {
+  recursive: true,
+  filter: (source) => {
+    const relative = path.relative(assetsSrc, source).split(path.sep).join('/');
+    if (relative.endsWith('.md')) return false;
+    if (/^office\/[^/]+\.webp$/.test(relative)) {
+      return officeImages.has(path.basename(source, '.webp'));
+    }
+    return true;
+  },
+});
+process.stdout.write(`[copy-assets] 当前素材（${officeImages.size} 张工位）→ dist/renderer/assets\n`);
 
 // 2) 内置适配器 manifest
 copyDir(

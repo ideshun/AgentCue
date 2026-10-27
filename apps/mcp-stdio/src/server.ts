@@ -133,7 +133,7 @@ export class McpServer {
         capabilities: { tools: { listChanged: false } },
         serverInfo: { name: 'ai-workflow-monitor', version: this.options.version },
         instructions:
-          'AI 编码任务的本地监控台。用 list_sessions 找到需要处理的任务，用 get_task_status 查看卡点，' +
+          'AgentCue：AI 编码任务的本地监控台。用 list_sessions 找到需要处理的任务，用 get_task_status 查看卡点，' +
           '必要时用 update_task_state 注入人工响应；所有数据仅在本机流转。',
       });
     }

@@ -1,8 +1,9 @@
 /** Native views. Dynamic text is escaped before it reaches HTML. */
-type RouteName = 'overview' | 'board' | 'adapters' | 'settings' | 'notifications';
+type RouteName = 'overview' | 'office' | 'board' | 'integrations' | 'adapters' | 'settings' | 'notifications';
 interface AppState {
   route: RouteName;
   overview: OverviewSummary | null;
+  office: OfficeSnapshot | null;
   sessions: SessionSummary[];
   board: BoardResponse | null;
   boardQuery: { q: string; toolId: string };
@@ -11,12 +12,13 @@ interface AppState {
   settings: Settings | null;
   rules: VoiceRule[];
   notifications: NotificationItem[];
+  /** 通知首页之外还有更早的记录可加载。 */
+  noticeHasMore: boolean;
   boardLoading: boolean;
   noticeLevelFilter: '' | 'attention' | 'info';
   mcpSnippets: McpSnippet[];
   mcpServers: McpServerItem[];
   hookIntegrations: HookIntegration[];
-  selectedMcpId: string;
   externalTransport: 'stdio' | 'streamable-http';
   nativeVoices: NativeVoice[] | null;
   nativeVoicesLoading: boolean;
@@ -53,17 +55,27 @@ function displayTaskTitle(
   return `${toolName} · 任务 ${number}`;
 }
 
-/** @description: A session button always opens a timeline; historical metadata does not. */
+/** @description: A session row opens a timeline via its title button; attention rows may carry one inline record action. */
 function sessionRow(
   session: SessionSummary,
   withRelative = true,
   tools: ToolSummary[] = [],
+  withActions = false,
 ): string {
-  return `<button class="session" type="button" data-session="${esc(session.sessionId)}">
-    <span class="session-main"><span class="session-title">${esc(displayTaskTitle(session, tools))}</span>
-      <span class="session-meta"><span>${esc(session.toolId)}</span><span>${esc(withRelative ? fmtRelative(session.updatedAt) : fmtTime(session.updatedAt))}</span></span></span>
-    <span class="badge" data-state="${esc(session.currentState)}">${esc(stateLabel(session.currentState))}</span>
-  </button>`;
+  // 总览行只给主快捷操作（已响应 / 已重试）；归档等次操作在看板卡与时间线抽屉里。
+  const quickEvent =
+    session.currentState === 'waiting_human'
+      ? 'human.responded'
+      : session.currentState === 'failed' || session.currentState === 'timeout'
+        ? 'task.retried'
+        : null;
+  const actions =
+    withActions && quickEvent
+      ? `<div class="session-actions"><button class="btn btn-small btn-ghost" type="button" data-task-event="${quickEvent}" data-task-id="${esc(session.sessionId)}" title="只更新 AgentCue 记录；实际操作请在原工具中完成">${quickEvent === 'human.responded' ? '标记已响应' : '标记已重试'}</button></div>`
+      : '';
+  return `<div class="session"><button class="session-main" type="button" data-session="${esc(session.sessionId)}"><span class="session-title">${esc(displayTaskTitle(session, tools))}</span>
+      <span class="session-meta"><span>${esc(session.toolId)}</span><span>${esc(withRelative ? fmtRelative(session.updatedAt) : fmtTime(session.updatedAt))}</span></span></button>
+    <span class="badge" data-state="${esc(session.currentState)}">${esc(stateLabel(session.currentState))}</span>${actions}</div>`;
 }
 
 /** @description: Capability labels describe what the source can actually prove. */
@@ -95,9 +107,19 @@ function toolHookStatus(tool: ToolSummary, settings: Settings | null): string {
   return `<p class="hook-tool-status">已安装不代表任务事件已接入。${paused ? '暂停接收任务事件。' : ''}${esc(hookEventTime(tool.hookLastEventAt))}。<a class="text-link" href="#/settings">在设置中查看任务播报接入 ↗</a></p>`;
 }
 
+/**
+ * 工具图标：仅展示真实图标（data URL 或本机 API 地址），缺失时不渲染占位字符，
+ * 由加粗的工具名承担视觉锚点。
+ */
+function toolMark(source: { icon?: string | null }): string {
+  return source.icon
+    ? `<img class="tool-icon" src="${esc(source.icon)}" alt="" aria-hidden="true" loading="lazy" />`
+    : '';
+}
+
 /** @description: Compact installed-tool list shared by the overview. */
 function toolRow(tool: ToolSummary): string {
-  return `<div class="tool-row"><span class="tool-mark" aria-hidden="true">${esc(tool.name.slice(0, 1))}</span>
+  return `<div class="tool-row">${toolMark(tool)}
     <div class="tool-info"><strong>${esc(tool.name)}</strong><span class="muted">${esc(tool.host ? `${tool.host} 扩展 · ` : '')}${esc(capabilityLabel(tool.sessionCapability))}${tool.version ? ` · ${esc(tool.version)}` : ''}</span></div>
     <span class="tool-count">${tool.sessionCount} 个活跃任务</span><span class="badge" data-state="${tool.detectStatus === 'running' ? 'running' : 'idle'}">${esc(detectLabel(tool.detectStatus))}</span></div>`;
 }
@@ -120,19 +142,16 @@ function renderOverview(state: AppState): string {
   const boardPending = state.boardLoading && !state.board;
   const statsValue = (value: number | undefined): string =>
     boardPending && value === undefined ? '…' : String(value ?? '—');
-  // 顶栏已有页面标题与说明，总览直接从数据开始，避免重复的欢迎区占掉首屏。
-  return `<div class="stats" data-region="overview-stats">${sectionError(state, 'overview')}${[
-      ['等你拍板', statsValue(summary?.counts.waiting_human), 'attention'],
-      ['进行中', statsValue(summary?.counts.running), 'running'],
-      ['已完成', statsValue(summary?.counts.completed), 'completed'],
-      ['需要关注', statsValue(summary?.attention), 'failed'],
-    ]
-      .map(
-        ([label, count, tone]) =>
-          `<div class="stat"><span class="stat-dot" data-state="${tone}"></span><div class="stat-label">${label}</div><div class="stat-value">${count}</div></div>`,
-      )
-      .join('')}</div>
-    <div class="overview-grid"><section class="panel" data-region="overview-attention"><div class="section-head"><h2>需要你处理</h2><a class="text-link" href="#/board">查看看板 ↗</a></div>${sectionError(state, 'board')}${attention.length ? `<div class="session-list">${attention.map((item) => sessionRow(item, true, state.tools)).join('')}</div>` : `<div class="empty">${state.sectionErrors.board ? '任务列表暂不可用，请重试。' : boardPending ? '正在读取任务…' : '暂时没有需要介入的任务。'}</div>`}</section>
+  const waiting = summary?.counts.waiting_human;
+  const metrics: Array<[string, string, string]> = [
+    ['进行中', statsValue(summary?.counts.running), 'running'],
+    ['已完成', statsValue(summary?.counts.completed), 'completed'],
+    ['需要关注', statsValue(summary?.attention), 'failed'],
+  ];
+  // 信号面板：主读数是等待用户拍板的任务数，有待办时整块进入注意态。
+  // 注意态用类名表达：app.ts 的区域差分只同步 className，不同步 dataset。
+  return `<section class="signal-panel${(waiting ?? 0) > 0 ? ' is-attention' : ''}" data-region="overview-stats">${sectionError(state, 'overview')}<div class="signal-hero"><span class="signal-value">${statsValue(waiting)}</span><span class="signal-label">等你拍板</span></div><div class="signal-divider" aria-hidden="true"></div><div class="signal-metrics">${metrics.map(([label, value, tone]) => `<div class="signal-metric"><span class="signal-dot" data-state="${tone}"></span><span class="signal-metric-value">${value}</span><span class="signal-metric-label">${label}</span></div>`).join('')}</div></section>
+    <div class="overview-grid"><section class="panel" data-region="overview-attention"><div class="section-head"><h2>需要你处理</h2><a class="text-link" href="#/board">查看看板 ↗</a></div>${sectionError(state, 'board')}${attention.length ? `<div class="session-list">${attention.map((item) => sessionRow(item, true, state.tools, true)).join('')}</div>` : `<div class="empty">${state.sectionErrors.board ? '任务列表暂不可用，请重试。' : boardPending ? '正在读取任务…' : '暂时没有需要介入的任务。'}</div>`}</section><div class="overview-side">
     <section class="panel" data-region="overview-running"><div class="section-head"><h2>进行中</h2><span class="count-pill">${running?.total ?? (boardPending ? '…' : '—')}</span></div>${
       running?.items.length
         ? `<div class="session-list">${running.items
@@ -142,8 +161,8 @@ function renderOverview(state: AppState): string {
             .map((item) => sessionRow(item, true, state.tools))
             .join('')}</div>`
         : `<div class="empty">${boardPending ? '正在读取任务…' : '当前没有运行中的任务。'}</div>`
-    }</section></div>
-    <section class="panel" data-region="overview-tools"><div class="section-head"><h2>工具与扩展</h2><a class="text-link" href="#/adapters">管理工具 ↗</a></div>${sectionError(state, 'tools')}${installed.length ? installed.map(toolRow).join('') : '<div class="empty">还没有识别到已安装工具，点击「扫描工具」更新清单。</div>'}<div class="panel-foot">${scan ? `上次安装扫描 ${esc(fmtTime(scan.finishedAt))} · ${scan.degraded.length ? `${scan.degraded.length} 个来源需要检查` : '来源正常'}` : '安装清单尚未扫描'}<span>会话变化每 5 秒采集</span></div></section>`;
+    }</section>
+    <section class="panel" data-region="overview-tools"><div class="section-head"><h2>工具与扩展</h2><a class="text-link" href="#/adapters">管理工具 ↗</a></div>${sectionError(state, 'tools')}${installed.length ? installed.map(toolRow).join('') : '<div class="empty">还没有识别到已安装工具，点击「扫描工具」更新清单。</div>'}<div class="panel-foot">${scan ? `上次安装扫描 ${esc(fmtTime(scan.finishedAt))} · ${scan.degraded.length ? `${scan.degraded.length} 个来源需要检查` : '来源正常'}` : '安装清单尚未扫描'}<span>会话变化每 5 秒采集</span></div></section></div></div>`;
 }
 
 /** @description: Board cards expose record actions without claiming to control another app. */
@@ -154,7 +173,7 @@ function boardCard(item: BoardItem, tools: ToolSummary[] = []): string {
   return `<article class="task-card">${metadata ? `<div class="task-open">${heading}</div>` : `<button class="task-open" type="button" data-session="${esc(item.sessionId)}">${heading}</button>`}<div class="task-card-foot"><span class="badge" data-state="${esc(item.currentState ?? 'unknown')}">${esc(item.currentState ? stateLabel(item.currentState) : '状态未知')}</span>${actions ? `<div class="task-actions">${actions}</div>` : ''}</div></article>`;
 }
 
-/** @description: These are AWM record updates, not execution commands for the monitored tool. */
+/** @description: These are AgentCue record updates, not execution commands for the monitored tool. */
 function taskActions(sessionId: string, currentState: TaskState | null): string {
   const event =
     currentState === 'waiting_human'
@@ -167,26 +186,26 @@ function taskActions(sessionId: string, currentState: TaskState | null): string 
   if (!event) return '';
   const label =
     event === 'human.responded' ? '标记已响应' : event === 'task.retried' ? '标记已重试' : '归档';
-  return `<button class="btn btn-small btn-ghost" type="button" data-task-event="${event}" data-task-id="${esc(sessionId)}" title="只更新 AWM 记录；实际操作请在原工具中完成">${label}</button>${currentState === 'failed' || currentState === 'timeout' ? `<button class="btn btn-small btn-ghost" type="button" data-task-event="task.archived" data-task-id="${esc(sessionId)}">归档</button>` : ''}`;
+  return `<button class="btn btn-small btn-ghost" type="button" data-task-event="${event}" data-task-id="${esc(sessionId)}" title="只更新 AgentCue 记录；实际操作请在原工具中完成">${label}</button>${currentState === 'failed' || currentState === 'timeout' ? `<button class="btn btn-small btn-ghost" type="button" data-task-event="task.archived" data-task-id="${esc(sessionId)}">归档</button>` : ''}`;
 }
 
 /** @description: Per-column counts and cursors remain independent. */
 function renderBoard(state: AppState): string {
-  const columns: Array<{ id: BoardGroupId; title: string; hint: string }> = [
-    { id: 'attention', title: '待介入', hint: '等待你的响应' },
-    { id: 'running', title: '执行中', hint: '持续跟踪进展' },
-    { id: 'failed', title: '需要检查', hint: '失败与超时' },
-    { id: 'completed', title: '已结束', hint: '完成、取消与已归档' },
+  const columns: Array<{ id: BoardGroupId; title: string; hint: string; tone: string }> = [
+    { id: 'attention', title: '待介入', hint: '等待你的响应', tone: 'attention' },
+    { id: 'running', title: '执行中', hint: '持续跟踪进展', tone: 'running' },
+    { id: 'failed', title: '需要检查', hint: '失败与超时', tone: 'failed' },
+    { id: 'completed', title: '已结束', hint: '完成、取消与已归档', tone: 'ok' },
   ];
-  const renderColumn = (id: BoardGroupId, title: string, hint: string): string => {
+  const renderColumn = (id: BoardGroupId, title: string, hint: string, tone: string): string => {
     const group = state.board?.groups.find((item) => item.id === id);
     const pending = !group && state.boardLoading && !state.sectionErrors.board;
-    return `<section class="column${id === 'history' ? ' history-column' : ''}" data-region="board-${id}"><div class="column-head"><div><h2>${title}<span class="count-pill">${group?.total ?? (pending ? '…' : '—')}</span></h2><p>${hint}</p></div></div><div class="column-body" data-scroll-key="board-${id}">${group?.items.length ? group.items.map((item) => boardCard(item, state.tools)).join('') : `<div class="column-empty">${group ? '暂无任务' : state.sectionErrors.board ? '列表暂不可用' : '正在加载…'}</div>`}</div>${group?.nextCursor ? `<button class="btn btn-more" type="button" data-load-group="${id}" data-cursor="${esc(group.nextCursor)}">加载更多 · 已显示 ${group.items.length} / ${group.total}</button>` : ''}</section>`;
+    return `<section class="column${id === 'history' ? ' history-column' : ''}" data-region="board-${id}" data-tone="${tone}"><header class="column-head"><span class="column-dot" data-tone="${tone}" aria-hidden="true"></span><div><h2>${title}<span class="count-pill">${group?.total ?? (pending ? '…' : '—')}</span></h2><p>${hint}</p></div></header><div class="column-body" data-scroll-key="board-${id}">${group?.items.length ? group.items.map((item) => boardCard(item, state.tools)).join('') : `<div class="column-empty">${group ? '暂无任务' : state.sectionErrors.board ? '列表暂不可用' : '正在加载…'}</div>`}</div>${group?.nextCursor ? `<button class="btn btn-more" type="button" data-load-group="${id}" data-cursor="${esc(group.nextCursor)}">加载更多 · 已显示 ${group.items.length} / ${group.total}</button>` : ''}</section>`;
   };
-  return `<div class="board-toolbar" data-region="board-toolbar"><div class="search-control"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="7" r="4.5" /><path d="M10.5 10.5 14 14" /></svg><input id="board-search" data-draft type="search" aria-label="搜索任务" placeholder="搜索任务标题、工具或 ID" value="${esc(state.boardQuery.q)}" /></div><select id="board-tool" data-draft aria-label="筛选工具"><option value="">全部工具</option>${state.tools.map((tool) => `<option value="${esc(tool.toolId)}" ${state.boardQuery.toolId === tool.toolId ? 'selected' : ''}>${esc(tool.name)}</option>`).join('')}</select><button class="btn btn-ghost" type="button" data-action="clear-board">重置筛选</button></div>
-    <div data-region="board-feedback">${sectionError(state, 'board')}<p class="board-hint">快捷操作仅更新 AWM 记录，实际任务请在原工具中处理。</p></div>
-    <div class="board">${columns.map((column) => renderColumn(column.id, column.title, column.hint)).join('')}</div>
-    ${renderColumn('history', '历史 · 状态未知', '仅展示已验证索引中的标题与时间，不计入活跃任务')}`;
+  return `<div class="board-filterbar" data-region="board-toolbar"><div class="search-control"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="7" r="4.5" /><path d="M10.5 10.5 14 14" /></svg><input id="board-search" data-draft type="search" aria-label="搜索任务" placeholder="搜索任务标题、工具或 ID" value="${esc(state.boardQuery.q)}" /></div><span class="filterbar-sep" aria-hidden="true"></span><select id="board-tool" data-draft aria-label="筛选工具"><option value="">全部工具</option>${state.tools.map((tool) => `<option value="${esc(tool.toolId)}" ${state.boardQuery.toolId === tool.toolId ? 'selected' : ''}>${esc(tool.name)}</option>`).join('')}</select><button class="btn btn-ghost btn-small" type="button" data-action="clear-board">重置筛选</button></div>
+    <div data-region="board-feedback">${sectionError(state, 'board')}<p class="board-hint">快捷操作仅更新 AgentCue 记录，实际任务请在原工具中处理。</p></div>
+    <div class="board">${columns.map((column) => renderColumn(column.id, column.title, column.hint, column.tone)).join('')}</div>
+    ${renderColumn('history', '历史 · 状态未知', '仅展示已验证索引中的标题与时间，不计入活跃任务', 'neutral')}`;
 }
 
 /** @description: Select platform paths without treating Linux as macOS. */
@@ -213,7 +232,7 @@ function renderAdapters(state: AppState): string {
               tool?.sessionCapability ??
               adapter.sessionCapability ??
               (Object.keys(adapter.eventMapping).length ? 'events' : 'detect-only');
-            return `<article class="adapter"><span class="tool-mark" aria-hidden="true">${esc(adapter.name.slice(0, 1))}</span><div class="adapter-info"><div class="adapter-name">${esc(adapter.name)}${tool?.host ? `<span class="muted">${esc(tool.host)} 扩展</span>` : ''}<span class="badge" data-state="${status === 'running' ? 'running' : 'idle'}">${esc(detectLabel(status))}</span>${ignored ? '<span class="badge">已忽略</span>' : ''}</div><div class="capability-label">${esc(capabilityLabel(capability))}${tool?.version ? ` · v${esc(tool.version)}` : ''}</div><p class="muted">${esc(tool?.capabilityReason ?? (capability === 'metadata' ? '历史元数据不代表实时任务状态。' : capability === 'detect-only' ? '尚无经过验证的本地任务来源。' : '从本地已声明来源读取任务事件。'))}</p>${tool ? toolHookStatus({ ...tool, ignored }, state.settings) : ''}<details data-disclosure-key="adapter-path-${esc(adapter.id)}"><summary>查看检测路径</summary><code class="adapter-path">${esc(adapterPath(adapter))}</code></details></div><button class="btn btn-ghost" type="button" data-toggle-ignore="${esc(adapter.id)}" data-ignored="${ignored}">${ignored ? '恢复扫描' : '忽略'}</button></article>`;
+            return `<article class="adapter">${toolMark(tool ?? {})}<div class="adapter-info"><div class="adapter-name">${esc(adapter.name)}${tool?.host ? `<span class="muted">${esc(tool.host)} 扩展</span>` : ''}<span class="badge" data-state="${status === 'running' ? 'running' : 'idle'}">${esc(detectLabel(status))}</span>${ignored ? '<span class="badge">已忽略</span>' : ''}</div><div class="capability-label">${esc(capabilityLabel(capability))}${tool?.version ? ` · v${esc(tool.version)}` : ''}</div><p class="muted">${esc(tool?.capabilityReason ?? (capability === 'metadata' ? '历史元数据不代表实时任务状态。' : capability === 'detect-only' ? '尚无经过验证的本地任务来源。' : '从本地已声明来源读取任务事件。'))}</p>${tool ? toolHookStatus({ ...tool, ignored }, state.settings) : ''}<details data-disclosure-key="adapter-path-${esc(adapter.id)}"><summary>查看检测路径</summary><code class="adapter-path">${esc(adapterPath(adapter))}</code></details></div><button class="btn btn-ghost" type="button" data-toggle-ignore="${esc(adapter.id)}" data-ignored="${ignored}">${ignored ? '恢复扫描' : '忽略'}</button></article>`;
           })
           .join('')
       : '<div class="empty">尚未加载工具契约，请重新扫描。</div>'
@@ -226,12 +245,13 @@ function renderAdapters(state: AppState): string {
  * 有 id 时用 label 关联控件，并替换控件里的 __ID__；无 id 时标签只是分组标题。
  */
 function fieldRow(id: string | null, label: string, hint: string, control: string): string {
-  const labelBody = `${label}${hint ? `<small>${hint}</small>` : ''}`;
+  // 说明文字独立成行：窄容器下紧跟标题，宽容器下横跨整行，避免被窄列折成多行。
   const labelHtml = id
-    ? `<label class="field-label" for="${id}">${labelBody}</label>`
-    : `<div class="field-label">${labelBody}</div>`;
+    ? `<label class="field-label" for="${id}">${label}</label>`
+    : `<div class="field-label">${label}</div>`;
   const body = id ? control.replace(/__ID__/g, id) : control;
-  return `<div class="field">${labelHtml}<div class="field-control">${body}</div></div>`;
+  const hintHtml = hint ? `<p class="field-hint">${hint}</p>` : '';
+  return `<div class="field">${labelHtml}<div class="field-control">${body}</div>${hintHtml}</div>`;
 }
 
 /** @description: Accessible setting row with a stable control identity. */
@@ -471,7 +491,7 @@ function renderKokoroVoicePicker(
   return `<div class="voice-picker"><div class="control-stack">
       <select id="__ID__" class="control-select" data-setting="voice.voiceProfile" aria-describedby="kokoro-voices-status">${options}</select>
       <div class="control-row"><input id="${nameId}" class="control-input control-grow" data-draft maxlength="32" aria-label="音色名称" value="${esc(currentName)}" placeholder="例如：清亮女声" /><button class="btn btn-primary" type="button" data-action="save-kokoro-voice">${currentName ? '保存名称' : '加入常用'}</button>${currentName ? '<button class="text-link" type="button" data-action="remove-kokoro-voice">移出常用</button>' : ''}</div>
-      <div id="kokoro-voices-status" class="control-note" role="status">${selected.profile !== profile ? `原音色「${esc(profile)}」不是可用的本地音色，当前使用普通话女声 zf_001。` : ''}全部 103 个本地音色（100 普通话 + 3 英语）均可直接选择。${saved.length ? `已保存 ${saved.length} 个常用音色，置于列表顶部。` : '试听后可命名，例如“清亮女声”，并加入常用。'}已补充重构（chóng gòu）、重写、重排等常见开发词的 chóng 读音。本地 Kokoro 只有普通话与英语；需要粤语音色时，切到「系统原生」。</div>
+      <div id="kokoro-voices-status" class="control-stack" role="status">${selected.profile !== profile ? `<p class="control-note is-error">原音色「${esc(profile)}」不是可用的本地音色，当前使用普通话女声 zf_001。</p>` : ''}<p class="control-note">全部 103 个本地音色（100 普通话 + 3 英语）均可直接选择。${saved.length ? `已保存 ${saved.length} 个常用音色，置于列表顶部。` : '试听后可命名并加入常用。'}</p><p class="control-note">「重构」「重写」等常见开发词的读音已修正。本地 Kokoro 只有普通话与英语；需要粤语时切到「系统原生」。</p></div>
     </div></div>`;
 }
 
@@ -686,50 +706,67 @@ function renderSettings(
     ${fieldRow('speak-text', '试听', '每次点击播放一次；使用上次保存的后端与音色，未保存的修改需先保存后才会用于试听。', audition)}`;
   const quietRanges = `<div class="control-stack quiet-ranges" role="group" aria-labelledby="quiet-ranges-label">${settings.quiet.ranges.map((range, index) => `<div class="control-row range-row"><label class="sr-only" for="quiet-from-${index}">时段 ${index + 1} 开始</label><input id="quiet-from-${index}" type="time" data-setting="quiet.ranges.${index}.from" value="${esc(range.from)}" /><span class="muted">至</span><label class="sr-only" for="quiet-to-${index}">时段 ${index + 1} 结束</label><input id="quiet-to-${index}" type="time" data-setting="quiet.ranges.${index}.to" value="${esc(range.to)}" /><button class="icon-btn" type="button" data-remove-range="${index}" aria-label="删除时段 ${index + 1}">×</button></div>`).join('')}<button class="btn btn-ghost btn-small" type="button" data-action="add-range">＋ 添加时段</button></div>`;
   const quiet = `${settingRow('quiet.globalMute', '全局静音', '优先于所有自动播报例外，任务提醒保留为通知。', toggle('quiet.globalMute', settings.quiet.globalMute))}${fieldGroup('quiet-ranges-label', '免打扰时段', '支持跨天与多个时段。', quietRanges)}${settingRow('quiet.waitingHumanOverride', '待审批任务突破免打扰时段', '仅突破时段设置，全局静音仍然生效。', toggle('quiet.waitingHumanOverride', settings.quiet.waitingHumanOverride))}`;
-  const privacy = `${settingRow('scan.autoIntervalHours', '安装扫描间隔', '单位：小时。会话变化仍每 5 秒采集。', `<input id="__ID__" class="control-input control-input--short" type="number" min="1" max="24" data-setting="scan.autoIntervalHours" value="${settings.scan.autoIntervalHours}" />`)}${settingRow('privacy.sessionFileRead', '读取本地会话来源', '关闭后停止会话采集和心跳观察，历史快照随即隐藏。', toggle('privacy.sessionFileRead', settings.privacy.sessionFileRead))}${settingRow('privacy.auditLog', '记录操作审计', '审计不写入对话正文或凭据。', toggle('privacy.auditLog', settings.privacy.auditLog))}<div class="panel-note">会话内容保留在本机。扫描仅读取适配器声明的来源。</div>`;
-  return `<nav class="settings-nav" aria-label="设置分区" data-region="settings-nav">${[
+  const privacy = `${settingRow('scan.autoIntervalHours', '安装扫描间隔', '单位：小时。会话变化仍每 5 秒采集。', `<input id="__ID__" class="control-input control-input--short" type="number" min="1" max="24" data-setting="scan.autoIntervalHours" value="${settings.scan.autoIntervalHours}" />`)}${settingRow('privacy.sessionFileRead', '读取本地会话来源', '关闭后停止会话采集和心跳观察，历史快照随即隐藏。', toggle('privacy.sessionFileRead', settings.privacy.sessionFileRead))}${settingRow('privacy.auditLog', '记录操作审计', '审计不写入对话正文或凭据。', toggle('privacy.auditLog', settings.privacy.auditLog))}<div class="panel-note">会话内容保留在本机。扫描仅读取适配器声明的来源。</div><div class="settings-actions"><button class="btn btn-ghost btn-small" type="button" data-action="export-events">导出事件 JSON</button><span class="muted">导出状态事件记录（最多 500 条），只含元数据与原因，不含对话正文。</span></div>`;
+  // 吸顶导航：外层通栏铺满（与页头连贯），内层与设置面板同宽对齐。
+  return `<nav class="settings-nav" aria-label="设置分区" data-region="settings-nav"><div class="settings-nav-inner">${[
     ['voice', '语音'],
     ['quiet', '免打扰'],
     ['rules', '播报规则'],
-    ['hooks', '任务播报接入'],
     ['privacy', '扫描与隐私'],
-    ['mcp', 'MCP 接入'],
     ['external', '外部服务'],
   ]
     .map(
       ([id, label]) =>
         `<button class="btn btn-ghost btn-small" type="button" data-settings-section="${id}">${label}</button>`,
     )
-    .join('')}<span class="settings-save-group"><span id="settings-save-status" class="muted" role="status"></span><button id="settings-save" class="btn btn-primary btn-small" type="button" data-action="save-settings" disabled>保存</button></span></nav>
+    .join('')}<span class="settings-save-group"><span id="settings-save-status" class="muted" role="status"></span><button id="settings-save" class="btn btn-primary btn-small" type="button" data-action="save-settings" disabled>保存</button></span></div></nav>
     ${settingsSection('voice', '语音播报', '听到进展，也能看清每次播放的结果。', voice)}
     ${settingsSection('quiet', '免打扰', '按你的工作节奏安排自动提醒。', quiet)}
     ${settingsSection('rules', '播报规则', '开始、待确认、完成可播报；其他事件仅通知或静音。', sectionError(state, 'rules') + renderVoicePolicy(state, new Date(), settings, rules) + renderRuleMatrix(rules))}
-    ${settingsSection('hooks', '任务播报接入', '复制官方 Hooks 配置，让客户端自动发送任务事件。', renderHookIntegrations(state))}
     ${settingsSection('privacy', '扫描与隐私', '控制本机数据的读取范围。', privacy)}
-    ${settingsSection('mcp', '让 AI 客户端使用 AWM', '复制配置到客户端，再验证本地桥接。', sectionError(state, 'snippets') + renderMcpSnippets(state))}
     ${settingsSection('external', '验证外部 MCP Server', '保存配置并枚举工具；验证完成后关闭连接。', sectionError(state, 'servers') + renderExternalMcp(state))}`;
 }
 
-/** @description: Copyable client files do not install hooks or emit synthetic task events. */
-function renderHookIntegrations(state: AppState): string {
-  return `${sectionError(state, 'hooks')}<p class="panel-note">仅安装工具或配置 MCP 不会自动接入任务事件。以下配置由你粘贴；已有设置或同名脚本请合并，保留其他逻辑。接收时间只表示曾收到事件，不代表持续连接。收到事件后，是否出声仍取决于语音开关、全局静音、免打扰与事件规则。</p><div class="hook-integrations">${
-    state.hookIntegrations.length
-      ? state.hookIntegrations
-          .map((integration) => {
-            const received =
-              !!integration.lastEventAt && Number.isFinite(Date.parse(integration.lastEventAt));
-            const status = !integration.enabled
-              ? '暂停接收'
-              : !integration.commandReady
-                ? '入口不可用'
-                : received
-                  ? '已收到任务事件'
-                  : '等待首次任务事件';
-            return `<article class="hook-integration"><div class="hook-integration-head"><h3>${esc(integration.name)}</h3><span class="badge" data-state="${!integration.commandReady ? 'failed' : received && integration.enabled ? 'completed' : 'idle'}">${status}</span></div><p class="hook-event-time">${esc(hookEventTime(integration.lastEventAt))}</p><p class="muted">${esc(integration.capabilityReason)}</p>${!integration.enabled ? '<p class="panel-note">当前暂停接收。请开启本地来源读取，并确认该工具未被忽略。</p>' : ''}${!integration.commandReady ? '<div class="inline-error">任务事件接收入口不可用，此配置暂不可运行。请检查当前应用安装后刷新。</div>' : ''}<ol class="setup-steps">${integration.steps.map((step) => `<li>${esc(step)}</li>`).join('')}</ol><div class="hook-files">${integration.files.map((file, index) => `<div class="hook-file"><div class="hook-file-head"><code>${esc(file.path)}</code><button id="copy-hook-${esc(integration.id)}-${index}" class="btn btn-ghost btn-small" type="button" data-copy-hook="${esc(integration.id)}" data-hook-path="${esc(file.path)}" data-copy-unavailable="${!integration.commandReady}" aria-label="复制 ${esc(integration.name)} 配置 ${index + 1}" ${integration.commandReady ? '' : 'disabled'}>复制内容</button></div>${file.executable ? '<p class="hook-file-note">保存后执行 chmod u+x，为该脚本赋予当前用户执行权限；已有同名脚本请合并调用。</p>' : ''}<details data-disclosure-key="hook-file-${esc(integration.id)}-${esc(file.path)}"><summary>查看配置内容</summary><pre class="code-block">${esc(file.content)}</pre></details></div>`).join('')}</div></article>`;
-          })
-          .join('')
-      : '<div class="empty">接入配置尚未加载，请刷新后重试。</div>'
-  }</div><div class="settings-actions"><button class="btn btn-ghost btn-small" type="button" data-action="refresh-hooks">刷新接收状态</button></div>`;
+/** @description: Group both connection methods by tool, preserving provider order and partial data. */
+function renderIntegrations(state: AppState): string {
+  const tools = new Map<string, { name: string; hook?: HookIntegration; mcp?: McpSnippet }>();
+  for (const hook of state.hookIntegrations) tools.set(hook.id, { name: hook.name, hook });
+  for (const mcp of state.mcpSnippets) {
+    const tool = tools.get(mcp.id) ?? { name: mcp.name };
+    tools.set(mcp.id, { ...tool, mcp });
+  }
+  const intro = `<section class="panel integration-intro" data-region="integrations-intro"><div class="section-head"><h2>按工具接入</h2><button class="btn btn-ghost btn-small" type="button" data-action="refresh-hooks">刷新接收状态</button></div>${sectionError(state, 'hooks')}${sectionError(state, 'snippets')}<p>展开对应工具的接入方式，复制配置并在客户端中合并保存。Hooks 接收任务事件；MCP 提供任务查询与状态标记。</p><p class="muted">仅安装工具或配置 MCP 不会自动接入任务事件。已有设置或同名脚本请合并，保留其他逻辑。接收时间只表示曾收到事件，不代表持续连接。收到事件后，是否出声仍取决于语音开关、全局静音、免打扰与事件规则。</p></section>`;
+  return (
+    intro +
+    (tools.size
+      ? Array.from(tools, ([id, tool]) => {
+          const missingHooks = state.sectionErrors.hooks ? '加载失败' : '未提供';
+          const missingMcp = state.sectionErrors.snippets ? '加载失败' : '未提供';
+          return `<section class="panel integration-tool" data-region="integration-${esc(id)}" aria-labelledby="integration-title-${esc(id)}"><div class="section-head"><h2 id="integration-title-${esc(id)}">${esc(tool.name)}</h2></div>
+          <details class="integration-method" data-disclosure-key="integration-${esc(id)}-hooks"><summary><span class="integration-method-name">Hooks 接入</span>${tool.hook ? renderHookStatus(tool.hook) : `<span class="badge">${missingHooks}</span>`}</summary><div class="integration-method-body">${tool.hook ? renderHookIntegration(tool.hook) : `<p class="muted">${state.sectionErrors.hooks ? 'Hooks 配置未能加载，请刷新后重试。' : '当前未提供此工具的 Hooks 接入配置。'}</p>`}</div></details>
+          <details class="integration-method" data-disclosure-key="integration-${esc(id)}-mcp"><summary><span class="integration-method-name">MCP 接入</span><span class="badge" ${tool.mcp?.commandReady === false ? 'data-state="failed"' : ''}>${tool.mcp ? (tool.mcp.commandReady === false ? '入口不可用' : '配置指引') : missingMcp}</span></summary><div class="integration-method-body">${tool.mcp ? renderMcpSnippet(tool.mcp, state.mcpValidation) : `<p class="muted">${state.sectionErrors.snippets ? 'MCP 配置未能加载，请刷新后重试。' : '当前未提供此工具的 MCP 接入配置。'}</p>`}</div></details>
+        </section>`;
+        }).join('')
+      : '<div class="empty" data-region="integrations-empty">接入配置尚未加载，请刷新后重试。</div>')
+  );
+}
+
+function renderHookStatus(integration: HookIntegration): string {
+  const received =
+    !!integration.lastEventAt && Number.isFinite(Date.parse(integration.lastEventAt));
+  const status = !integration.enabled
+    ? '暂停接收'
+    : !integration.commandReady
+      ? '入口不可用'
+      : received
+        ? '已收到任务事件'
+        : '等待首次任务事件';
+  return `<span class="badge" data-state="${!integration.commandReady ? 'failed' : received && integration.enabled ? 'completed' : 'idle'}">${status}</span>`;
+}
+
+/** @description: Copyable files preserve exact source and never install or submit task events. */
+function renderHookIntegration(integration: HookIntegration): string {
+  return `<p class="hook-event-time">${esc(hookEventTime(integration.lastEventAt))}</p><p class="muted">${esc(integration.capabilityReason)}</p>${!integration.enabled ? '<p class="panel-note">当前暂停接收。请开启本地来源读取，并确认该工具未被忽略。</p>' : ''}${!integration.commandReady ? '<div class="inline-error">任务事件接收入口不可用，此配置暂不可运行。请检查当前应用安装后刷新。</div>' : ''}<ol class="setup-steps">${integration.steps.map((step) => `<li>${esc(step)}</li>`).join('')}</ol><div class="hook-files">${integration.files.map((file, index) => `<div class="hook-file"><div class="hook-file-head"><code>${esc(file.path)}</code><button id="copy-hook-${esc(integration.id)}-${index}" class="btn btn-ghost btn-small" type="button" data-copy-hook="${esc(integration.id)}" data-hook-path="${esc(file.path)}" data-copy-unavailable="${!integration.commandReady}" aria-label="复制 ${esc(integration.name)} 配置 ${index + 1}" ${integration.commandReady ? '' : 'disabled'}>复制内容</button></div>${file.executable ? '<p class="hook-file-note">保存后执行 chmod u+x，为该脚本赋予当前用户执行权限；已有同名脚本请合并调用。</p>' : ''}<details data-disclosure-key="hook-file-${esc(integration.id)}-${esc(file.path)}"><summary>查看配置内容</summary><pre class="code-block">${esc(file.content)}</pre></details></div>`).join('')}</div>`;
 }
 
 /** @description: One action selector per known event. */
@@ -764,17 +801,14 @@ function renderRuleMatrix(rules: VoiceRule[]): string {
     .join('');
 }
 
-/** @description: Keep the selected client stable while the page refreshes. */
-function renderMcpSnippets(state: AppState): string {
-  const selected =
-    state.mcpSnippets.find((item) => item.id === state.selectedMcpId) ?? state.mcpSnippets[0];
-  if (!selected) return '<div class="empty">配置指引暂不可用，请点击刷新重试。</div>';
-  return `${fieldRow(
-    'mcp-snippet-select',
-    '客户端',
-    '选择客户端后复制配置；已有配置请合并。',
-    `<div class="control-row"><select id="__ID__" class="control-select" data-draft>${state.mcpSnippets.map((item) => `<option value="${esc(item.id)}" ${selected.id === item.id ? 'selected' : ''}>${esc(item.name)}</option>`).join('')}</select><button class="btn btn-ghost" type="button" data-action="copy-mcp">复制配置</button></div>`,
-  )}${fieldNote(`<p class="control-note" id="mcp-snippet-hint">${esc(selected.hint)}</p>`)}${selected.commandReady === false ? '<div class="inline-error">桥接入口尚未就绪，配置后请先验证。</div>' : ''}<ol class="setup-steps" id="mcp-snippet-steps">${(selected.steps ?? ['复制下方配置。', '打开客户端的 MCP 设置并粘贴，保存后重新加载客户端。', '点击下方按钮验证 AWM 桥接。']).map((step) => `<li>${esc(step)}</li>`).join('')}</ol><pre class="code-block" id="mcp-snippet-json">${esc(selected.json)}</pre><div class="settings-actions"><button class="btn btn-primary" type="button" data-action="validate-mcp">验证 AWM 桥接</button><span class="muted">不会改动客户端配置</span></div><div class="action-result ${state.mcpValidation && !state.mcpValidation.ok ? 'is-error' : ''}" role="status">${state.mcpValidation ? esc(state.mcpValidation.ok ? `验证通过 · ${state.mcpValidation.tools.length} 个工具 · ${fmtTime(state.mcpValidation.lastValidatedAt)}` : `验证失败：${state.mcpValidation.lastError ?? '无法完成握手'}`) : ''}</div>`;
+/** @description: Each tool owns its copy action; validation always refers to the shared local bridge. */
+function renderMcpSnippet(snippet: McpSnippet, validation: McpValidation | null): string {
+  const steps = snippet.steps ?? [
+    '复制下方配置。',
+    '打开客户端的 MCP 设置并粘贴，保存后重新加载客户端。',
+    '点击下方按钮验证 AgentCue 桥接。',
+  ];
+  return `<p class="control-note">${esc(snippet.hint)}</p>${snippet.commandReady === false ? '<div class="inline-error">桥接入口尚未就绪，配置后请先验证。</div>' : ''}<ol class="setup-steps">${steps.map((step) => `<li>${esc(step)}</li>`).join('')}</ol><div class="hook-file"><div class="hook-file-head"><span class="muted">${snippet.format === 'toml' ? 'TOML' : 'JSON'} 配置</span><button class="btn btn-ghost btn-small" type="button" data-action="copy-mcp" data-mcp-id="${esc(snippet.id)}" aria-label="复制 ${esc(snippet.name)} MCP 配置">复制配置</button></div><pre class="code-block">${esc(snippet.json)}</pre></div><div class="settings-actions"><button class="btn btn-primary btn-small" type="button" data-action="validate-mcp">验证 AgentCue 桥接</button><span class="muted">仅验证本机 AgentCue 桥接，不代表此客户端已连接。</span></div><div class="action-result ${validation && !validation.ok ? 'is-error' : ''}" role="status">${validation ? esc(validation.ok ? `本机 AgentCue 桥接验证通过 · ${validation.tools.length} 个工具 · ${fmtTime(validation.lastValidatedAt)}` : `本机 AgentCue 桥接验证失败：${validation.lastError ?? '无法完成握手'}`) : ''}</div>`;
 }
 
 /** @description: External commands and arguments are separate values, never a shell command. */
@@ -828,13 +862,14 @@ function renderNotifications(state: AppState): string {
     ['attention', '需处理'],
     ['info', '信息'],
   ];
-  return `<section class="panel" data-region="notifications"><div class="section-head"><div><h2>最近通知${unread ? `<span class="count-pill">${unread} 未读</span>` : ''}</h2><p class="muted">全部播报与通知的历史。</p></div><select id="notice-level-filter" aria-label="按级别筛选">${chips.map(([v, l]) => `<option value="${v}" ${filter === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>${sectionError(state, 'notifications')}${shown.length ? shown.map((item) => `<article class="notice${item.read ? ' is-read' : ''}" data-notice-level="${esc(item.level)}"><span class="notice-dot" aria-hidden="true"></span><div><div class="notice-meta"><span>${esc(fmtRelative(item.ts))}</span><span>${item.read ? '已读' : '未读'}</span><span class="badge" data-level="${esc(item.level)}">${esc(noticeLevelLabel(item.level))}</span></div><h3>${esc(item.title)}</h3><p>${esc(item.body)}</p>${item.sessionId ? `<button class="text-link" type="button" data-session="${esc(item.sessionId)}">查看任务</button>` : ''}</div>${item.read ? '' : `<button class="btn btn-ghost btn-small" type="button" data-read-notice="${esc(item.notificationId)}">标为已读</button>`}</article>`).join('') : `<div class="empty">${filter ? '该级别下暂无通知。' : '还没有通知。任务需要你时会显示在这里。'}</div>`}</section>`;
+  // 头部操作区：级别筛选与「全部已读」（复用主进程已有的批量已读端点）。
+  return `<section class="panel" data-region="notifications"><div class="section-head"><div><h2>最近通知${unread ? `<span class="count-pill">${unread} 未读</span>` : ''}</h2><p class="muted">全部播报与通知的历史。</p></div><div class="section-head-actions"><select id="notice-level-filter" aria-label="按级别筛选">${chips.map(([v, l]) => `<option value="${v}" ${filter === v ? 'selected' : ''}>${l}</option>`).join('')}</select>${unread ? `<button class="btn btn-ghost btn-small" type="button" data-action="mark-all-read">全部已读</button>` : ''}</div></div>${sectionError(state, 'notifications')}${shown.length ? shown.map((item) => `<article class="notice${item.read ? ' is-read' : ''}" data-notice-level="${esc(item.level)}"><span class="notice-dot" aria-hidden="true"></span><div><div class="notice-meta"><span>${esc(fmtRelative(item.ts))}</span><span>${item.read ? '已读' : '未读'}</span><span class="badge" data-level="${esc(item.level)}">${esc(noticeLevelLabel(item.level))}</span></div><h3>${esc(item.title)}</h3><p>${esc(item.body)}</p>${item.sessionId ? `<button class="text-link" type="button" data-session="${esc(item.sessionId)}">查看任务</button>` : ''}</div>${item.read ? '' : `<button class="btn btn-ghost btn-small" type="button" data-read-notice="${esc(item.notificationId)}">标为已读</button>`}</article>`).join('') : `<div class="empty">${filter ? '该级别下暂无通知。' : '还没有通知。任务需要你时会显示在这里。'}</div>`}${state.noticeHasMore ? `<button class="btn btn-more" type="button" data-action="load-notices">加载更早通知 · 已显示 ${state.notifications.length} 条</button>` : ''}</section>`;
 }
 
 /** @description: The drawer uses descriptive recording actions and an append-only timeline. */
 function renderTimeline(records: TransitionRecord[], session: SessionSummary | null): string {
   const actions = session ? taskActions(session.sessionId, session.currentState) : '';
-  return `<div class="drawer-actions">${actions}<button class="btn btn-ghost btn-small" type="button" data-action="copy-timeline" data-copy-session="${esc(session?.sessionId ?? '')}">复制时间线</button></div>${actions ? '<p class="panel-note">以上操作只更新 AWM 记录。请先在原工具中完成实际响应或重试。</p>' : ''}${
+  return `<div class="drawer-actions">${actions}<button class="btn btn-ghost btn-small" type="button" data-action="copy-timeline" data-copy-session="${esc(session?.sessionId ?? '')}">复制时间线</button></div>${actions ? '<p class="panel-note">以上操作只更新 AgentCue 记录。请先在原工具中完成实际响应或重试。</p>' : ''}${
     records.length
       ? `<div class="timeline">${records
           .slice()

@@ -1,10 +1,10 @@
-# AI 工具工作流管理软件（AI Workflow Monitor）详细设计文档
+# AI 工具工作流管理软件（AgentCue）详细设计文档
 
 ## 0. 文档信息
 
 | 项目 | 内容 |
 |------|------|
-| 文档名称 | AI Workflow Monitor 详细设计文档（开发版） |
+| 文档名称 | AgentCue 详细设计文档（开发版） |
 | 版本 | v1.0 |
 | 日期 | 2026-10-19 |
 | 上游文档 | 《AI 工具工作流管理软件产品设计方案》v1.0（2026-10-19，下称「产品方案」） |
@@ -27,7 +27,7 @@
 |------|------|------|
 | 本期做 | 工具扫描识别、任务状态机、语音播报、MCP 双轨集成、本地看板 UI、事件存储检索 | 产品方案 6.5 |
 | 本期不做 | 多机协同、云端同步、团队账号计费、模型网关路由、任务代操作（远程点按钮）、移动端 | 产品方案 6.5 |
-| 只感知不代操作 | AI Workflow Monitor 不向被监控工具写入任何指令，唯一写入面是用户显式调用的 MCP `update_task_state` | C-01 |
+| 只感知不代操作 | AgentCue 不向被监控工具写入任何指令，唯一写入面是用户显式调用的 MCP `update_task_state` | C-01 |
 
 ### 1.2 全局工程约束
 
@@ -260,14 +260,14 @@ const taskMachine = setup({
 6. 免打扰判定优先于第 2 步：全局静音 / 时段免打扰 / 按工具静音命中时，仅落通知中心；waiting_human 可配「仍要出声」例外。
 7. 同步三路：托盘图标闪动、系统通知（含「打开工具」「静音此任务」按钮）、通知中心留存。
 
-### FLOW-05 MCP 外向调用（AI 工具 → AI Workflow Monitor）
+### FLOW-05 MCP 外向调用（AI 工具 → AgentCue）
 
 1. 客户端经 stdio 拉起 `awm-mcp`，或直连主进程 streamable-http transport。
 2. 请求进入限流器（120 req/min per client，FR-20），超限返回限速错误并记审计。
 3. 路由到 6 工具实现，校验入参 schema，查询走 store 或状态机服务。
 4. 返回统一 envelope：`{ success, data?, error?, details?, suggestion? }`。`update_task_state` 产生的迁移复用 FLOW-02 落库与播报。
 
-### FLOW-06 MCP 内向汇聚（AI Workflow Monitor → 外部 MCP）
+### FLOW-06 MCP 内向汇聚（AgentCue → 外部 MCP）
 
 1. 用户在设置页添加外部 server（stdio / streamable-http），Client 连接并 `listTools`。
 2. 工具清单写 `mcp_servers.tools`，进入工具能力画像（标注来源 = 外部）。
@@ -512,14 +512,19 @@ WS 消息封套：`{ type: 'state.transition' | 'tools.updated' | 'notify' | 'he
 
 ### 6.1 信息架构与路由
 
+实现以源码为准（hash 路由，见 `apps/desktop/src/renderer/app.ts`）：
+
 | 路由 | 页面 | 入口 |
 |------|------|------|
-| `/overview` | 工具总览（默认） | 主窗口、托盘「打开」 |
-| `/board` | 会话看板 | 总览点击、托盘待介入徽标 |
-| `/board?session=:id` | 任务详情抽屉 | 卡片点击、通知点击 |
-| `/notifications` | 通知中心 | 顶栏铃铛 |
-| `/settings/:tab` | 设置（voice / rules / privacy / adapters / mcp） | 托盘、顶栏齿轮 |
-| 向导 `/wizard` | 首启七步向导 | 首启强制，可跳过 |
+| `#/overview` | 工具总览（默认） | 主窗口、托盘「打开」、Cmd/Ctrl+1 |
+| `#/board` | 任务看板 | 总览点击、Cmd/Ctrl+2、`/` 聚焦搜索 |
+| `#/notifications` | 通知中心 | 侧栏、Cmd/Ctrl+3；侧栏角标显示未读数 |
+| `#/integrations` | 播报接入（按工具分组 Hooks / MCP） | 侧栏、Cmd/Ctrl+4 |
+| `#/adapters` | 工具与扩展（适配器） | 侧栏、Cmd/Ctrl+5 |
+| `#/settings` | 设置（吸顶分区导航：语音 / 免打扰 / 播报规则 / 扫描与隐私 / 外部服务） | 侧栏、Cmd/Ctrl+6、托盘 |
+| 任务详情抽屉 | 时间线 | 看板/总览/通知的卡片点击 |
+
+首启七步向导（`/wizard`）未实现；快捷键见 `app.ts` 的 keydown 绑定。
 
 ### 6.2 页面规格
 
@@ -578,7 +583,7 @@ WS 消息封套：`{ type: 'state.transition' | 'tools.updated' | 'notify' | 'he
 | 状态徽标 | 橙=待介入、蓝=执行中、绿=完成、红=失败；四色四图标全局统一（10.4） |
 | 四态 | 每页实现空态 / 加载骨架 / 错误（含修复建议）/ 无权限 |
 | 反馈 | 操作即 toast 或内联结果；播报触发时托盘图标闪动 |
-| 可逆 | 忽略工具、清空历史、改规则均支持 10s 撤销 |
+| 可逆 | 忽略工具可随时恢复（再点「恢复扫描」）；改规则即时生效可改回。10s 撤销机制未实现 |
 | 可达性 | 焦点环可见、Tab 序合理、状态不单靠颜色（C-06） |
 
 ---
@@ -839,7 +844,7 @@ ai-workflow-monitor/
 
 | 编号 | 问题 | 本文默认 | 待决人 |
 |------|------|----------|--------|
-| Q-01 | 产品正式命名与商标（承接产品方案 Q-01） | 已定：AI Workflow Monitor（AI 工作流监控），见命名方案 v1.0；商标检索（TODO-N01）待完成 | 业务方 |
+| Q-01 | 产品正式命名与商标（承接产品方案 Q-01） | 已定：AgentCue，见命名方案 v1.2；商标检索（TODO-N01）待完成 | 业务方 |
 | Q-02 | UI 栈 React 还是 Vue（承接产品方案 Q-02） | React 19 + Tailwind（ADR-05），改动面仅渲染层 | 技术负责人 |
 | Q-03 | 云 TTS 是否开放（承接产品方案 Q-03） | M3 做显式开启插件，默认全离线 | 产品 + 合规 |
 | Q-04 | 任务代操作是否进后续路线（承接产品方案 Q-04） | 列后续版本池，本期不做 | 业务方 |

@@ -7,6 +7,8 @@
  */
 import path from 'node:path';
 import { BrowserWindow, nativeTheme, shell } from 'electron';
+import { APP_DISPLAY_NAME } from '@awm/core';
+import { APP_ICON_PATH } from './branding';
 
 /** 窗口单例 */
 let mainWindow: BrowserWindow | null = null;
@@ -46,15 +48,18 @@ export function createMainWindow(): BrowserWindow {
     minWidth: 900,
     minHeight: 620,
     show: false,
-    title: 'AI Workflow Monitor',
-    // 与渲染层 --bg 对齐，避免深色模式下隐藏窗口恢复时闪浅色底
-    backgroundColor: nativeTheme.shouldUseDarkColors ? '#0c0e12' : '#f5f6f8',
+    title: APP_DISPLAY_NAME,
+    icon: APP_ICON_PATH,
+    // 与渲染层 --bg（styles.css 浅色 #f3f5fa / 深色 #060910）同值，避免恢复窗口时闪底色
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#060910' : '#f3f5fa',
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      // preload 只用 contextBridge / ipcRenderer / process.platform，全部沙箱可用；
+      // 渲染层内容全部来自本地打包文件，没有放宽沙箱的理由。
+      sandbox: true,
     },
   });
 

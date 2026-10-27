@@ -244,6 +244,17 @@ describe('notifications 与 mcp_servers', () => {
     expect(listNotifications(handle.db)[0]?.read).toBe(1);
   });
 
+  it('offset 翻页不重不漏（同秒时间戳按 id 决定次序）', () => {
+    const handle = createDatabase(':memory:');
+    for (let index = 0; index < 7; index += 1)
+      appendNotification(handle.db, { title: `t${index}`, body: 'b', level: 'info' });
+    const first = listNotifications(handle.db, 3, 0).map((row) => row.title);
+    const second = listNotifications(handle.db, 3, 3).map((row) => row.title);
+    const third = listNotifications(handle.db, 3, 6).map((row) => row.title);
+    expect([...first, ...second, ...third]).toHaveLength(7);
+    expect(new Set([...first, ...second, ...third]).size).toBe(7);
+  });
+
   it('写入外部 MCP Server', () => {
     const handle = createDatabase(':memory:');
     upsertMcpServer(handle.db, { name: 'demo', transport: 'stdio', command: 'echo' });

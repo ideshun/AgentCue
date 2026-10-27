@@ -40,10 +40,21 @@ export function appendNotification(db: AppDb, input: AppendNotificationInput): N
  * 列出通知，最新在前。
  * @param db 数据库句柄
  * @param limit 条数
+ * @param offset 跳过条数，供「加载更多」向后翻页
  * @returns 通知列表
  */
-export function listNotifications(db: AppDb, limit = 100): NotificationRow[] {
-  return db.select().from(notifications).orderBy(desc(notifications.ts)).limit(limit).all();
+export function listNotifications(
+  db: AppDb,
+  limit = 100,
+  offset = 0,
+): NotificationRow[] {
+  return db
+    .select()
+    .from(notifications)
+    .orderBy(desc(notifications.ts), desc(notifications.notificationId))
+    .limit(limit)
+    .offset(offset)
+    .all();
 }
 
 /**

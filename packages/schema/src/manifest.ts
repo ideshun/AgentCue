@@ -61,6 +61,12 @@ export const sessionSourceSchema = z.object({
       }),
     )
     .optional(),
+  /**
+   * 任务身份粒度：'session' 整个来源文件/会话是一条任务（默认）；
+   * 'turn' 文件内每轮 turn 是独立任务（如 Codex rollout，事件按 turn_id 拆分）。
+   * 提取器据此分派，不允许在代码里按工具 id 特判。
+   */
+  identityMode: z.enum(['session', 'turn']).optional(),
 });
 
 /** 单条事件映射规则 */
@@ -105,8 +111,6 @@ export const adapterManifestSchema = z.object({
   eventMapping: z.record(z.string(), eventMappingEntrySchema),
   heartbeat: heartbeatSchema,
   mcp: mcpSectionSchema.optional(),
-  /** 复杂解析走 TS 提取器，相对 manifest 的路径 */
-  extractor: z.string().optional(),
 });
 
 /** 适配器 manifest 类型 */

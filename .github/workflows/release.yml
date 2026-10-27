@@ -1,0 +1,144 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing version tag, e.g. v0.1.0'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  ELECTRON_MIRROR: https://github.com/electron/electron/releases/download/
+  ELECTRON_BUILDER_BINARIES_MIRROR: https://github.com/electron-userland/electron-builder-binaries/releases/download/
+  CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+jobs:
+  quality:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6.1.0
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm release:check "$RELEASE_TAG"
+      - run: test -s "docs/releases/$RELEASE_TAG.md"
+      - run: sh scripts/l1-verify.sh
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: release-l1-log
+          path: .verify/l1.log
+          include-hidden-files: true
+          retention-days: 7
+
+  build:
+    needs: quality
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            platform: mac
+            arch: arm64
+            app: apps/desktop/release/mac-arm64/AgentCue.app
+          - runner: macos-15-intel
+            platform: mac
+            arch: x64
+            app: apps/desktop/release/mac-x64/AgentCue.app
+          - runner: windows-2022
+            platform: win
+            arch: x64
+            app: apps/desktop/release/win-unpacked
+          - runner: ubuntu-24.04
+            platform: linux
+            arch: x64
+            app: apps/desktop/release/linux-unpacked
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6.1.0
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm release:check "$RELEASE_TAG"
+      - run: pnpm build
+      - name: Build installer
+        env:
+          TARGET_PLATFORM: ${{ matrix.platform }}
+          TARGET_ARCH: ${{ matrix.arch }}
+        run: >-
+          pnpm --filter @awm/desktop exec electron-builder
+          --"$TARGET_PLATFORM" --"$TARGET_ARCH" --publish never
+          -c.mac.identity=- -c.mac.notarize=false
+      - name: Verify bundled runtime, resources and MCP
+        env:
+          APP_PATH: ${{ matrix.app }}
+        run: pnpm release:verify "$APP_PATH"
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: installers-${{ matrix.platform }}-${{ matrix.arch }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+          path: |
+            apps/desktop/release/*.dmg
+            apps/desktop/release/*.exe
+            apps/desktop/release/*.AppImage
+
+  draft:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+          persist-credentials: false
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          pattern: installers-*
+          path: release-assets
+          merge-multiple: true
+      - run: node scripts/release.mjs checksums release-assets
+      - name: Create or update a draft preview release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft > /tmp/release-is-draft; then
+            test "$(cat /tmp/release-is-draft)" = true || { echo 'Published releases are immutable; use a new version.' >&2; exit 1; }
+          else
+            gh release create "$RELEASE_TAG" --verify-tag --draft --prerelease \
+              --title "AgentCue $RELEASE_TAG · Preview" --notes-file "docs/releases/$RELEASE_TAG.md"
+          fi
+          gh release upload "$RELEASE_TAG" release-assets/* --clobber
+          gh release view "$RELEASE_TAG" --json url,assets

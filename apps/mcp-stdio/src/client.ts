@@ -5,7 +5,7 @@
  * - 端口与 token 由主进程写入 runtime.json（0600），每次调用现读，避免应用重启后端口变化
  * - 网络/解析失败统一转成 ENGINE_UNAVAILABLE envelope，不抛异常给协议层
  */
-import { readRuntimeInfo } from '@awm/core';
+import { APP_DISPLAY_NAME, readRuntimeInfo } from '@awm/core';
 import type { Envelope } from '@awm/schema';
 import type { ToolName } from './tools';
 
@@ -50,7 +50,7 @@ export class ControlApiClient {
       return failure(
         'ENGINE_UNAVAILABLE',
         '未找到运行时握手文件，桌面应用可能尚未启动',
-        '先启动 AI Workflow Monitor，再重试本次调用',
+        `先启动 ${APP_DISPLAY_NAME}，再重试本次调用`,
       );
     }
 
@@ -128,7 +128,7 @@ export class ControlApiClient {
       return failure(
         'ENGINE_UNAVAILABLE',
         `无法连接本地控制 API：${message}`,
-        '确认 AI Workflow Monitor 正在运行，并检查 127.0.0.1 回环是否被防火墙拦截',
+        `确认 ${APP_DISPLAY_NAME} 正在运行，并检查 127.0.0.1 回环是否被防火墙拦截`,
       );
     } finally {
       clearTimeout(timer);

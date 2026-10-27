@@ -9,8 +9,11 @@ import { chmodSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 
-/** 应用展示名，同时作为各平台 userData 目录名 */
+/** 历史数据目录名；保持稳定，供既有安装、Hooks 与 MCP 共用。 */
 export const APP_NAME = 'AI Workflow Monitor';
+
+/** 应用展示名，与持久化目录身份分开。 */
+export const APP_DISPLAY_NAME = 'AgentCue';
 
 /** 控制 API 握手信息 */
 export interface RuntimeInfo {

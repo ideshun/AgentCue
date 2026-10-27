@@ -257,7 +257,8 @@ export function extractSourceBatch(
   ctx: ExtractContext,
 ): ExtractedSourceBatch {
   const base = `${ctx.toolId}:${ctx.project}:${ctx.sessionKey}`;
-  const byTurn = manifest.id === 'codex';
+  // 任务身份粒度由 manifest 声明（如 Codex 每轮 turn 独立成任务），不按工具 id 特判。
+  const byTurn = manifest.sessionSource.identityMode === 'turn';
   const events: StandardEvent[] = [];
   let context: SourceTaskContext = { ...ctx.context };
   if (byTurn && context.excluded === undefined) {

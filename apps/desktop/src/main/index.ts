@@ -6,10 +6,11 @@
  * → 5. 控制 API（拿到真实端口）→ 6. 写 runtime.json 供 awm-mcp 握手
  * → 7. 主窗口与托盘 → 8. 启动定时任务与首轮扫描
  */
+import { mkdirSync } from 'node:fs';
 import { copyFile, mkdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { app, dialog, ipcMain, Notification } from 'electron';
-import { APP_NAME, writeRuntimeInfo, type ModelStatus } from '@awm/core';
+import { APP_DISPLAY_NAME, defaultDataDir, writeRuntimeInfo, type ModelStatus } from '@awm/core';
 import { getSession, listTools, setToolIgnored } from '@awm/store';
 import { desktopMcpLaunch } from './mcp-launch';
 import { KOKORO_SPEC, LocalModelManager, ZIPVOICE_SPEC } from './model-manager';
@@ -21,6 +22,7 @@ import { DesktopFacade } from './facade';
 import { MonitorService } from './monitor-service';
 import { SettingsStore } from './settings-store';
 import { createTray, type TrayHandle } from './tray';
+import { APP_ICON_PATH } from './branding';
 import { VoiceService, type VoiceNotice } from './voice-service';
 import {
   createMainWindow,
@@ -31,8 +33,16 @@ import {
   showMainWindow,
 } from './window';
 
-// 必须在读取 userData 之前设置，否则数据目录会落在 @awm/desktop 下
-app.setName(APP_NAME);
+// 品牌可更名；数据与单实例锁继续使用历史目录，避免丢失设置或与旧版同时写库。
+app.setName(APP_DISPLAY_NAME);
+try {
+  const dataDir = defaultDataDir();
+  mkdirSync(dataDir, { recursive: true });
+  app.setPath('userData', dataDir);
+} catch (error) {
+  dialog.showErrorBox(`${APP_DISPLAY_NAME} 启动失败`, String(error));
+  app.exit(1);
+}
 
 /** 应用装配后的运行时对象 */
 interface Runtime {
@@ -253,12 +263,15 @@ async function bootstrap(): Promise<void> {
     },
   });
 
-  writeRuntimeInfo(dataDir, {
-    apiPort: api.port,
-    token,
-    pid: process.pid,
-    startedAt: new Date().toISOString(),
-  });
+  // API 已监听、runtime.json 即将落盘：此后任一步失败都要回滚已启动的服务，
+  // 避免残留监听端口或让 runtime.json 指向将死进程。
+  try {
+    writeRuntimeInfo(dataDir, {
+      apiPort: api.port,
+      token,
+      pid: process.pid,
+      startedAt: new Date().toISOString(),
+    });
 
   // 迁移三路分发：SSE 推送 / 播报编排 / 界面刷新
   engine.onTransition = (result, event, delivery) => {
@@ -342,6 +355,13 @@ async function bootstrap(): Promise<void> {
         process.stderr.write(`首轮扫描失败：${message}\n`);
       });
   }, 2_000);
+  } catch (error) {
+    monitor.stop();
+    voice.stop();
+    await engine.stop().catch(() => undefined);
+    await api.close().catch(() => undefined);
+    throw error;
+  }
 }
 
 /**
@@ -359,6 +379,7 @@ function showNotice(notice: VoiceNotice): void {
     new Notification({
       title: notice.title,
       body: notice.body,
+      icon: APP_ICON_PATH,
       silent: true,
     }).show();
   }
@@ -498,6 +519,8 @@ async function shutdown(): Promise<void> {
   current.voice.stop();
   await current.engine.stop();
   await current.api.close();
+  // API 关闭后不再有查询进来，最后释放 sqlite 句柄。
+  current.engine.close();
   app.quit();
 }
 
@@ -535,6 +558,7 @@ if (!gotLock) {
   });
 
   void app.whenReady().then(async () => {
+    app.dock?.setIcon(APP_ICON_PATH);
     registerIpc();
     // 关闭窗口只是隐藏；隐藏前同样确认是否有未保存的设置。
     setCloseDecision(() => requestCloseDecision('close', CLOSE_TIMEOUT_MS));
@@ -542,7 +566,7 @@ if (!gotLock) {
       await bootstrap();
     } catch (error) {
       const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
-      dialog.showErrorBox('AI Workflow Monitor 启动失败', message);
+      dialog.showErrorBox(`${APP_DISPLAY_NAME} 启动失败`, message);
       // 启动失败没有可保存的设置，跳过退出确认直接退出。
       quitPhase = 'shutting';
       app.quit();

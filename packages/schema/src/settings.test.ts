@@ -19,7 +19,6 @@ describe('settingsSchema', () => {
     expect(settings.scan.customTools).toEqual([]);
     expect(settings.voice.cloudEnabled).toBe(false);
     expect(settings.voice.savedVoices).toEqual([]);
-    expect(settings.mcp.port).toBe(47831);
   });
 
   it('云 TTS 默认填入可编辑的官方接口地址', () => {
@@ -34,7 +33,12 @@ describe('settingsSchema', () => {
   it('仅提供 schemaVersion 时全部字段走默认值', () => {
     const parsed = settingsSchema.parse({ schemaVersion: 1 });
     expect(parsed.voice.backend).toBe('native');
-    expect(parsed.mcp.transport).toEqual(['stdio', 'streamable-http']);
+    // 旧版本存下的 mcp 分区无任何消费方，读取时直接剥离。
+    const legacy = settingsSchema.parse({
+      schemaVersion: 1,
+      mcp: { serverEnabled: true, transport: ['stdio'], port: 47831 },
+    });
+    expect('mcp' in legacy).toBe(false);
   });
 
   it('拒绝非法时段格式', () => {

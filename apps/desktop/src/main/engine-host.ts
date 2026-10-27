@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 import {
   createTaskActor,
+  demoteOutOfOrderEvent,
   resolveTransition,
   SessionEventBus,
   type TaskActorHandle,
@@ -37,6 +38,7 @@ import {
   updateSessionTitle,
   upsertTool,
   type AppDb,
+  type DatabaseHandle,
 } from '@awm/store';
 
 export interface TransitionDelivery {
@@ -44,13 +46,26 @@ export interface TransitionDelivery {
   announce: boolean;
 }
 
-/** @description: Hook 复用同一会话身份时，这些终态要先经 task.archived 回到 idle 才能开始新一轮。 */
-const HOOK_REOPEN_STATES: readonly string[] = ['completed', 'cancelled', 'failed', 'timeout'];
+/**
+ * 终态会话复用同一身份时，新一轮任务开始前要先经 task.archived 回到 idle。
+ */
+const REOPEN_STATES: readonly string[] = ['completed', 'cancelled', 'failed', 'timeout'];
+
+/** Hook 工具的接入配置：由调用方（hook-setup 的 HOOK_TOOLS）注入，引擎不认识具体工具名。 */
+export interface HookToolConfig {
+  /** 展示名，落库到工具表 */
+  name: string;
+  /** 该工具的 Hook 身份跨轮次复用同一条任务记录时为 true（如 Claude Code 的 transcript 身份）。 */
+  reopenOnStart?: boolean;
+}
 
 /**
  * 监控引擎：会话级 actor 池 + 事件总线 + 持久化。
  */
 export class Engine {
+  /** 数据库句柄包，stop 之后的 close 用它释放 sqlite */
+  private readonly handle: DatabaseHandle;
+
   /** 数据库句柄 */
   private readonly db: AppDb;
 
@@ -83,6 +98,7 @@ export class Engine {
     // 首次启动时 userData 目录可能尚未创建，先确保存在再开库
     mkdirSync(dataDir, { recursive: true });
     const handle = createDatabase(path.join(dataDir, 'awm.db'));
+    this.handle = handle;
     this.db = handle.db;
     this.bus = new SessionEventBus((event) => {
       this.handleEvent(event);
@@ -110,7 +126,7 @@ export class Engine {
     input: StandardEvent,
     mode: 'turn' | 'session',
     canCommit: () => boolean,
-    toolName: string,
+    tool: HookToolConfig,
   ): Promise<{ accepted: boolean; sessionId: string }> {
     await this.bus.idle();
     const digest = (value: string): string => createHash('sha256').update(value).digest('hex');
@@ -151,15 +167,15 @@ export class Engine {
     this.transitionBuffer = effects;
     try {
       this.db.transaction(() => {
-        const tool = listTools(this.db).find((item) => item.toolId === event.toolId);
+        const existing = listTools(this.db).find((item) => item.toolId === event.toolId);
         upsertTool(this.db, {
           toolId: event.toolId,
-          name: toolName,
+          name: tool.name,
           adapterId: event.toolId,
           detectStatus: 'running',
-          version: tool?.version,
-          configPath: tool?.configPath,
-          executablePath: tool?.executablePath,
+          version: existing?.version,
+          configPath: existing?.configPath,
+          executablePath: existing?.executablePath,
         });
         if (mode === 'session' && event.eventType !== 'task.started') {
           sessionId =
@@ -216,13 +232,13 @@ export class Engine {
           }
         }
         const current = getSession(this.db, sessionId);
-        // Claude Code 的 Hook 身份由 transcript 派生，同一会话文件跨轮次复用同一条记录；
+        // 配置声明 reopenOnStart 的工具（Hook 身份跨轮次复用同一条记录）：
         // 上一轮已进入终态时，新提示词要先静默归档回 idle，否则会被回跳防护拒绝。
         if (
-          event.toolId === 'claude-code' &&
+          tool.reopenOnStart === true &&
           event.eventType === 'task.started' &&
           current &&
-          HOOK_REOPEN_STATES.includes(current.currentState)
+          REOPEN_STATES.includes(current.currentState)
         )
           synthetic('task.archived', sessionId, 'hook-turn-reopen', current.title);
         if (event.eventType !== 'task.started' && (!current || current.currentState === 'idle'))
@@ -347,6 +363,17 @@ export class Engine {
   }
 
   /**
+   * 优雅退出时释放 sqlite 句柄；调用后数据库不可再查询。
+   */
+  close(): void {
+    try {
+      this.handle.sqlite.close();
+    } catch {
+      // 已关闭或异常退出时由进程兜底
+    }
+  }
+
+  /**
    * 读取会话当前状态，未创建的会话返回 idle。
    * @param sessionId 会话 id
    * @returns 当前状态
@@ -390,18 +417,10 @@ export class Engine {
     if (persisted?.visible === 0) return null;
     if (
       persisted &&
-      Date.parse(event.occurredAt) < Date.parse(persisted.updatedAt) &&
       !(NON_TRANSITION_EVENT_TYPES as readonly string[]).includes(event.eventType)
     ) {
-      event = {
-        ...event,
-        eventType: 'anomaly',
-        payload: {
-          ...event.payload,
-          reason: 'out-of-order',
-          originalEventType: event.eventType,
-        },
-      };
+      // 与事件总线同一套判定：晚于库内水位的迁移事件降级为 anomaly，只留记录不改状态。
+      event = demoteOutOfOrderEvent(event, Date.parse(persisted.updatedAt));
     }
     const actor = this.actorFor(event.sessionId);
     const prevState = actor.getState();

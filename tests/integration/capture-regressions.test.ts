@@ -125,6 +125,8 @@ function useCodexManifest(fixture: Harness): void {
   const file = path.join(fixture.adaptersDir, 'fixture.manifest.yaml');
   const manifest = JSON.parse(readFileSync(file, 'utf8')) as AdapterManifest;
   manifest.id = 'codex';
+  // 轮次身份由 manifest 声明驱动，与真实 codex.manifest.yaml 保持一致。
+  manifest.sessionSource.identityMode = 'turn';
   manifest.eventMapping = {
     started: { match: 'task_started' },
     completed: { match: 'task_complete', ok: true },
@@ -161,6 +163,72 @@ afterEach(async () => {
 });
 
 describe('incremental capture regressions', () => {
+  it('reaches task completion after a tool-output record larger than one read budget', async () => {
+    const at = Date.now() - 1000;
+    const fixture = makeHarness(
+      row('session_meta', at, { payload: { source: 'cli' } }) + '\n' +
+      codexEvent('task_started', at + 1, { turn_id: 'large-output' }) +
+      codexEvent('user_message', at + 2, { message: '合成的大输出任务' }) +
+      row('response_item', at + 3, {
+        payload: { type: 'function_call_output', output: 'x'.repeat(5 * 1024 * 1024) },
+      }) + '\n' +
+      codexEvent('task_complete', at + 4, { turn_id: 'large-output' }),
+    );
+    useCodexManifest(fixture);
+    await fixture.monitor.scan();
+    for (let attempt = 0; attempt < 3; attempt += 1) await fixture.monitor.capture();
+    expect(getSession(fixture.engine.database, `${CODEX_SESSION_ID}:turn:large-output`)?.currentState)
+      .toBe('completed');
+    expect(getSourceCheckpoint(fixture.engine.database, fixture.source)?.offset)
+      .toBe(Buffer.byteLength(readFileSync(fixture.source)));
+    const events = listEvents(fixture.engine.database);
+    await fixture.monitor.capture();
+    expect(listEvents(fixture.engine.database)).toHaveLength(events.length);
+  });
+
+  it('keeps an oversized partial record uncommitted across restart and resumes after its newline', async () => {
+    const at = Date.now() - 1000;
+    const fixture = makeHarness(
+      codexEvent('task_started', at, { turn_id: 'partial-large' }) +
+      codexEvent('user_message', at + 1, { message: '合成的跨块半行任务' }),
+    );
+    useCodexManifest(fixture);
+    await fixture.monitor.scan();
+    const previous = getSourceCheckpoint(fixture.engine.database, fixture.source)!;
+    appendFileSync(fixture.source, row('response_item', at + 2, {
+      payload: { type: 'function_call_output', output: 'x'.repeat(5 * 1024 * 1024) },
+    }));
+    await fixture.monitor.capture();
+    expect(getSourceCheckpoint(fixture.engine.database, fixture.source)?.offset).toBe(previous.offset);
+    rebuildMonitor(fixture);
+    await fixture.monitor.capture();
+    expect(getSourceCheckpoint(fixture.engine.database, fixture.source)?.offset).toBe(previous.offset);
+    appendFileSync(fixture.source, '\n' + codexEvent('task_complete', at + 3, { turn_id: 'partial-large' }));
+    await fixture.monitor.capture();
+    expect(getSession(fixture.engine.database, `${CODEX_SESSION_ID}:turn:partial-large`)?.currentState)
+      .toBe('completed');
+    expect(getSourceCheckpoint(fixture.engine.database, fixture.source)?.offset)
+      .toBe(Buffer.byteLength(readFileSync(fixture.source)));
+  });
+
+  it('keeps an oversized internal metadata record excluded while advancing its checkpoint', async () => {
+    const at = Date.now() - 1000;
+    const fixture = makeHarness(
+      row('session_meta', at, {
+        payload: { source: { internal: 'guardian' }, padding: 'x'.repeat(5 * 1024 * 1024) },
+      }) + '\n' +
+      codexEvent('task_started', at + 1, { turn_id: 'large-internal' }) +
+      codexEvent('task_complete', at + 2, { turn_id: 'large-internal' }),
+    );
+    useCodexManifest(fixture);
+    await fixture.monitor.capture();
+    expect(listSessions(fixture.engine.database)).toEqual([]);
+    expect(listEvents(fixture.engine.database)).toEqual([]);
+    expect(getSourceCheckpoint(fixture.engine.database, fixture.source)?.offset)
+      .toBe(Buffer.byteLength(readFileSync(fixture.source)));
+    expect(getSourceCheckpoint(fixture.engine.database, fixture.source)?.context).toEqual({excluded:true});
+  });
+
   it.each([false, true])(
     'excludes explicitly internal sources without events or speech (large metadata=%s)',
     async (large) => {
