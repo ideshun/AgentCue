@@ -6,7 +6,7 @@ GitHub 仓库：[ideshun/AgentCue](https://github.com/ideshun/AgentCue)。仓库
 
 - `.github/workflows/l1.yml` 在 `main`、PR 与手动触发时运行完整检查并存档日志。
 - `.github/workflows/release.yml` 接受版本标签或手动指定现有标签，检查全部包版本，运行完整 L1，然后在原生 runner 构建 macOS arm64 / x64、Windows x64、Linux x64。
-- 每个平台构建后自检 Electron 包中的 SQLite 内存访问、系统架构 TTS 运行库、当前工位插画、许可和 6 个 MCP 工具。自检不打开窗口或播放音频。
+- 每个平台构建后自检 Electron 包中的 SQLite 内存访问、系统架构 TTS 运行库、英文/中文 Electron 语言资源、当前工位插画、许可和 6 个 MCP 工具。自检不打开窗口或播放音频。
 - 成功后生成 SHA-256 校验文件，创建或更新 **草稿预览版**。检查附件和校验值后再通过 GitHub UI 发布。工作流不会覆盖已经发布的版本。
 - 正式 Code Signing、公证和自动更新暂未配置。
 
@@ -43,9 +43,11 @@ CI 在其各自的原生系统与架构上构建；不能将单机 Mac arm64 构
 
 ## 首次安装会占用多少空间
 
-安装后的 `.app` 带有 Electron Framework（Chromium 与 Node.js），基础框架约 **289 MiB**。本次 macOS arm64 优化包分配量约 **337 MiB**；已有 `/Applications/AgentCue.app` 原包约 **391 MiB**。因此首次安装也会是数百 MB，这部分来自桌面运行环境，和任务记录无关。
+安装后的 `.app` 带有 Electron Framework（Chromium 与 Node.js）。v0.1.1 macOS arm64 实测 Electron Framework 约 **239 MiB**，完整 `.app` 约 **291 MiB**，DMG 下载文件约 **119 MiB**。同一台 Mac、相同架构的 v0.1.0 对比构建分别约 286 MiB、336 MiB 和 128.2 MiB。应用解压后的占用仍是数百 MB，这部分主要来自桌面运行环境，和任务记录无关。
 
-本次减少约 54 MiB：此前会同时带上重复的 sherpa TTS 运行库与 SQLite 编译源码/中间文件。新打包规则把 TTS 原生库只放在 `Resources/sherpa-tts`，并只把当前引用的工位图复制到安装包。**所有**插画源码、未使用版本和设计素材仍留在仓库。Kokoro / ZipVoice 语音模型需用户主动下载，均不包含在安装包内。
+v0.1.0 的打包优化去掉了重复 sherpa TTS 运行库与 SQLite 编译源码/中间文件；v0.1.1 再把 Chromium 语言资源限制为英语、简体中文和繁体中文，减少约 45 MiB 的已安装占用。TTS 原生库仅放在 `Resources/sherpa-tts`，当前引用的工位图才复制到应用包。**所有**插画源码、未使用版本和设计素材仍留在仓库。Kokoro / ZipVoice 语音模型需用户主动下载，均不包含在安装包内。
+
+继续显著缩小安装体积需要把约 33 MiB 的 TTS 原生运行库改成按需下载，或迁移出 Electron；前者会让首次使用本地 Kokoro 多一步下载，后者属于桌面技术栈重写。本版保留运行库，保证下载语音模型后无需再安装本机依赖。
 
 Finder 的「显示简介」/ 容量、下载压缩包大小和逻辑文件大小是不同口径。Release 会列出每个实际安装包的字节数及 SHA-256；以新包自检构建结果为准，不根据旧安装包估计优化后的大小。
 

@@ -1,6 +1,6 @@
 {
   "name": "@awm/mcp-stdio",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "awm-mcp 桥接进程：由 AI 客户端经 stdio 拉起，连本地控制 API",
   "main": "dist/index.js",

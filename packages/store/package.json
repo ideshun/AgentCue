@@ -1,6 +1,6 @@
 {
   "name": "@awm/store",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "SQLite 建库、迁移与 DAO（Drizzle ORM）",
   "main": "dist/index.js",

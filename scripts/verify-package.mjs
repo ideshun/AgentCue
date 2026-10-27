@@ -36,6 +36,23 @@ assert.ok(gunzipSync(fs.readFileSync(path.join(resources, 'licenses/Chromium-LIC
 for (const file of ['LICENSE', 'THIRD_PARTY_NOTICES.md', 'Sherpa-ONNX-LICENSE.txt', 'Electron-LICENSE.txt']) {
   assert.ok(fs.statSync(path.join(resources, 'licenses', file)).size > 100);
 }
+const localeDirs = process.platform === 'darwin'
+  ? [resources, path.join(resources, '..', 'Frameworks', 'Electron Framework.framework', 'Versions', 'A', 'Resources')]
+  : [path.join(resources, 'locales')];
+const localeExt = process.platform === 'darwin' ? '.lproj' : '.pak';
+const keptLocales = new Set([
+  'en', 'en-feminine', 'en-masculine', 'en-neuter',
+  'en-gb', 'en-gb-feminine', 'en-gb-masculine', 'en-gb-neuter', 'en-us',
+  'zh-cn', 'zh-cn-feminine', 'zh-cn-masculine', 'zh-cn-neuter',
+  'zh-tw', 'zh-tw-feminine', 'zh-tw-masculine', 'zh-tw-neuter', 'zh-hk',
+]);
+const localeNames = localeDirs.flatMap((dir) => fs.readdirSync(dir)
+  .filter((file) => file.endsWith(localeExt))
+  .map((file) => path.basename(file, localeExt).replaceAll('_', '-').toLowerCase()));
+assert.ok(localeNames.length > 0, 'Electron locale resources are present');
+assert.ok(localeNames.every((locale) => keptLocales.has(locale)), 'only English and Chinese Electron locales are bundled');
+assert.ok(localeNames.some((locale) => locale.startsWith('en')), 'English Electron locale is retained');
+assert.ok(localeNames.some((locale) => locale.startsWith('zh-')), 'Chinese Electron locale is retained');
 const office = fs.readFileSync(path.join(archive, 'dist/renderer/office.js'), 'utf8');
 const styleList = office.match(/const OFFICE_DESK_STYLES = \[([\s\S]*?)\]/);
 assert.ok(styleList, 'the workstation style list is present');

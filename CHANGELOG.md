@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1 · Preview
+
+- 只将英文、简体中文和繁体中文的 Chromium 语言资源放入安装包，缩减应用占用；完整插画素材仍保留在仓库。
+- 扩展安装包自检，确保跨平台语言资源裁剪不误删中文或英文资源。
+
 ## 0.1.0 · Preview
 
 首次 AgentCue 预览版，原项目名 AI Workflow Monitor。

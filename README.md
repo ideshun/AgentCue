@@ -13,14 +13,14 @@ AgentCue 是一款本地优先的 AI 编码任务监控桌面应用。将多个�
 
 ## 下载与安装
 
-从 [Releases](https://github.com/ideshun/AgentCue/releases) 下载对应安装包。当前为 **v0.1.0 预览版**。
+从 [Releases](https://github.com/ideshun/AgentCue/releases) 下载对应安装包。当前为 **v0.1.1 预览版**。
 
 | 系统 | 安装包 |
 | --- | --- |
 | macOS · Apple 芯片 | `AgentCue-…-mac-arm64.dmg` |
 | macOS · Intel | `AgentCue-…-mac-x64.dmg` |
 | Windows · x64 | `AgentCue-…-win-x64.exe` |
-| Linux · x64 | `AgentCue-…-linux-x64.AppImage` |
+| Linux · x64 | `AgentCue-…-linux-x86_64.AppImage` |
 
 macOS 将应用拖入「应用程序」后启动；Windows 运行安装程序；Linux 给 AppImage 添加执行权限后运行。安装版自带运行环境，无需安装 Node.js、pnpm 或拉取源码。
 
@@ -60,11 +60,11 @@ macOS 将应用拖入「应用程序」后启动；Windows 运行安装程序；
 
 ## 安装包为什么有几百 MB？
 
-AgentCue 使用 Electron，自带 Chromium 和 Node.js。此次实测的 macOS Apple 芯片 `.app` 在不含语音模型时约 **337 MiB**，其中 Electron Framework 约 289 MiB；首次安装同样会是数百 MiB，和任务历史条数无关。
+AgentCue 使用 Electron，自带 Chromium 和 Node.js。macOS Apple 芯片版 `.app` 解压后约 **291 MiB**，其中 Electron Framework 约 239 MiB；下载的 DMG 约 119 MiB。安装占用和下载大小是两个口径，任务历史条数不会改变安装包大小。
 
-安装包还包含 SQLite、本地 TTS 推理运行库，以及当前使用的图标、字体和插画。**Kokoro / ZipVoice 模型不包含在安装包中**，选择下载后才占用额外的数据目录空间。发行包只保留一份 TTS 运行库，排除编译源码、构建中间文件和未使用的插画版本。此次包的本机分配量约 337 MiB；已有安装的原包约 391 MiB。
+v0.1.1 将 Chromium 的 220 份语言资源缩减为英语、简体中文和繁体中文；同一台 Mac 上重复构建测得 `.app` 从 336 MiB 降到 291 MiB，DMG 从 128.2 MiB 降到 119.0 MiB。安装包还包含 SQLite 和一份本地 TTS 推理运行库（约 33 MiB），以便下载模型后可使用 Kokoro / ZipVoice；**语音模型本身不包含在安装包中**，由用户主动下载。编译源码、中间文件和未使用的插画版本不进入应用包。
 
-全部插画原稿、历史版本和设计说明仍保留在仓库中，只是不进入应用包。安装包下载体积经压缩，通常小于安装后的应用体积；以对应 Release 附件和本机「显示简介」为准。
+全部插画原稿、历史版本和设计说明仍保留在仓库中，只是不进入应用包。剩余体积主要来自 Electron 框架；再明显缩小需要把 TTS 推理运行库改为按需下载，或更换桌面技术栈，会影响首次使用体验或增加迁移成本。
 
 ## 更新与已有数据
 

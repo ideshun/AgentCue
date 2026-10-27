@@ -1,6 +1,6 @@
 {
   "name": "ai-workflow-monitor",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "AgentCue：本地优先的 AI 编码工具任务监控与语音提醒",
   "license": "MIT",

@@ -5,6 +5,32 @@ artifactName: '${productName}-${version}-${os}-${arch}.${ext}'
 compression: maximum
 # 显式固定版本：electron-builder 无法从 "^x.y.z" 范围解析平台二进制版本
 electronVersion: 44.9.0
+# Keep only Electron's English and Chinese UI resources. Chromium ships more
+# than 200 locale bundles; the app itself is zh-CN with an English fallback.
+# Include underscore spellings used by macOS .lproj folders and hyphen
+# spellings used by Windows/Linux .pak files.
+electronLanguages:
+  - en
+  - en-US
+  - en-GB
+  - en_GB
+  - en_FEMININE
+  - en_MASCULINE
+  - en_NEUTER
+  - en_GB_FEMININE
+  - en_GB_MASCULINE
+  - en_GB_NEUTER
+  - zh-CN
+  - zh-TW
+  - zh-HK
+  - zh_CN
+  - zh_CN_FEMININE
+  - zh_CN_MASCULINE
+  - zh_CN_NEUTER
+  - zh_TW
+  - zh_TW_FEMININE
+  - zh_TW_MASCULINE
+  - zh_TW_NEUTER
 directories:
   output: release
 files:

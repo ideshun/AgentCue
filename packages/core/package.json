@@ -1,6 +1,6 @@
 {
   "name": "@awm/core",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "事件总线、状态机、迁移判定与规则编排",
   "main": "dist/index.js",
