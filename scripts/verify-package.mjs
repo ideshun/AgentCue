@@ -38,7 +38,7 @@ for (const file of ['LICENSE', 'THIRD_PARTY_NOTICES.md', 'Sherpa-ONNX-LICENSE.tx
 }
 const localeDirs = process.platform === 'darwin'
   ? [resources, path.join(resources, '..', 'Frameworks', 'Electron Framework.framework', 'Versions', 'A', 'Resources')]
-  : [path.join(resources, 'locales')];
+  : [path.join(resources, '..', 'locales')];
 const localeExt = process.platform === 'darwin' ? '.lproj' : '.pak';
 const keptLocales = new Set([
   'en', 'en-feminine', 'en-masculine', 'en-neuter',
