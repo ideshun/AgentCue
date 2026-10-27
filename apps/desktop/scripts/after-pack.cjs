@@ -7,6 +7,13 @@ const { gzipSync } = require('node:zlib');
 
 const appDir = path.resolve(__dirname, '..');
 const rootNodeModules = path.resolve(appDir, '../../node_modules');
+const appNodeModules = path.join(appDir, 'node_modules');
+
+function firstExisting(paths, label) {
+  const found = paths.find((candidate) => fs.existsSync(candidate));
+  if (!found) throw new Error(`找不到 ${label}：${paths.join(' 或 ')}`);
+  return found;
+}
 
 function archName(value) {
   if (typeof value === 'string') return value.toLowerCase();
@@ -51,16 +58,31 @@ module.exports = async function stageSherpaRuntime(context) {
   for (const file of ['LICENSE', 'THIRD_PARTY_NOTICES.md']) {
     fs.copyFileSync(path.join(projectRoot, file), path.join(licensesDir, file));
   }
+  // pnpm 在 CI 中会把 Electron 链接到桌面包的 node_modules，仓库根目录的提升链接
+  // 可能不包含 Electron 下载后的 dist 文件；先从应用依赖定位，再兼容提升布局。
+  const electronPackageDirs = [
+    path.join(appNodeModules, 'electron'),
+    path.join(rootNodeModules, 'electron'),
+  ];
+  const electronLicense = firstExisting(
+    electronPackageDirs.flatMap((directory) => [
+      path.join(directory, 'dist/LICENSE'),
+      path.join(directory, 'LICENSE'),
+    ]),
+    'Electron license',
+  );
+  const chromiumLicenses = firstExisting(
+    electronPackageDirs.map((directory) => path.join(directory, 'dist/LICENSES.chromium.html')),
+    'Chromium license notices',
+  );
   fs.copyFileSync(
-    path.join(rootNodeModules, 'electron/dist/LICENSE'),
+    electronLicense,
     path.join(licensesDir, 'Electron-LICENSE.txt'),
   );
   // Chromium 的完整许可清单约 19MB；无损压缩保留全文，避免增大安装体积。
   fs.writeFileSync(
     path.join(licensesDir, 'Chromium-LICENSES.html.gz'),
-    gzipSync(fs.readFileSync(path.join(rootNodeModules, 'electron/dist/LICENSES.chromium.html')), {
-      level: 9,
-    }),
+    gzipSync(fs.readFileSync(chromiumLicenses), { level: 9 }),
   );
   fs.copyFileSync(
     path.join(appDir, 'build/licenses/Apache-2.0.txt'),
