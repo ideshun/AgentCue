@@ -43,10 +43,7 @@ mac:
   hardenedRuntime: true
   gatekeeperAssess: false
   target:
-    - target: dmg
-      arch:
-        - arm64
-        - x64
+    - dmg
 win:
   icon: build/icon.ico
   # 代码签名需要 CSC_LINK / CSC_KEY_PASSWORD；未配置时仍可打内测 NSIS 包
