@@ -5,7 +5,7 @@
 <p align="center">看见 AI 在做什么，需要你时及时提醒。</p>
 <p align="center">
   <a href="https://github.com/ideshun/AgentCue/actions/workflows/l1.yml"><img src="https://github.com/ideshun/AgentCue/actions/workflows/l1.yml/badge.svg" alt="L1 checks" /></a>
-  <a href="https://github.com/ideshun/AgentCue/releases"><img src="https://img.shields.io/github/v/release/ideshun/AgentCue?include_prereleases" alt="Preview release" /></a>
+  <a href="https://github.com/ideshun/AgentCue/releases"><img src="https://img.shields.io/github/v/release/ideshun/AgentCue" alt="Latest stable release" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT license" /></a>
 </p>
 
@@ -13,7 +13,7 @@ AgentCue 是一款本地优先的 AI 编码任务监控桌面应用。将多个�
 
 ## 下载与安装
 
-从 [Releases](https://github.com/ideshun/AgentCue/releases) 下载对应安装包。当前为 **v0.1.1 预览版**。
+从 [Releases](https://github.com/ideshun/AgentCue/releases) 下载对应安装包。当前正式版为 **v0.1.2**。
 
 | 系统 | 安装包 |
 | --- | --- |
@@ -24,7 +24,7 @@ AgentCue 是一款本地优先的 AI 编码任务监控桌面应用。将多个�
 
 macOS 将应用拖入「应用程序」后启动；Windows 运行安装程序；Linux 给 AppImage 添加执行权限后运行。安装版自带运行环境，无需安装 Node.js、pnpm 或拉取源码。
 
-预览版尚无正式代码签名和 macOS 公证，系统可能提示开发者未验证。当前重点验收平台为 macOS；其他平台由 CI 构建及自检，不代表所有系统交互和语音设备均已人工验收。下载附件可使用同一 Release 中的 `SHA256SUMS.txt` 校验。
+本正式版尚无正式代码签名和 macOS 公证，macOS 可能提示开发者未验证。四个平台均经过 CI 构建与包内自检；完整系统交互和音频设备的人工验收以 macOS 为主。下载附件可使用同一 Release 中的 `SHA256SUMS.txt` 校验。
 
 ## 能做什么
 

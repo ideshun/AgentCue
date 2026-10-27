@@ -1,6 +1,6 @@
 {
   "name": "@awm/schema",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "事件 / 状态 / 适配器 manifest / 设置 / API 的唯一事实源",
   "main": "dist/index.js",

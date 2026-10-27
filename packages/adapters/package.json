@@ -1,6 +1,6 @@
 {
   "name": "@awm/adapters",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "适配器注册表、加载器与内置适配器资源",
   "main": "dist/index.js",

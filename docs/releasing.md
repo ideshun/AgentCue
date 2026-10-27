@@ -7,7 +7,7 @@ GitHub 仓库：[ideshun/AgentCue](https://github.com/ideshun/AgentCue)。仓库
 - `.github/workflows/l1.yml` 在 `main`、PR 与手动触发时运行完整检查并存档日志。
 - `.github/workflows/release.yml` 接受版本标签或手动指定现有标签，检查全部包版本，运行完整 L1，然后在原生 runner 构建 macOS arm64 / x64、Windows x64、Linux x64。
 - 每个平台构建后自检 Electron 包中的 SQLite 内存访问、系统架构 TTS 运行库、英文/中文 Electron 语言资源、当前工位插画、许可和 6 个 MCP 工具。自检不打开窗口或播放音频。
-- 成功后生成 SHA-256 校验文件，创建或更新 **草稿预览版**。检查附件和校验值后再通过 GitHub UI 发布。工作流不会覆盖已经发布的版本。
+- 成功后生成 SHA-256 校验文件，创建 **草稿预览版**。检查附件和校验值后再通过 GitHub UI 发布；发布正式版时取消「预发布」并设为 Latest。工作流不会覆盖已经发布的版本。
 - 正式 Code Signing、公证和自动更新暂未配置。
 
 发布工作流需要仓库开启 GitHub Actions。首次使用时为 `main` 增加 tag push 权限提示，日志会说明失败步骤。
@@ -25,7 +25,7 @@ GitHub 仓库：[ideshun/AgentCue](https://github.com/ideshun/AgentCue)。仓库
    git push origin vX.Y.Z
    ```
 
-5. GitHub Actions 等待 quality 和四个平台构建及自检通过后，生成草稿预览版与 SHA-256 清单。审查附件，再发布 Release。
+5. GitHub Actions 等待 quality 和四个平台构建及自检通过后，生成草稿预览版与 SHA-256 清单。审查附件；正式版取消「预发布」并设为 Latest，预览版保留「预发布」后发布。
 
 手动补跑已存在的标签可在 Actions → Release → Run workflow 输入 `vX.Y.Z`。标签版本必须和各包完全相同；同一标签重新运行仅更新仍为草稿的 Release，已发布版本必须使用新标签。
 
