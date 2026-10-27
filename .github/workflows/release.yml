@@ -62,7 +62,10 @@ jobs:
           - runner: macos-15-intel
             platform: mac
             arch: x64
-            app: apps/desktop/release/mac-x64/AgentCue.app
+            # On an Intel runner this target matches the host architecture, so
+            # electron-builder writes to `release/mac` (the arm64 runner uses
+            # `release/mac-arm64` for its explicit cross-target build).
+            app: apps/desktop/release/mac/AgentCue.app
           - runner: windows-2022
             platform: win
             arch: x64
