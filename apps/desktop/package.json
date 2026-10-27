@@ -23,6 +23,7 @@
     "@awm/core": "workspace:*",
     "@awm/schema": "workspace:*",
     "@awm/store": "workspace:*",
+    "better-sqlite3": "^12.0.0",
     "sherpa-onnx-node": "^1.13.8"
   },
   "devDependencies": {
