@@ -88,6 +88,14 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm release:check "$RELEASE_TAG"
+      - name: Rebuild SQLite for Electron ABI on Windows
+        if: matrix.platform == 'win'
+        env:
+          TARGET_ARCH: ${{ matrix.arch }}
+        run: >-
+          pnpm --filter @awm/desktop exec electron-rebuild
+          --force --which-module better-sqlite3 --version 44.9.0
+          --arch "$TARGET_ARCH" --module-dir .
       - run: pnpm build
       - name: Build installer
         env:
