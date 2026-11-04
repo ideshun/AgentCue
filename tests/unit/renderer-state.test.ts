@@ -68,6 +68,16 @@ const settings = {
 };
 
 describe('renderer settings', () => {
+  it('shows a saved volume slider and builds numeric volume patches', () => {
+    const context = renderer();
+    context.settingsFixture = structuredClone(settings);
+    evaluate(context, 'state.settings = settingsFixture');
+    const markup = evaluate<string>(context, 'renderSettings(state)');
+    expect(markup).toContain('data-setting="voice.volume"');
+    expect(markup).toContain('aria-valuetext="80%"');
+    expect(markup).toContain('id="volume-value"');
+    expect(plain(evaluate(context, 'buildPatch("voice.volume", "0.35")'))).toEqual({ voice: { volume: 0.35 } });
+  });
   it('exposes broadcast scope and content selectors with the saved values selected', () => {
     const context = renderer();
     context.settingsFixture = structuredClone(settings);
@@ -182,6 +192,24 @@ describe('renderer settings', () => {
       ['-y', '@org/server', 'path with spaces'],
     );
     expect(() => evaluate(context, 'parseMcpArgs("[1]")')).toThrow('字符串数组');
+  });
+});
+
+describe('renderer office', () => {
+  it('shows the latest actual event time and handles missing event history', () => {
+    const context = renderer();
+    context.settingsFixture = structuredClone(settings);
+    evaluate(context, `state.settings = settingsFixture;
+      state.tools = [{ toolId: 'demo', name: 'Demo', detectStatus: 'installed', sessionCapability: 'events' }];
+      state.office = { generatedAt: '2026-10-20T06:00:00.000Z', workstations: [{
+        toolId: 'demo', counts: { idle: 0, running: 0, waiting_human: 0, failed: 0, timeout: 0, completed: 0, cancelled: 0 },
+        tasks: [], lastEventAt: '2026-10-20T05:00:00.000Z'
+      }] };`);
+    const markup = evaluate<string>(context, 'renderOffice(state)');
+    expect(markup).toContain('datetime="2026-10-20T05:00:00.000Z"');
+    expect(markup).toContain('最近事件 ·');
+    evaluate(context, 'state.office.workstations[0].lastEventAt = null');
+    expect(evaluate<string>(context, 'renderOffice(state)')).toContain('暂无任务事件');
   });
 });
 

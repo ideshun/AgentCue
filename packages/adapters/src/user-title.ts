@@ -1,3 +1,5 @@
+import { compactSpeechReferences, SPEECH_TITLE_MAX } from '@awm/schema';
+
 /** 已核实的用户消息形状；不把工具输出、助手文本或未知记录用作标题。 */
 function object(value: unknown): Record<string, unknown> | undefined {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -47,11 +49,13 @@ function cleanUserText(text: string): string | undefined {
     value = value.slice(match[0].length).trimStart();
   }
   if (!value.trim()) return undefined;
-  return Array.from(value.trim().replace(/\s+/g, ' ')).slice(0, 40).join('');
+  return value.trim().replace(/\s+/g, ' ');
 }
 
-/** @description: 仅从真实用户记录取文本，完成结果和审批输出永远不参与标题选择。 */
-export function extractUserTitle(row: Record<string, unknown>): string | undefined {
+/** @description: 原始标题仍限 40 字；含路径引用时另生成有长度上限的播报标题。 */
+export function extractUserTitles(
+  row: Record<string, unknown>,
+): { title: string; speechTitle?: string } | undefined {
   let text: string | undefined;
   if (row.type === 'user') {
     const message = object(row.message);
@@ -65,5 +69,21 @@ export function extractUserTitle(row: Record<string, unknown>): string | undefin
     const payload = object(row.payload);
     if (payload?.type === 'message' && payload.role === 'user') text = contentText(payload.content);
   }
-  return text === undefined ? undefined : cleanUserText(text);
+  const cleaned = text === undefined ? undefined : cleanUserText(text);
+  if (!cleaned) return undefined;
+  // 最多取 60 个 Unicode 字符；避免为可能很长的原始消息创建完整字符数组。
+  const rawCharacters = Array.from(cleaned.slice(0, SPEECH_TITLE_MAX * 2));
+  const title = rawCharacters.slice(0, 40).join('');
+  if (!cleaned.includes('@')) return { title };
+  const compact = compactSpeechReferences(cleaned);
+  const speechTitle = Array.from(compact.slice(0, SPEECH_TITLE_MAX * 2))
+    .slice(0, SPEECH_TITLE_MAX).join('');
+  return speechTitle === rawCharacters.slice(0, SPEECH_TITLE_MAX).join('')
+    ? { title }
+    : { title, speechTitle };
+}
+
+/** @description: 仅从真实用户记录取文本，完成结果和审批输出永远不参与标题选择。 */
+export function extractUserTitle(row: Record<string, unknown>): string | undefined {
+  return extractUserTitles(row)?.title;
 }

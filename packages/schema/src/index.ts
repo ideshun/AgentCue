@@ -9,3 +9,4 @@ export * from './settings';
 export * from './api';
 export * from './board';
 export * from './office';
+export * from './speech';

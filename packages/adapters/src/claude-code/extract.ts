@@ -13,7 +13,7 @@ import {
   type StandardEvent,
 } from '@awm/schema';
 import { createHash } from 'node:crypto';
-import { extractUserTitle } from '../user-title';
+import { extractUserTitle, extractUserTitles } from '../user-title';
 
 export type { SourceTaskContext } from '@awm/schema';
 
@@ -267,13 +267,18 @@ export function extractSourceBatch(
   }
   if (context.excluded) return { events: [], titles: [], context: { excluded: true } };
   const titles = new Map<string, string | null>();
+  const speechTitles = new Map<string, string>();
   const idFor = (taskId?: string): string => (taskId ? `${base}:turn:${taskId}` : base);
   const knownTitle = (taskId?: string): string | null =>
     taskId
       ? context.taskId === taskId ? context.title ?? null : null
       : ctx.title ?? (!context.taskId ? context.title : null) ?? null;
-  const encounter = (sessionId: string, title: string | null): void => {
+  const knownSpeechTitle = (taskId?: string): string | undefined =>
+    (taskId ? (context.taskId === taskId ? context.speechTitle : null) :
+      (!context.taskId ? context.speechTitle : null)) ?? undefined;
+  const encounter = (sessionId: string, title: string | null, speechTitle?: string | null): void => {
     if (!titles.has(sessionId)) titles.set(sessionId, title);
+    if (speechTitle && !speechTitles.has(sessionId)) speechTitles.set(sessionId, speechTitle);
   };
 
   for (const row of rows) {
@@ -292,24 +297,39 @@ export function extractSourceBatch(
         ...(context.excluded === undefined ? {} : { excluded: context.excluded }),
         taskId,
         title: context.pendingTitle ?? null,
+        ...(context.pendingSpeechTitle ? { speechTitle: context.pendingSpeechTitle } : {}),
         closed: false,
       };
     } else if (boundary && !taskId && !context.taskId && starts) {
       context.closed = false;
       delete context.pendingTitle;
+      delete context.pendingSpeechTitle;
     }
-    const title = extractUserTitle(row);
+    const extractedTitle = extractUserTitles(row);
+    const title = extractedTitle?.title;
     if (title) {
       if (byTurn && context.closed) {
-        context.pendingTitle ??= title;
+        if (!context.pendingTitle) {
+          context.pendingTitle = title;
+          if (extractedTitle?.speechTitle) context.pendingSpeechTitle = extractedTitle.speechTitle;
+        }
       } else if (byTurn && !context.taskId) {
-        context.title ??= title;
-        context.pendingTitle ??= title;
-        encounter(base, context.title);
+        if (!context.title) {
+          context.title = title;
+          if (extractedTitle?.speechTitle) context.speechTitle = extractedTitle.speechTitle;
+        }
+        if (!context.pendingTitle) {
+          context.pendingTitle = title;
+          if (extractedTitle?.speechTitle) context.pendingSpeechTitle = extractedTitle.speechTitle;
+        }
+        encounter(base, context.title, context.speechTitle);
       } else {
-        context.title ??= title;
+        if (!context.title) {
+          context.title = title;
+          if (extractedTitle?.speechTitle) context.speechTitle = extractedTitle.speechTitle;
+        }
         const sessionId = byTurn ? idFor(context.taskId) : base;
-        encounter(sessionId, context.title ?? title);
+        encounter(sessionId, context.title ?? title, context.speechTitle);
         if (titles.get(sessionId) === null) titles.set(sessionId, context.title ?? title);
       }
     }
@@ -322,7 +342,7 @@ export function extractSourceBatch(
         continue;
       }
       const sessionId = byTurn ? idFor(taskId) : base;
-      encounter(sessionId, knownTitle(byTurn ? taskId : undefined));
+      encounter(sessionId, knownTitle(byTurn ? taskId : undefined), knownSpeechTitle(byTurn ? taskId : undefined));
       events.push(
         standardEventSchema.parse({
           eventId: createEventId(`${ctx.sourcePath ?? ''}:${sessionId}`, eventType, row),
@@ -333,6 +353,7 @@ export function extractSourceBatch(
           actor: 'tool',
           payload: {
             taskTitle: titles.get(sessionId) ?? undefined,
+            ...(speechTitles.has(sessionId) ? { taskSpeechTitle: speechTitles.get(sessionId) } : {}),
             reason: rule.reason,
           },
           schemaVersion: 1,
@@ -343,10 +364,15 @@ export function extractSourceBatch(
     else if (boundary && !taskId && !context.taskId && !starts) {
       context.closed = true;
       delete context.pendingTitle;
+      delete context.pendingSpeechTitle;
     }
   }
 
-  for (const event of events) event.payload.taskTitle = titles.get(event.sessionId) ?? undefined;
+  for (const event of events) {
+    event.payload.taskTitle = titles.get(event.sessionId) ?? undefined;
+    const speechTitle = speechTitles.get(event.sessionId);
+    if (speechTitle) event.payload.taskSpeechTitle = speechTitle;
+  }
   return {
     events,
     context,

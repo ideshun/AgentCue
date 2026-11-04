@@ -17,9 +17,12 @@
 | 渲染层 UI | [`.agents/rules/renderer-native.md`](.agents/rules/renderer-native.md) |
 | 扫描、API、TTS、隐私 | [`.agents/rules/local-first.md`](.agents/rules/local-first.md) → [`.agents/knowledge/constraints.md`](.agents/knowledge/constraints.md) |
 | 验证怎么跑 | [`.agents/knowledge/verification.md`](.agents/knowledge/verification.md) |
+| 更新项目记忆 | [`.agents/skills/sync-knowledge/SKILL.md`](.agents/skills/sync-knowledge/SKILL.md) |
 | 产品/设计编号 | [`docs/README.md`](docs/README.md) |
 
 规则正文只在 `.agents/rules/`。`.cursor/rules/` 仅作触发，不复制正文。
+
+经源码或权威文档证实、需要长期保留的项目事实，按知识同步流程更新现有 `.agents/knowledge/`；不要写入凭据、个人历史、会话正文或临时任务记录。
 
 ## 可用流程
 

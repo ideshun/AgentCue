@@ -36,7 +36,7 @@
 
 **审查**：显式读取 [review-readonly/SKILL.md](./skills/review-readonly/SKILL.md)，用 [review-handoff.md](./templates/review-handoff.md) 交卷。
 
-**知识维护**：架构或约束变化后走 [sync-knowledge/SKILL.md](./skills/sync-knowledge/SKILL.md)。
+**项目记忆与知识维护**：把 `.agents/knowledge/` 现有知识页作为可版本管理的项目记忆；架构、边界、集成或验证方式变化后，以及用户明确要求记住项目级事实时，按 [sync-knowledge/SKILL.md](./skills/sync-knowledge/SKILL.md) 核实并更新。不要将个人记忆、凭据、会话正文或临时任务记录写入仓库。
 
 常用命令（细节见 [verification.md](./knowledge/verification.md)）：
 

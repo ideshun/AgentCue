@@ -1,7 +1,13 @@
 /**
  * 自动通知/播报与试听的生命周期。规则静音优先，通知和语音均经过去抖。
  */
-import type { EventType, Settings, VoicePriority } from '@awm/schema';
+import {
+  compactSpeechReferences,
+  SPEECH_TITLE_MAX,
+  type EventType,
+  type Settings,
+  type VoicePriority,
+} from '@awm/schema';
 import {
   DebounceMerger,
   GLOBAL_COOLDOWN_MS,
@@ -66,9 +72,9 @@ function toVoiceRule(row: VoiceRuleRow): VoiceRule {
 }
 
 /** @description: 自定义文案保留原意，最终播报只补缺失的工具或任务标识。 */
-function withTaskIdentity(text: string, signal: TransitionSignal): string {
+function withTaskIdentity(text: string, signal: TransitionSignal, titleLimit = 40): string {
   const tool = voiceToolName(signal);
-  const title = voiceTaskTitle(signal);
+  const title = voiceTaskTitle(signal, titleLimit);
   const parts = [
     !text.includes(tool) ? tool : '',
     !text.includes(title) ? `「${title}」` : '',
@@ -167,7 +173,7 @@ export class VoiceService {
       priority: resolved.rule?.priority ?? priorityForEvent(signal.eventType),
       // 只在出声前归一化；通知与看板仍用原文。
       text: normalizeForSpeech(
-        this.announcementText(resolved.text ?? '', signal, resolved.rule?.template),
+        this.announcementText(signal, resolved.rule?.template),
       ),
       signal,
       ...(delay > 0 ? { notBefore: Date.now() + delay } : {}),
@@ -177,23 +183,35 @@ export class VoiceService {
   /**
    * @description: 按"播报内容"设置组装文本。
    * 'title' 只播会话标题与工具名——用户输入正文可能又长又尴尬，且标题本身是输入的
-   * 前 40 字，需要先清成可听的短语（spokenTaskTitle）。自定义模板尊重用户原文。
-   * 'prompt' 保留完整正文，仅在标题缺失时用短编号兜底。
+   * 前 40 字，需要先清成可听的短语。路径引用摘要在截断前生成，仅用于播报。
    */
   private announcementText(
-    text: string,
     signal: TransitionSignal,
     template?: string | null,
   ): string {
-    // 'prompt' 保留适配器给的 40 字标题原文（自定义模板同样按原文渲染）。
-    if (this.deps.getSettings().voice.content === 'prompt') return withTaskIdentity(text, signal);
-    const spoken = spokenTaskTitle(signal);
-    const body = renderTemplate(template?.trim() || defaultTemplateForEvent(signal.eventType), {
-      ...signal,
-      title: spoken,
-    });
+    const title = signal.speechTitle ?? signal.title;
+    const compact = title ? compactSpeechReferences(title) : title;
+    const hasReference = !!signal.speechTitle || compact !== title;
+    const speechSignal = { ...signal, title: compact };
+    const titleLimit = hasReference ? SPEECH_TITLE_MAX : 40;
+    if (this.deps.getSettings().voice.content === 'prompt') {
+      const body = renderTemplate(
+        template?.trim() || defaultTemplateForEvent(signal.eventType),
+        speechSignal,
+        titleLimit,
+      );
+      return withTaskIdentity(body, speechSignal, titleLimit);
+    }
+    const spoken = spokenTaskTitle(speechSignal, hasReference ? SPEECH_TITLE_MAX : 24);
+    const body = renderTemplate(
+      template?.trim() || defaultTemplateForEvent(signal.eventType),
+      { ...speechSignal, title: spoken },
+      titleLimit,
+    );
     // 模板已含标题时不再重复拼接工具名。
-    return body.includes(spoken) ? body : withTaskIdentity(body, { ...signal, title: spoken });
+    return body.includes(spoken)
+      ? body
+      : withTaskIdentity(body, { ...speechSignal, title: spoken }, titleLimit);
   }
 
   /** @description: 显式试听不受自动通知开关限制，不改变用户静音设置。 */
@@ -337,7 +355,7 @@ export class VoiceService {
       await this.playbackBarrier;
       if (generation !== this.generation) return { action: 'skipped', reason: 'interrupted' };
       item.text = normalizeForSpeech(
-        this.announcementText(resolved.text ?? '', item.signal, resolved.rule?.template),
+        this.announcementText(item.signal, resolved.rule?.template),
       );
       const playback = chain.speak({
         text: item.text,

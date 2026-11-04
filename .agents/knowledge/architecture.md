@@ -32,7 +32,7 @@ pnpm workspace + TypeScript `strict`。包：
 ```
 会话文件 → 三层探测 → extractEvents → SessionEventBus → FSM → SQLite
                                     ├─ SSE 广播 → 渲染层
-                                    ├─ 播报编排 → macOS say / 系统通知
+                                    ├─ 播报编排 → 原生 / 本地 / 用户启用的云 TTS 与系统通知
                                     └─ 托盘待介入计数
 awm-mcp ──stdio──▶ HTTP Bearer ──▶ 同一套 FSM
 ```
@@ -42,6 +42,8 @@ awm-mcp ──stdio──▶ HTTP Bearer ──▶ 同一套 FSM
 控制 API 绑定 `127.0.0.1`（`listen(0)` 随机端口），握手写 userData 下 `runtime.json`（0600）。实时推送是 SSE（`POST /api/v1/stream-ticket` 换一次性票据后连 `GET /api/v1/stream`），不是 WebSocket；限流 120 req/min，Hook 投递（`POST /api/v1/integrations/hooks`）与查询/控制分桶计数。
 
 内置适配器 YAML 在 `packages/adapters/resources/adapters/`：`claude-code` 与 `codex` 有 `eventMapping`（Codex 无 waiting_human，审批不落 JSONL），任务身份粒度由 `sessionSource.identityMode` 声明（codex 为 `turn`，其余默认 `session`），提取器按声明分派、不按工具 id 特判；`cursor` 探测可用但 `eventMapping` 为空。JSONL 普通批次读取 4MB，首条记录跨块时按需扩读，单条记录上限 32MB；半行与读取资格撤销均不推进检查点，完整记录随消费事务提交，避免大图片/工具输出记录阻塞后续任务状态。
+
+用户消息标题仍以最多 40 个 Unicode 字符供界面与通知使用；含明确 `@` 路径引用时，适配器另生成最多 60 字的去路径播报摘要，按来源保存在事件 payload 和／或来源检查点中，供后续播报使用。相关实现见 `packages/adapters/src/user-title.ts`、`packages/schema/src/speech.ts` 与 `packages/store/src/dao/events.ts`。
 
 官方 Hooks 接入在 `apps/desktop/src/main/hook-setup.ts` 的 `HOOK_TOOLS`（顺序即「播报接入」页面的工具优先顺序）：`claude-code`、`cursor`、`cline`、`codebuddy`。各工具的标准化器在 `packages/adapters/src/{claude-code/hooks,tool-hooks,cline-hooks,codebuddy-hooks}.ts`；`--tool-hook` 子进程入口是 `apps/desktop/src/main/tool-hook-client.ts`，投递到 `POST /api/v1/integrations/hooks`。Claude Code 的 Hook 会话身份由 `transcript_path` 推导为 `claude-code:{project}:{sessionKey}`，与 JSONL 文件适配器共用同一任务记录。
 
@@ -59,4 +61,4 @@ awm-mcp ──stdio──▶ HTTP Bearer ──▶ 同一套 FSM
 
 ## 更新触发
 
-新增包或改变依赖方向、进程模型、控制 API 传输、适配器清单、渲染层技术选型时更新本页。
+新增包或改变依赖方向、进程模型、数据与隐私边界、控制 API 传输、适配器清单、渲染层技术选型时更新本页。

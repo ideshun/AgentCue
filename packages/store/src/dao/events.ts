@@ -4,7 +4,7 @@
 import { and, desc, eq, gte, lte, max, sql } from 'drizzle-orm';
 import type { EventActor, EventType, StandardEvent, TaskState } from '@awm/schema';
 import type { AppDb } from '../db';
-import { stateEvents } from '../schema';
+import { sessions, stateEvents } from '../schema';
 
 /** state_events 表行类型 */
 export type StateEventRow = typeof stateEvents.$inferSelect;
@@ -16,6 +16,32 @@ export function getEventSessionId(db: AppDb, eventId: string): string | undefine
     .from(stateEvents)
     .where(eq(stateEvents.eventId, eventId))
     .get()?.sessionId;
+}
+
+/** @description: 取最后入库的开始事件摘要；标题无法匹配时不复用旧摘要。 */
+export function getStartedSpeechTitle(
+  db: AppDb,
+  sessionId: string,
+  title?: string | null,
+): string | undefined {
+  if (!title?.trim()) return undefined;
+  const row = db
+    .select({ payload: stateEvents.payload })
+    .from(stateEvents)
+    .where(and(eq(stateEvents.sessionId, sessionId), eq(stateEvents.eventType, 'task.started')))
+    .orderBy(sql`rowid DESC`)
+    .limit(1)
+    .get();
+  if (!row?.payload) return undefined;
+  try {
+    const payload: unknown = JSON.parse(row.payload);
+    if (!payload || typeof payload !== 'object') return undefined;
+    const value = payload as { taskTitle?: unknown; taskSpeechTitle?: unknown };
+    if (typeof value.taskTitle !== 'string' || value.taskTitle.trim() !== title.trim()) return undefined;
+    return typeof value.taskSpeechTitle === 'string' ? value.taskSpeechTitle : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** @description: 仅返回本机已接收 hook 的时间，不读取客户端存储或原始内容。 */
@@ -32,6 +58,21 @@ export function getLastHookEventAt(db: AppDb, toolId: string): string | null {
       )
       .get()?.at ?? null
   );
+}
+
+/** @description: 按工具汇总可见会话的最新事件，按实际时间比较不同 UTC 偏移。 */
+export function lastVisibleEventTimesByTool(db: AppDb): Map<string, string> {
+  const rows = db
+    .select({
+      toolId: stateEvents.toolId,
+      at: sql<string | null>`strftime('%Y-%m-%dT%H:%M:%fZ', max(julianday(${stateEvents.ts})))`,
+    })
+    .from(stateEvents)
+    .innerJoin(sessions, eq(stateEvents.sessionId, sessions.sessionId))
+    .where(eq(sessions.visible, 1))
+    .groupBy(stateEvents.toolId)
+    .all();
+  return new Map(rows.flatMap(({ toolId, at }) => (at ? [[toolId, at] as const] : [])));
 }
 
 /** 写入状态事件的入参 */

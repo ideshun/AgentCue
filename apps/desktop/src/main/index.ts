@@ -11,7 +11,7 @@ import { copyFile, mkdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { app, dialog, ipcMain, Notification } from 'electron';
 import { APP_DISPLAY_NAME, defaultDataDir, writeRuntimeInfo, type ModelStatus } from '@awm/core';
-import { getSession, listTools, setToolIgnored } from '@awm/store';
+import { getSession, getStartedSpeechTitle, listTools, setToolIgnored } from '@awm/store';
 import { desktopMcpLaunch } from './mcp-launch';
 import { KOKORO_SPEC, LocalModelManager, ZIPVOICE_SPEC } from './model-manager';
 import { createTtsChain } from './tts-chain';
@@ -295,6 +295,9 @@ async function bootstrap(): Promise<void> {
           eventType: event.eventType,
           sessionId: event.sessionId,
           title,
+          speechTitle:
+            event.payload.taskSpeechTitle ??
+            getStartedSpeechTitle(engine.database, event.sessionId, title),
         })
         .catch((error: unknown) => {
           const message = error instanceof Error ? error.message : String(error);

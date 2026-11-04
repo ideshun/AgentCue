@@ -6,7 +6,7 @@ import {
   type EventType,
   type StandardEvent,
 } from '@awm/schema';
-import { extractUserTitle } from './user-title';
+import { extractUserTitles } from './user-title';
 
 export type ClineHookPhase = 'TaskStart' | 'TaskComplete' | 'TaskCancel';
 
@@ -69,14 +69,17 @@ export function normalizeClineHook(
   if (options.receivedAt !== undefined) isoTimestampSchema.parse(options.receivedAt);
   if (phase !== 'TaskStart' && phase !== 'TaskComplete' && phase !== 'TaskCancel') return [];
   let title: string | undefined;
+  let speechTitle: string | undefined;
   if (phase === 'TaskStart') {
     const metadata = object(object(payload.taskStart)?.taskMetadata);
     if (typeof metadata?.initialTask !== 'string')
       throw new Error('Cline hook 的 taskStart.taskMetadata.initialTask 必须为字符串');
-    title = extractUserTitle({
+    const titles = extractUserTitles({
       type: 'user',
       message: { role: 'user', content: metadata.initialTask },
     });
+    title = titles?.title;
+    speechTitle = titles?.speechTitle;
   }
   const eventTypes: Record<ClineHookPhase, EventType> = {
     TaskStart: 'task.started',
@@ -92,7 +95,7 @@ export function normalizeClineHook(
       eventType: eventTypes[phase],
       occurredAt,
       actor: 'tool',
-      payload: title ? { taskTitle: title } : {},
+      payload: title ? { taskTitle: title, ...(speechTitle ? { taskSpeechTitle: speechTitle } : {}) } : {},
       schemaVersion: 1,
     }),
   ];

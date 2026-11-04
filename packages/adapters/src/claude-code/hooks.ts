@@ -6,7 +6,7 @@ import {
   type EventType,
   type StandardEvent,
 } from '@awm/schema';
-import { extractUserTitle } from '../user-title';
+import { extractUserTitles } from '../user-title';
 
 export type ClaudeCodeHookPhase = 'UserPromptSubmit' | 'Stop' | 'Notification';
 
@@ -90,11 +90,14 @@ export function normalizeClaudeCodeHook(
   const nativeSession = payload.session_id;
   let eventType: EventType;
   let title: string | undefined;
+  let speechTitle: string | undefined;
   if (phase === 'UserPromptSubmit') {
     if (typeof payload.prompt !== 'string')
       throw new Error('Claude Code hook 的 prompt 必须为字符串');
     eventType = 'task.started';
-    title = extractUserTitle({ type: 'user', message: { role: 'user', content: payload.prompt } });
+    const titles = extractUserTitles({ type: 'user', message: { role: 'user', content: payload.prompt } });
+    title = titles?.title;
+    speechTitle = titles?.speechTitle;
   } else if (phase === 'Stop') {
     // Stop 只表示本轮结束；last_assistant_message 不参与标题或状态。
     eventType = 'task.completed';
@@ -129,7 +132,7 @@ export function normalizeClaudeCodeHook(
       eventType,
       occurredAt: receivedAt,
       actor: 'tool',
-      payload: title ? { taskTitle: title } : {},
+      payload: title ? { taskTitle: title, ...(speechTitle ? { taskSpeechTitle: speechTitle } : {}) } : {},
       schemaVersion: 1,
     }),
   ];

@@ -15,12 +15,14 @@
 
 必须保持：
 
-- **C-01 本地优先**。运行期默认不出网。扫描只读适配器声明路径，不递归全盘。唯一写入被监控工具的面是用户显式调用的 MCP `update_task_state`。
+- **C-01 本地优先**。运行期默认不出网；用户显式下载本地语音模型或启用并配置云 TTS 时才发生相应网络请求。扫描只读适配器声明路径，不递归全盘。MCP `update_task_state` 只更新本应用中的任务记录，不操作被监控工具。
 - **C-05**。`state_events` 只追加；同一 `sessionId` 串行；配置原子写；SQLite 写走事务。
-- **C-07**。会话文件读取与审计可关；内容不上传。
+- **C-07**。会话文件读取与审计可关；启用云 TTS 时，播报文本会发送到用户配置的服务，不自动上传完整会话文件。
 - **C-08**。新增运行时依赖须在 `docs/adr/` 记录理由，不引入重型框架。
 - **core 零工具名**。`packages/core/src` 不得出现 `claude` / `cursor` / `codex` / `windsurf` / `copilot` / `gemini`（大小写不敏感）。工具名只属于 `packages/adapters`。
 - **类型单一事实源**。事件/状态/manifest 以 `@awm/schema` 为准，禁止平行枚举。
+
+云 TTS（MiMo，ADR-20）必须 `voice.cloudEnabled=true` 且 `voice.cloudApiKey` 非空才 POST；endpoint 留空用官方默认值。默认关闭，失败不回落其他音色。
 
 已落地的实现决策（不要在未授权时回滚）：
 
@@ -37,7 +39,6 @@
 
 ## 待确认
 
-- 云 TTS（MiMo，ADR-20）必须 `voice.cloudEnabled=true` 且 `voice.cloudApiKey` 非空才 POST；endpoint 留空用官方默认值。默认关闭，失败不回落其他音色。
 - 原生 TTS：macOS `say`（白名单中文音色，见 ADR-19）、Windows SAPI、Linux espeak-ng/espeak。
 - 本地 Kokoro（ADR-19）/ ZipVoice（ADR-20）：模型仅用户显式下载；GitHub 源国内失败率高，hf-mirror 备选源尚未实现；`pnpm dist` asar 打包模式未经实测。ZipVoice 另需声码器 `vocos_24khz.onnx`、英文词典 `lexicon-en-us.txt`，且每次合成都要参考音频与逐字原文。
 - 试听文本统一截 200 字（原 500）——长文本超过 30 秒播放超时上界，属行为变更。

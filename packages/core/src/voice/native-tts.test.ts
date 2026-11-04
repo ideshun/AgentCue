@@ -8,6 +8,7 @@ import {
   createPiperBackend,
   hasAiffSpeech,
   listNativeVoices,
+  playAudioFile,
   TtsChain,
 } from './tts';
 
@@ -17,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   access: vi.fn(),
   mkdtemp: vi.fn(),
   readFile: vi.fn(),
+  writeFile: vi.fn(),
   rm: vi.fn(),
 }));
 vi.mock('node:child_process', () => ({ spawn: mocks.spawn, execFile: mocks.execFile }));
@@ -24,6 +26,7 @@ vi.mock('node:fs', () => ({ accessSync: mocks.access, constants: { F_OK: 0, X_OK
 vi.mock('node:fs/promises', () => ({
   mkdtemp: mocks.mkdtemp,
   readFile: mocks.readFile,
+  writeFile: mocks.writeFile,
   rm: mocks.rm,
 }));
 
@@ -43,6 +46,15 @@ function aiff(silent = false): Buffer {
     data[55] = 1;
     data[57] = 2;
   }
+  return data;
+}
+function wav(): Buffer {
+  const data = Buffer.alloc(46);
+  data.write('RIFF'); data.writeUInt32LE(38, 4); data.write('WAVE', 8);
+  data.write('fmt ', 12); data.writeUInt32LE(16, 16); data.writeUInt16LE(1, 20);
+  data.writeUInt16LE(1, 22); data.writeUInt32LE(24000, 24); data.writeUInt32LE(48000, 28);
+  data.writeUInt16LE(2, 32); data.writeUInt16LE(16, 34); data.write('data', 36);
+  data.writeUInt32LE(2, 40); data.writeInt16LE(10000, 44);
   return data;
 }
 class FakeChild extends EventEmitter {
@@ -73,6 +85,7 @@ beforeEach(() => {
   mocks.access.mockReset().mockImplementation(() => undefined);
   mocks.mkdtemp.mockReset().mockResolvedValue('/tmp/awm-speech-fixture');
   mocks.readFile.mockReset().mockResolvedValue(aiff());
+  mocks.writeFile.mockReset().mockResolvedValue(undefined);
   mocks.rm.mockReset().mockResolvedValue(undefined);
 });
 afterEach(() => {
@@ -82,6 +95,27 @@ afterEach(() => {
 });
 
 describe('native TTS subprocess', () => {
+  it.each(['win32', 'linux'] as const)('%s 在缺少播放器增益时缩放临时 WAV', async (platform) => {
+    Object.defineProperty(process, 'platform', { ...descriptor, value: platform });
+    mocks.readFile.mockResolvedValue(wav());
+    if (platform === 'linux') mocks.access.mockImplementation((file: string) => {
+      if (file.endsWith('paplay')) throw new Error('missing');
+    });
+    const done = playAudioFile('/tmp/speech.wav', 0.5);
+    await vi.waitFor(() => expect(children).toHaveLength(1));
+    expect((mocks.writeFile.mock.calls[0]?.[1] as Buffer).readInt16LE(44)).toBe(5000);
+    children[0].emit('close', 0);
+    await expect(done).resolves.toBeUndefined();
+    expect(mocks.rm).toHaveBeenCalledWith('/tmp/speech.wav', { force: true });
+  });
+
+  it('无法缩放 WAV 时报告错误并清理，不假称播放成功', async () => {
+    Object.defineProperty(process, 'platform', { ...descriptor, value: 'win32' });
+    mocks.readFile.mockResolvedValue(Buffer.from('invalid'));
+    await expect(playAudioFile('/tmp/speech.wav', 0.5)).rejects.toThrow('音量调节');
+    expect(mocks.spawn).not.toHaveBeenCalled();
+    expect(mocks.rm).toHaveBeenCalledWith('/tmp/speech.wav', { force: true });
+  });
   it('中文自动选已安装音色，通过stdin合成，验证后播放并清理', async () => {
     const done = createNativeBackend().speak({ text: '-危险参数只是文字', rate: 1.2, volume: 0.7 });
     await vi.waitFor(() => expect(children).toHaveLength(1));

@@ -33,6 +33,7 @@ import {
   deleteMcpServer,
   getSession,
   getLastHookEventAt,
+  lastVisibleEventTimesByTool,
   listEvents,
   listMcpServers,
   listNotifications,
@@ -159,6 +160,7 @@ export class DesktopFacade implements EngineFacade {
   /** @description: 完整统计每个工位，分组限量取任务预览，避免近期历史挤掉活跃任务。 */
   async getOffice(): Promise<OfficeSnapshot> {
     const db = this.engine.database;
+    const lastEvents = lastVisibleEventTimesByTool(db);
     const groups: TaskState[][] = [
       ['waiting_human'],
       ['running'],
@@ -168,6 +170,7 @@ export class DesktopFacade implements EngineFacade {
     return {
       workstations: listTools(db).map((tool) => ({
         toolId: tool.toolId,
+        lastEventAt: lastEvents.get(tool.toolId) ?? null,
         counts: Object.fromEntries(
           TASK_STATES.map((state) => [state, countSessions(db, { toolId: tool.toolId, state })]),
         ) as Record<TaskState, number>,

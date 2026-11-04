@@ -7,6 +7,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { DEFAULT_CLOUD_ENDPOINT } from '@awm/schema';
+import { scaleWavVolume } from './wav-volume';
 
 /** 单次播报入参 */
 export interface SpeakOptions {
@@ -437,9 +438,13 @@ export async function playAudioFile(
       return;
     }
     if (process.platform === 'win32') {
-      // SoundPlayer 不提供应用内音量控制，系统输出音量由操作系统控制。
       const binary = nativeBinary();
       if (!binary) throw new Error('未找到 Windows PowerShell 播放通道');
+      if (gain !== 1) {
+        const audio = scaleWavVolume(await readFile(file), gain);
+        if (signal?.aborted) throw new Error('播报已打断');
+        await writeFile(file, audio);
+      }
       // 路径经环境变量传入，避免命令行字符串拼接与注入。
       const script = [
         'Add-Type -AssemblyName System.Windows.Forms',
@@ -458,6 +463,11 @@ export async function playAudioFile(
     }
     const player = findBinary('paplay') ?? findBinary('aplay');
     if (!player) throw new Error('未找到 Linux 音频播放程序（paplay 或 aplay）');
+    if (!player.endsWith('paplay') && gain !== 1) {
+      const audio = scaleWavVolume(await readFile(file), gain);
+      if (signal?.aborted) throw new Error('播报已打断');
+      await writeFile(file, audio);
+    }
     const args = player.endsWith('paplay')
       ? ['--volume=' + String(Math.round(gain * 65536)), '--', file]
       : ['-q', file];

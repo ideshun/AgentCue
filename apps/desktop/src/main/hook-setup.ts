@@ -7,7 +7,12 @@ import {
   codebuddyHookSnippet,
   cursorHookSnippet,
 } from '@awm/adapters';
-import { standardEventSchema, type StandardEvent } from '@awm/schema';
+import {
+  compactSpeechReferences,
+  SPEECH_TITLE_MAX,
+  standardEventSchema,
+  type StandardEvent,
+} from '@awm/schema';
 import type { DesktopMcpLaunch } from './mcp-launch';
 
 export const HOOK_TOOLS = {
@@ -158,11 +163,17 @@ export function parseHookEnvelope(input: Record<string, unknown>): {
   )
     throw new RangeError('任务 Hook 事件无效');
   const title = event.payload.taskTitle?.trim();
+  const speechTitle = event.payload.taskSpeechTitle?.trim();
   return {
     mode,
     event: {
       ...event,
-      payload: title ? { taskTitle: Array.from(title).slice(0, 40).join('') } : {},
+      payload: {
+        ...(title ? { taskTitle: Array.from(title).slice(0, 40).join('') } : {}),
+        ...(speechTitle
+          ? { taskSpeechTitle: Array.from(compactSpeechReferences(speechTitle)).slice(0, SPEECH_TITLE_MAX).join('') }
+          : {}),
+      },
     },
   };
 }

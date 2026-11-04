@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { boardQuerySchema, TASK_STATES, type BoardItem, type TaskState } from '@awm/schema';
-import { listSessions, tables, upsertTool } from '@awm/store';
+import { appendStateEvent, listSessions, tables, upsertTool } from '@awm/store';
 import { Engine } from '../../apps/desktop/src/main/engine-host';
 import { DesktopFacade } from '../../apps/desktop/src/main/facade';
 import type { MonitorService } from '../../apps/desktop/src/main/monitor-service';
@@ -58,6 +58,30 @@ function add(
 }
 
 describe('board grouped query', () => {
+  it('办公室按真实事件时间显示每个工具的最新可见事件，不受任务预览限制', async () => {
+    add([
+      { id: 'visible-a', state: 'running', time: '2026-10-01T12:00:00.000Z' },
+      { id: 'visible-b', state: 'completed' },
+      ...Array.from({ length: 5 }, (_, index) => ({ id: `running-${index}`, state: 'running' as const })),
+    ]);
+    engine.database.insert(tables.sessions).values({
+      sessionId: 'hidden', toolId: 'fixture-a', title: '内部', visible: 0,
+      currentState: 'completed', updatedAt: '2026-10-20T09:00:00.000Z',
+    }).run();
+    for (const [eventId, sessionId, ts] of [
+      ['evt-a', 'visible-b', '2026-10-20T12:00:00+08:00'],
+      ['evt-b', 'visible-a', '2026-10-20T05:00:00.000Z'],
+      ['evt-hidden', 'hidden', '2026-10-20T09:00:00.000Z'],
+    ]) appendStateEvent(engine.database, {
+      eventId, sessionId, toolId: 'fixture-a', eventType: 'anomaly',
+      prevState: null, nextState: null, actor: 'system', ts,
+    });
+    const office = await facade.getOffice();
+    expect(office.workstations.find((item) => item.toolId === 'fixture-a')?.lastEventAt)
+      .toBe('2026-10-20T05:00:00.000Z');
+    expect(office.workstations.find((item) => item.toolId === 'fixture-a')?.tasks.some((item) => item.sessionId === 'visible-a')).toBe(false);
+    expect(office.workstations.find((item) => item.toolId === 'fixture-b')?.lastEventAt).toBeNull();
+  });
   it('returns an old waiting task even when more than 200 newer completed tasks exist', async () => {
     add(
       Array.from({ length: 205 }, (_, index) => ({

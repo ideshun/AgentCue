@@ -1,11 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { extractSessionTitle, type RawLine } from './claude-code/extract';
+import { extractUserTitles } from './user-title';
 
 function user(content: string): RawLine {
   return { type: 'user', message: { role: 'user', content } };
 }
 
 describe('真实用户标题', () => {
+  it('先缩短路径再生成有界播报摘要，界面标题仍保留原始前 40 字', () => {
+    const text = '改造 @minmetals-ui/packages/biz-components 的 org-user-group-picker 组件';
+    const titles = extractUserTitles(user(text));
+    expect(titles?.title).toBe(Array.from(text).slice(0, 40).join(''));
+    expect(titles?.speechTitle).toBe('改造 biz-components 的 org-user-group-picker 组件');
+    expect(Array.from(titles?.speechTitle ?? '').length).toBeLessThanOrEqual(60);
+  });
   it.each([
     user('修复登录流程'),
     { type: 'user', message: { content: [{ type: 'text', text: '修复登录流程' }] } },

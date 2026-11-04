@@ -113,6 +113,17 @@ describe('codex 提取器契约', () => {
     expect(first.context).toEqual({ taskId: 'one', title: null, closed: false });
   });
 
+  it('路径引用的播报摘要跨增量批次保留，原始界面标题保持 40 字限制', () => {
+    const prompt = '改造 @minmetals-ui/packages/biz-components 的 org-user-group-picker 组件';
+    const first = extractSourceBatch([event('task_started', 'one')], manifest, context);
+    const second = extractSourceBatch([user(prompt)], manifest, { ...context, context: first.context });
+    const third = extractSourceBatch([event('task_complete', 'one')], manifest, { ...context, context: second.context });
+    expect(third.events[0]?.payload.taskTitle).toBe(Array.from(prompt).slice(0, 40).join(''));
+    expect(third.events[0]?.payload.taskSpeechTitle).toBe('改造 biz-components 的 org-user-group-picker 组件');
+    const next = extractSourceBatch([event('task_started', 'two'), user('另一项任务')], manifest, { ...context, context: third.context });
+    expect(next.events[0]?.payload.taskSpeechTitle).toBeUndefined();
+  });
+
   it('已完成任务后的用户消息先暂存，新轮开始时消费 pendingTitle', () => {
     const prior: SourceTaskContext = { taskId: 'one', title: '上一轮', closed: true };
     const pending = extractSourceBatch([user('下一轮请求')], manifest, { ...context, context: prior });

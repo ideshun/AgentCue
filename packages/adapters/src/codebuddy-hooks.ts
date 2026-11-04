@@ -1,7 +1,7 @@
 /** CodeBuddy IDE hooks；generation_id 已核验于 IDE 扩展 4.12.39997873 的公开代码。 */
 import { createHash } from 'node:crypto';
 import { standardEventSchema, type StandardEvent } from '@awm/schema';
-import { extractUserTitle } from './user-title';
+import { extractUserTitles } from './user-title';
 
 export type CodeBuddyHookPhase = 'UserPromptSubmit' | 'Stop';
 
@@ -49,10 +49,13 @@ export function normalizeCodeBuddyHook(
     ? payload.generation_id : undefined;
   const receivedAt = options.receivedAt ?? new Date().toISOString();
   let title: string | undefined;
+  let speechTitle: string | undefined;
   if (phase === 'UserPromptSubmit') {
     if (typeof payload.prompt !== 'string')
       throw new Error('CodeBuddy IDE hook 的 prompt 必须为字符串');
-    title = extractUserTitle({ type: 'user', message: { role: 'user', content: payload.prompt } });
+    const titles = extractUserTitles({ type: 'user', message: { role: 'user', content: payload.prompt } });
+    title = titles?.title;
+    speechTitle = titles?.speechTitle;
   }
   const identity = generationId
     ? ['codebuddy-ide-hooks-v2', nativeSession, generationId, phase]
@@ -66,7 +69,7 @@ export function normalizeCodeBuddyHook(
     eventType: phase === 'UserPromptSubmit' ? 'task.started' : 'task.completed',
     occurredAt: receivedAt,
     actor: 'tool',
-    payload: title ? { taskTitle: title } : {},
+    payload: title ? { taskTitle: title, ...(speechTitle ? { taskSpeechTitle: speechTitle } : {}) } : {},
     schemaVersion: 1,
   })];
 }

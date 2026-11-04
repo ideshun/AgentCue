@@ -3,12 +3,14 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { StandardEvent } from '@awm/schema';
-import type { TransitionResult } from '@awm/core';
+import { defaultSettings, type StandardEvent } from '@awm/schema';
+import { TtsChain, type TransitionResult } from '@awm/core';
+import { normalizeCursorHook } from '@awm/adapters';
 import {
   createDatabase,
   getEventSessionId,
   getLastHookEventAt,
+  getStartedSpeechTitle,
   getSession,
   hasSourceEvent,
   listEvents,
@@ -19,6 +21,8 @@ import {
   upsertTool,
 } from '@awm/store';
 import { Engine, type TransitionDelivery } from '../../apps/desktop/src/main/engine-host';
+import { parseHookEnvelope } from '../../apps/desktop/src/main/hook-setup';
+import { VoiceService, type VoiceOutcome } from '../../apps/desktop/src/main/voice-service';
 
 const fixtures: Array<{ root: string; engine: Engine }> = [];
 function fixture() {
@@ -54,6 +58,71 @@ afterEach(async () => {
 });
 
 describe('hook ingestion', () => {
+  it('从 Hook 到开始和完成播报均使用完整的文件名摘要，界面标题保持原样', async () => {
+    const f = fixture();
+    const settings = defaultSettings();
+    settings.quiet.ranges = [];
+    settings.voice.scope = 'milestones';
+    const spoken: string[] = [];
+    const chain = new TtsChain([{ name: 'fixture', isAvailable: () => true, speak: async ({ text }) => { spoken.push(text); } }]);
+    const voice = new VoiceService({ db: f.engine.database, getSettings: () => settings, getChain: () => chain });
+    const pending: Promise<VoiceOutcome>[] = [];
+    f.engine.onTransition = (_result, item, delivery) => {
+      if (delivery?.announce === false) return;
+      const title = getSession(f.engine.database, item.sessionId)?.title;
+      pending.push(voice.announce({
+        eventId: item.eventId, toolId: item.toolId, eventType: item.eventType,
+        sessionId: item.sessionId, title,
+        speechTitle: item.payload.taskSpeechTitle ?? getStartedSpeechTitle(f.engine.database, item.sessionId, title),
+      }, new Date(item.occurredAt)));
+    };
+    const prompt = '改造 @minmetals-ui/packages/biz-components 的 org-user-group-picker 组件';
+    const common = { conversation_id: 'fixture', generation_id: 'turn' };
+    const start = parseHookEnvelope({ mode: 'turn', event: normalizeCursorHook({
+      ...common, hook_event_name: 'beforeSubmitPrompt', prompt,
+    }, { receivedAt: '2026-10-20T12:00:00.000Z' })[0] }).event;
+    await f.engine.consumeHookEvent(start, 'turn', () => true, { name: 'Fixture Hooks' });
+    await Promise.all(pending.splice(0));
+    const end = parseHookEnvelope({ mode: 'turn', event: normalizeCursorHook({
+      ...common, hook_event_name: 'stop', status: 'completed',
+    }, { receivedAt: '2026-10-20T12:00:03.000Z' })[0] }).event;
+    await f.engine.consumeHookEvent(end, 'turn', () => true, { name: 'Fixture Hooks' });
+    await Promise.all(pending.splice(0));
+    expect(getSession(f.engine.database, start.sessionId)?.title).toBe(Array.from(prompt).slice(0, 40).join(''));
+    expect(spoken).toHaveLength(2);
+    for (const text of spoken) {
+      expect(text).toContain('改造 biz-components 的 org-user-group-picker 组件');
+      expect(text).not.toContain('minmetals-ui/packages');
+    }
+    voice.stop();
+  });
+  it('完成事件可恢复本轮的播报摘要，下一轮不复用旧摘要', async () => {
+    const f = fixture();
+    const title = '改造 @minmetals-ui/packages/biz-components';
+    const speechTitle = '改造 biz-components 的 org-user-group-picker 组件';
+    const start = event('speech-start', 'task.started', 0, title);
+    start.payload.taskSpeechTitle = speechTitle;
+    await f.engine.consumeHookEvent(start, 'turn', () => true, { name: 'Fixture Hooks', reopenOnStart: true });
+    await f.engine.consumeHookEvent(event('speech-complete', 'task.completed', 10), 'turn', () => true, { name: 'Fixture Hooks', reopenOnStart: true });
+    expect(getSession(f.engine.database, start.sessionId)?.title).toBe(title);
+    expect(getStartedSpeechTitle(f.engine.database, start.sessionId, title)).toBe(speechTitle);
+    await f.engine.consumeHookEvent(event('speech-next', 'task.started', 20, '另一项任务'), 'turn', () => true, { name: 'Fixture Hooks', reopenOnStart: true });
+    expect(getStartedSpeechTitle(f.engine.database, start.sessionId, '另一项任务')).toBeUndefined();
+  });
+  it('开始事件时间相同且原始标题相同时，按入库顺序取当前轮的播报摘要', async () => {
+    const f = fixture();
+    const title = '查看 @/synthetic/long/path/file';
+    const first = event('z-first', 'task.started', 0, title);
+    first.payload.taskSpeechTitle = '查看 file 的第一项任务';
+    await f.engine.consumeHookEvent(first, 'turn', () => true, { name: 'Fixture', reopenOnStart: true });
+    await f.engine.consumeHookEvent(event('first-end', 'task.completed', 0), 'turn', () => true, { name: 'Fixture', reopenOnStart: true });
+    const second = event('a-second', 'task.started', 0, title);
+    second.payload.taskSpeechTitle = '查看 file 的第二项任务';
+    await f.engine.consumeHookEvent(second, 'turn', () => true, { name: 'Fixture', reopenOnStart: true });
+    expect(getStartedSpeechTitle(f.engine.database, first.sessionId, title)).toBe(second.payload.taskSpeechTitle);
+    expect(getStartedSpeechTitle(f.engine.database, first.sessionId, null)).toBeUndefined();
+    expect(getStartedSpeechTitle(f.engine.database, first.sessionId, '其他标题')).toBeUndefined();
+  });
   it('reopens a terminal record on the next turn only when the tool declares reopenOnStart', async () => {
     const f = fixture();
     const sessionId = 'fixture:hooks:conversation';

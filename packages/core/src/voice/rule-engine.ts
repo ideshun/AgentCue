@@ -33,6 +33,8 @@ export interface TransitionSignal {
   sessionId: string;
   /** 任务标题 */
   title?: string | null;
+  /** 已缩短文件引用的播报摘要，不替代通知和看板中的原始标题。 */
+  speechTitle?: string | null;
 }
 
 /** 默认模板：未配置模板时使用 */
@@ -105,9 +107,9 @@ export function truncateText(text: string, max = 40): string {
 }
 
 /** @description: 为无标题任务提供稳定的简短编号，避免不同任务都被称为未命名。 */
-export function voiceTaskTitle(signal: TransitionSignal): string {
+export function voiceTaskTitle(signal: TransitionSignal, max = 40): string {
   const title = signal.title?.trim();
-  if (title) return truncateText(title, 40);
+  if (title) return truncateText(title, max);
   // 与界面使用相同的轻量编号；只用于定位，非安全散列。
   let hash = 2166136261;
   for (let index = 0; index < signal.sessionId.length; index += 1)
@@ -118,9 +120,9 @@ export function voiceTaskTitle(signal: TransitionSignal): string {
 /**
  * @description: 播报用的短标题。
  * 各工具都不提供真正的会话名，标题来自用户输入的前 40 字；直接读出来可能带代码、链接或半句话。
- * 这里去掉代码块、行内代码、链接和 Markdown 记号，再截到第一个句读，最多 24 字。
+ * 这里去掉代码块、行内代码、链接和 Markdown 记号，再截到第一个句读；默认最多 24 字。
  */
-export function spokenTaskTitle(signal: TransitionSignal): string {
+export function spokenTaskTitle(signal: TransitionSignal, max = 24): string {
   const cleaned = (signal.title ?? '')
     .replace(/```[\s\S]*?```/g, ' ')
     .replace(/`[^`]*`/g, ' ')
@@ -132,9 +134,9 @@ export function spokenTaskTitle(signal: TransitionSignal): string {
     .trim();
   const clause = cleaned.split(/[。！？!?；;]/, 1)[0]?.trim() ?? '';
   const characters = Array.from(clause);
-  const label = characters.slice(0, 24).join('').trim();
+  const label = characters.slice(0, max).join('').trim();
   if (!label) return voiceTaskTitle({ ...signal, title: null });
-  return characters.length > 24 ? `${label}…` : label;
+  return characters.length > max ? `${label}…` : label;
 }
 
 /** @description: 播报使用工具显示名，缺省保留可定位的工具 id。 */
@@ -148,10 +150,10 @@ export function voiceToolName(signal: TransitionSignal): string {
  * @param signal 迁移信号
  * @returns 渲染并截断后的文本
  */
-export function renderTemplate(template: string, signal: TransitionSignal): string {
+export function renderTemplate(template: string, signal: TransitionSignal, titleLimit = 40): string {
   const vars: Record<string, string> = {
     tool: voiceToolName(signal),
-    title: voiceTaskTitle(signal),
+    title: voiceTaskTitle(signal, titleLimit),
     event: signal.eventType,
   };
   const rendered = template.replace(/\{(\w+)\}/g, (match, key: string) => vars[key] ?? match);

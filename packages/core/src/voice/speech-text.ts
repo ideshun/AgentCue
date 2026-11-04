@@ -5,6 +5,8 @@
  * 不做英文音译（品牌名与缩写交给引擎按原文读），也不改动看板与通知原文。
  */
 
+import { compactSpeechReferences } from '@awm/schema';
+
 /** 单位读法：只在数字紧邻时替换，避免误伤普通英文单词。 */
 const UNIT_READINGS: Readonly<Record<string, string>> = {
   TB: '太字节',
@@ -21,7 +23,7 @@ const UNIT_READINGS: Readonly<Record<string, string>> = {
  * @returns 适合直接交给 TTS 的文本
  */
 export function normalizeForSpeech(text: string): string {
-  let out = text.replace(/\s+/g, ' ').trim();
+  let out = compactSpeechReferences(text).replace(/\s+/g, ' ').trim();
   // 时间：12:30 → 12 点 30 分；先处理，避免后面的冒号规则重复匹配。
   out = out.replace(/(^|[^\d:])(\d{1,2}):(\d{2})(?![\d:])/g, '$1$2 点 $3 分');
   // 百分比：45% → 百分之 45。

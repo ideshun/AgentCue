@@ -1,7 +1,7 @@
 /** Cursor 原生 Agent hooks；契约：https://cursor.com/docs/hooks 。 */
 import { createHash } from 'node:crypto';
 import { standardEventSchema, type EventType, type StandardEvent } from '@awm/schema';
-import { extractUserTitle } from './user-title';
+import { extractUserTitles } from './user-title';
 
 export type CursorHookPhase = 'beforeSubmitPrompt' | 'preToolUse' | 'stop';
 
@@ -60,10 +60,13 @@ export function normalizeCursorHook(
   const generationId = requiredString(payload, 'generation_id');
   let eventType: EventType;
   let title: string | undefined;
+  let speechTitle: string | undefined;
   if (phase === 'beforeSubmitPrompt') {
     if (typeof payload.prompt !== 'string') throw new Error('Cursor hook 的 prompt 必须为字符串');
     eventType = 'task.started';
-    title = extractUserTitle({ type: 'user', message: { role: 'user', content: payload.prompt } });
+    const titles = extractUserTitles({ type: 'user', message: { role: 'user', content: payload.prompt } });
+    title = titles?.title;
+    speechTitle = titles?.speechTitle;
   } else if (phase === 'preToolUse') {
     // Cursor 没有专门的"待确认"事件：Agent 弹出提问框时走 AskQuestion 工具，
     // 由 preToolUse 的 tool_name 判定；其余工具调用不是等待用户。
@@ -93,7 +96,7 @@ export function normalizeCursorHook(
     eventType,
     occurredAt: options.receivedAt ?? new Date().toISOString(),
     actor: 'tool',
-    payload: title ? { taskTitle: title } : {},
+    payload: title ? { taskTitle: title, ...(speechTitle ? { taskSpeechTitle: speechTitle } : {}) } : {},
     schemaVersion: 1,
   })];
 }

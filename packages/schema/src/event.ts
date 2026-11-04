@@ -59,6 +59,8 @@ export const eventPayloadSchema = z
   .object({
     /** 任务标题，用于播报模板 `{title}` */
     taskTitle: z.string().optional(),
+    /** 路径引用已缩短的播报标题；只保留精简文本。 */
+    taskSpeechTitle: z.string().optional(),
     /** 迁移原因，落 state_events.reason */
     reason: z.string().optional(),
     /** 心跳序号，用于乱序补正 */

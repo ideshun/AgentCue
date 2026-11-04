@@ -247,11 +247,16 @@ function renderOfficeDesk(employee: OfficeEmployee, state: AppState, stale: bool
       : tool.host
         ? `${tool.host} 扩展 · ${capabilityLabel(tool.sessionCapability)}`
         : capabilityLabel(tool.sessionCapability);
+  const lastEvent = workload?.lastEventAt;
+  const eventTime = lastEvent ? new Date(lastEvent) : null;
+  const timeLabel = eventTime && Number.isFinite(eventTime.getTime())
+    ? `<time class="office-bubble-meta" datetime="${esc(lastEvent)}">最近事件 · ${esc(eventTime.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }))}</time>`
+    : `<span class="office-bubble-meta">${workload ? '暂无任务事件' : '事件时间尚未同步'}</span>`;
   return `<article class="office-workstation is-${status}${active && !stale && !dismissed ? ' has-message' : ''}${open ? ' is-open' : ''}${suppressed ? ' is-tooltip-dismissed' : ''}" data-office-employee="${esc(tool.toolId)}">
     <button id="office-desk-${esc(tool.toolId)}" class="office-desk" type="button" data-office-select="${esc(tool.toolId)}" aria-controls="office-inspector" aria-expanded="${open}" aria-describedby="office-message-${esc(tool.toolId)}" aria-label="${esc(`${tool.name}，${employee.label}，展开任务详情`)}">${officeDeskArt(employee)}</button>
     <div class="office-bubble" id="office-bubble-${esc(tool.toolId)}" role="group" aria-label="${esc(tool.name)} 的任务消息">
       <div class="office-bubble-heading">${officeToolMark(tool)}<strong>${esc(tool.name)}</strong><span class="office-bubble-status"><i></i>${esc(employee.label)}</span><button class="office-bubble-close" id="office-message-close-${esc(tool.toolId)}" type="button" data-office-dismiss="${esc(tool.toolId)}" aria-label="关闭 ${esc(tool.name)} 的任务消息" title="关闭这条消息">×</button></div>
-      <p class="office-bubble-task" id="office-message-${esc(tool.toolId)}">${esc(officeTaskText(employee, state.tools))}</p><span class="office-bubble-meta">${stale ? '上次同步的记录 · ' : ''}${esc(details)}</span>
+      <p class="office-bubble-task" id="office-message-${esc(tool.toolId)}">${esc(officeTaskText(employee, state.tools))}</p><span class="office-bubble-meta">${stale ? '上次同步的记录 · ' : ''}${esc(details)}</span>${timeLabel}
     </div>
   </article>`;
 }

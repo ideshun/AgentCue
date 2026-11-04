@@ -162,7 +162,11 @@ function resolveHeadTitle(
     const canonical = inspected.titles.find(
       (item) => item.sessionId === `${sessionId}:turn:${context?.taskId}`,
     );
-    if (canonical?.title) context = { ...context, title: canonical.title };
+    if (canonical?.title) {
+      const changed = context.title !== canonical.title;
+      context = { ...context, title: canonical.title };
+      if (changed) delete context.speechTitle;
+    }
   }
   return { title, context };
 }

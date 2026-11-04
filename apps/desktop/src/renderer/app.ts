@@ -179,6 +179,13 @@ function restoreDrafts(): void {
   const rate = document.querySelector<HTMLInputElement>('[data-setting="voice.rate"]');
   const label = document.getElementById('rate-value');
   if (rate && label) label.textContent = `${Number(rate.value).toFixed(1)}×`;
+  const volume = document.querySelector<HTMLInputElement>('[data-setting="voice.volume"]');
+  const volumeLabel = document.getElementById('volume-value');
+  if (volume && volumeLabel) {
+    const percent = `${Math.round(Number(volume.value) * 100)}%`;
+    volumeLabel.textContent = percent;
+    volume.setAttribute('aria-valuetext', percent);
+  }
 }
 
 /** @description: Patch named regions, leaving an actively edited region untouched until blur. */
@@ -1771,6 +1778,12 @@ function bindEvents(): void {
     if (control.dataset.setting === 'voice.rate') {
       const label = document.getElementById('rate-value');
       if (label) label.textContent = `${Number(control.value).toFixed(1)}×`;
+    }
+    if (control.dataset.setting === 'voice.volume') {
+      const percent = `${Math.round(Number(control.value) * 100)}%`;
+      const label = document.getElementById('volume-value');
+      if (label) label.textContent = percent;
+      control.setAttribute('aria-valuetext', percent);
     }
     if (control.id === 'office-search') {
       officeUi.query = control.value;

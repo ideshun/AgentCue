@@ -260,6 +260,25 @@ describe('VoiceService', () => {
     expect(f.played[0]).not.toContain('http');
   });
 
+  it.each(['title', 'prompt'] as const)('按 %s 模式只播引用文件名且保留后续任务描述', async (content) => {
+    const f = fixture();
+    f.settings.voice.content = content;
+    const title = '改造 @minmetals-ui/packages/biz-components';
+    const speechTitle = '改造 biz-components 的 org-user-group-picker 组件';
+    await f.service.announce({ ...signal(), eventType: 'task.started', title, speechTitle }, noon);
+    expect(f.played[0]).toContain(speechTitle);
+    expect(f.played[0]).not.toContain('minmetals-ui/packages');
+    f.settings.voice.enabled = false;
+    await f.service.announce({ ...signal('notice'), title, speechTitle }, new Date(noon.getTime() + 3_000));
+    expect(f.notices[0]?.body).toBe(title);
+  });
+
+  it('试听同样缩短路径引用', async () => {
+    const f = fixture();
+    await f.service.speakText('@/Users/example/Data/Code/wukuang/ 审查这个项目');
+    expect(f.played).toEqual(['wukuang 审查这个项目']);
+  });
+
   it('播报内容切到标题原文时保留适配器给的前 40 字', async () => {
     const f = fixture();
     f.settings.voice.content = 'prompt';

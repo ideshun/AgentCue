@@ -79,6 +79,15 @@ describe('task hook configuration', () => {
 });
 
 describe('task hook ingress contract', () => {
+  it('将路径引用的有界播报摘要贯穿 Hook 入口，不替换看板标题', () => {
+    const prompt = '改造 @minmetals-ui/packages/biz-components 的 org-user-group-picker 组件';
+    const event = normalizeCursorHook({
+      hook_event_name: 'beforeSubmitPrompt', conversation_id: 'conv', generation_id: 'turn', prompt,
+    }, { receivedAt })[0]!;
+    const parsed = parseHookEnvelope({ mode: 'turn', event }).event;
+    expect(parsed.payload.taskTitle).toBe(Array.from(prompt).slice(0, 40).join(''));
+    expect(parsed.payload.taskSpeechTitle).toBe('改造 biz-components 的 org-user-group-picker 组件');
+  });
   it('accepts validated Cursor events and strips all non-metadata payload fields', () => {
     const event = cursor();
     event.payload = {

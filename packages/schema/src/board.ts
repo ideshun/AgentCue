@@ -38,8 +38,10 @@ export interface BoardResponse {
 export const sourceTaskContextSchema = z.object({
   taskId: z.string().min(1).optional(),
   title: z.string().nullable().optional(),
+  speechTitle: z.string().nullable().optional(),
   closed: z.boolean().optional(),
   pendingTitle: z.string().nullable().optional(),
+  pendingSpeechTitle: z.string().nullable().optional(),
   /** 首条来源元数据的分类结果；true 表示内部流程，不产生用户任务。 */
   excluded: z.boolean().optional(),
 });
