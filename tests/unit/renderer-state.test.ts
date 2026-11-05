@@ -76,7 +76,9 @@ describe('renderer settings', () => {
     expect(markup).toContain('data-setting="voice.volume"');
     expect(markup).toContain('aria-valuetext="80%"');
     expect(markup).toContain('id="volume-value"');
-    expect(plain(evaluate(context, 'buildPatch("voice.volume", "0.35")'))).toEqual({ voice: { volume: 0.35 } });
+    expect(plain(evaluate(context, 'buildPatch("voice.volume", "0.35")'))).toEqual({
+      voice: { volume: 0.35 },
+    });
   });
   it('exposes broadcast scope and content selectors with the saved values selected', () => {
     const context = renderer();
@@ -84,12 +86,12 @@ describe('renderer settings', () => {
     evaluate(context, 'state.settings = settingsFixture');
     const markup = evaluate<string>(context, 'renderSettings(state)');
     expect(markup).toContain('data-setting="voice.scope"');
-    expect(markup).toMatch(/value="attention" selected[^>]*>仅待确认/);
+    expect(markup).toMatch(/value="attention" selected[^>]*>只播等你确认的/);
     expect(markup).toContain('data-setting="voice.content"');
-    expect(markup).toMatch(/value="title" selected[^>]*>会话标题（精简）/);
+    expect(markup).toMatch(/value="title" selected[^>]*>标题（精简）/);
     evaluate(context, 'state.settings.voice.scope = "milestones"');
     expect(evaluate<string>(context, 'renderSettings(state)')).toMatch(
-      /value="milestones" selected[^>]*>待确认与开始\/完成/,
+      /value="milestones" selected[^>]*>开始、确认、完成都播/,
     );
   });
 
@@ -130,7 +132,7 @@ describe('renderer settings', () => {
     context.settingsFixture = structuredClone(settings);
     evaluate(context, 'state.settings = settingsFixture; state.settings.voice.scope = "all"');
     const markup = evaluate<string>(context, 'renderSettings(state)');
-    expect(markup).toMatch(/value="milestones" selected[^>]*>待确认与开始\/完成/);
+    expect(markup).toMatch(/value="milestones" selected[^>]*>开始、确认、完成都播/);
     expect(markup).not.toContain('<option value="all"');
     expect(evaluate(context, 'state.settings.voice.scope')).toBe('all');
   });
@@ -199,17 +201,20 @@ describe('renderer office', () => {
   it('shows the latest actual event time and handles missing event history', () => {
     const context = renderer();
     context.settingsFixture = structuredClone(settings);
-    evaluate(context, `state.settings = settingsFixture;
+    evaluate(
+      context,
+      `state.settings = settingsFixture;
       state.tools = [{ toolId: 'demo', name: 'Demo', detectStatus: 'installed', sessionCapability: 'events' }];
       state.office = { generatedAt: '2026-10-20T06:00:00.000Z', workstations: [{
         toolId: 'demo', counts: { idle: 0, running: 0, waiting_human: 0, failed: 0, timeout: 0, completed: 0, cancelled: 0 },
         tasks: [], lastEventAt: '2026-10-20T05:00:00.000Z'
-      }] };`);
+      }] };`,
+    );
     const markup = evaluate<string>(context, 'renderOffice(state)');
     expect(markup).toContain('datetime="2026-10-20T05:00:00.000Z"');
     expect(markup).toContain('最近事件 ·');
     evaluate(context, 'state.office.workstations[0].lastEventAt = null');
-    expect(evaluate<string>(context, 'renderOffice(state)')).toContain('暂无任务事件');
+    expect(evaluate<string>(context, 'renderOffice(state)')).toContain('还没收到任务事件');
   });
 });
 
@@ -259,7 +264,7 @@ describe('renderer board', () => {
     expect(markup).not.toContain('data-session="history-1"');
     expect(markup).not.toContain('data-task-id="history-1"');
     expect(markup).toContain('状态未知');
-    expect(markup).toContain('标记已响应');
+    expect(markup).toContain('我已处理');
   });
 
   it('shows attention tasks from group queries even when the mixed session list omits them', () => {
@@ -475,17 +480,17 @@ describe('renderer hook integrations', () => {
     context.integrationFixture = structuredClone(integration);
     evaluate(context, 'state.hookIntegrations = [integrationFixture]');
     const waiting = evaluate<string>(context, 'renderIntegrations(state)');
-    expect(waiting).toContain('等待首次任务事件');
-    expect(waiting).toContain('不代表持续连接');
-    expect(waiting).toContain('收到事件后，是否出声仍取决于语音开关、全局静音、免打扰与事件规则');
-    expect(waiting).toContain('已有设置或同名脚本请合并');
+    expect(waiting).toContain('还没收到过任务事件');
+    expect(waiting).toContain('收到过事件不代表工具一直在运行');
+    expect(waiting).toContain('之后出不出声，还看语音开关、免打扰和规则设置');
+    expect(waiting).toContain('把新内容合并进去');
     expect(waiting).toContain('chmod u+x');
     expect(waiting).not.toContain('data-action="speak-test"');
     expect(waiting).not.toMatch(/data-action="(?:test-hook|send-event|start-task|stop-task)"/);
     evaluate(context, 'state.hookIntegrations[0].lastEventAt = "2020-01-01T00:00:00Z"');
     const received = evaluate<string>(context, 'renderIntegrations(state)');
     expect(received).toContain('已收到任务事件');
-    expect(received).toContain('最近收到');
+    expect(received).toContain('上次收到事件');
     expect(received).toContain('2020');
     expect(received).not.toContain('已连接');
     evaluate(context, 'state.hookIntegrations[0].enabled = false');
@@ -494,7 +499,7 @@ describe('renderer hook integrations', () => {
     expect(paused).toContain('2020');
     evaluate(context, 'state.hookIntegrations[0].commandReady = false');
     const unavailable = evaluate<string>(context, 'renderIntegrations(state)');
-    expect(unavailable).toContain('入口不可用');
+    expect(unavailable).toContain('接收入口还没就绪');
     expect(unavailable).toContain('data-copy-unavailable="true"');
     expect(unavailable).toMatch(/aria-label="复制 Cline 配置 1" disabled/);
   });
@@ -624,15 +629,15 @@ describe('renderer hook integrations', () => {
       'state.settings = settingsFixture; state.tools = toolsFixture; state.adapters = adaptersFixture',
     );
     const installed = evaluate<string>(context, 'renderAdapters(state)');
-    expect(installed).toContain('已安装不代表任务事件已接入');
-    expect(installed).toContain('等待首次任务事件');
+    expect(installed).toContain('装好了还不等于任务事件已接入');
+    expect(installed).toContain('还没收到过任务事件');
     evaluate(
       context,
       'state.settings.privacy.sessionFileRead = false; state.tools[0].hookLastEventAt = "2020-01-01T00:00:00Z"',
     );
     const paused = evaluate<string>(context, 'renderAdapters(state)');
     expect(paused).toContain('暂停接收任务事件');
-    expect(paused).toContain('最近收到');
+    expect(paused).toContain('上次收到事件');
     expect(paused).not.toContain('已连接');
   });
 });
@@ -844,18 +849,18 @@ describe('renderer automatic voice policy', () => {
     expect(policy.hasToolOverrides).toBe(true);
     expect(policy.items.map((item) => item.action)).toEqual(['speak', 'mute', 'notify']);
     const markup = evaluate<string>(context, 'renderVoicePolicy(state, nowFixture)');
-    expect(markup).toContain('本机 14:00 · 免打扰时段外');
-    expect(markup).toContain('存在工具专属规则');
-    expect(markup).toContain('自动提醒需要适配器提供对应任务事件');
-    expect(markup).toContain('试听是单次播放，不受自动语音开关、全局静音和免打扰时段影响');
+    expect(markup).toContain('现在 14:00 · 免打扰时段外');
+    expect(markup).toContain('有针对个别工具的规则');
+    expect(markup).toContain('能不能收到提醒还取决于工具有没有接入任务事件');
+    expect(markup).toContain('试听按钮不受这些开关影响');
     // 当前播报状态只在「播报规则」出现一次，语音区不再重复同一张卡。
     expect(
       evaluate<string>(context, 'renderSettings(state)').match(/aria-label="当前自动播报策略"/g),
     ).toHaveLength(1);
     evaluate(context, 'state.sectionErrors.rules = "synthetic unavailable"');
     const failed = evaluate<string>(context, 'renderVoicePolicy(state, nowFixture)');
-    expect(failed).toContain('规则暂不可用');
-    expect(failed).not.toContain('aria-label="当前通用事件动作"');
+    expect(failed).toContain('规则加载失败');
+    expect(failed).not.toContain('aria-label="各事件的当前处理方式"');
   });
 
   it('uses wildcard or engine default actions when a generic exact-event rule is absent', () => {
@@ -870,7 +875,7 @@ describe('renderer automatic voice policy', () => {
     );
     const matrix = evaluate<string>(context, 'renderRuleMatrix(rulesFixture)');
     const started = matrix.match(/<select id="rule-task.started"[^>]*>([\s\S]*?)<\/select>/)?.[1];
-    expect(started).toContain('<option value="notify" selected>仅通知</option>');
+    expect(started).toContain('<option value="notify" selected>弹通知</option>');
   });
 
   it('allows speak only for start, waiting-human and completion and explains old speak rules', () => {
@@ -885,7 +890,7 @@ describe('renderer automatic voice policy', () => {
       const options = matrix.match(
         new RegExp(`<select id="rule-${event}"[^>]*>([\\s\\S]*?)<\\/select>`),
       )?.[1];
-      expect(options).toContain('<option value="speak" selected>播报</option>');
+      expect(options).toContain('<option value="speak" selected>出声</option>');
     }
     for (const event of ['task.failed', 'task.timeout']) {
       const options = matrix.match(
@@ -893,9 +898,9 @@ describe('renderer automatic voice policy', () => {
       )?.[1];
       expect(options).not.toContain('value="speak"');
     }
-    expect(matrix).toContain('原播报规则现按仅通知执行');
-    expect(matrix).toContain('<option value="notify" selected>仅通知</option>');
-    expect(matrix).toContain('<option value="mute" selected>静音</option>');
+    expect(matrix).toContain('这类事件现在只能弹通知');
+    expect(matrix).toContain('<option value="notify" selected>弹通知</option>');
+    expect(matrix).toContain('<option value="mute" selected>不提醒</option>');
     expect(JSON.stringify(context.rulesFixture)).toBe(before);
     for (const event of [
       'task.cancelled',
@@ -1000,7 +1005,7 @@ describe('renderer native voices', () => {
     evaluate(context, 'state.settings = settingsFixture; state.nativeVoices = voicesFixture');
     const markup = evaluate<string>(context, 'renderSettings(state)');
     expect(markup).toContain('value="system-default" selected');
-    expect(markup).toContain('自动（普通话增强音色优先）');
+    expect(markup).toContain('自动（优先用普通话增强音色）');
     expect(markup).toContain('善怡 · 粤语');
     expect(markup).toContain('婷婷 · 普通话');
     expect(markup).toContain('美佳 · 台湾');
@@ -1009,8 +1014,8 @@ describe('renderer native voices', () => {
     evaluate(context, 'state.settings.voice.voiceProfile = "Saved voice <missing>"');
     const unknown = evaluate<string>(context, 'renderSettings(state)');
     expect(unknown).not.toContain('value="Saved voice');
-    expect(unknown).toContain('原音色「Saved voice &lt;missing&gt;」');
-    expect(unknown).toContain('播放已回退安全自动');
+    expect(unknown).toContain('原来选的音色「Saved voice &lt;missing&gt;」');
+    expect(unknown).toContain('已临时用自动模式');
     expect(evaluate<string>(context, 'state.settings.voice.voiceProfile')).toBe(
       'Saved voice <missing>',
     );
@@ -1018,7 +1023,7 @@ describe('renderer native voices', () => {
       voice: { voiceProfile: 'Tingting' },
     });
     const unsaved = evaluate<string>(context, 'renderSettings(state, "Unsaved voice")');
-    expect(unsaved).toContain('原音色「Unsaved voice」');
+    expect(unsaved).toContain('原来选的音色「Unsaved voice」');
     expect(unsaved).toContain('value="system-default" selected');
     // 增强款只放行普通话；同名台湾变体不进白名单，列表里不会再出现两条 Eddy。
     expect(markup.match(/Eddy · 普通话（增强）/g)).toHaveLength(1);
@@ -1033,7 +1038,7 @@ describe('renderer native voices', () => {
     evaluate(context, 'state.settings = settingsFixture');
     const missing = evaluate<string>(context, 'renderSettings(state)');
     expect(missing).toContain('data-action="download-model"');
-    expect(missing).toContain('下载约 348MB');
+    expect(missing).toContain('约 348MB');
     expect(missing).toContain('github.com');
     expect(missing).toContain('value="kokoro:58" selected');
     expect(missing).toContain('普通话男声 · zm_009');
@@ -1047,7 +1052,7 @@ describe('renderer native voices', () => {
     context.settingsFixture.voice.voiceProfile = 'Sinji';
     evaluate(context, 'state.settings = settingsFixture');
     expect(evaluate<string>(context, 'renderSettings(state)')).toContain(
-      '原音色「Sinji」不是可用的本地音色',
+      '原来选的「Sinji」不在本地音色里',
     );
     context.voicesFixture = [
       { id: 'Sinji', name: 'Sinji', language: 'zh_HK' },
@@ -1067,13 +1072,13 @@ describe('renderer native voices', () => {
       'state.modelStatus = { state: "error", error: "network <broken>" }; renderSettings(state)',
     );
     const errored = evaluate<string>(context, 'renderSettings(state)');
-    expect(errored).toContain('重试下载');
+    expect(errored).toContain('再试一次');
     expect(errored).toContain('network &lt;broken&gt;');
-    expect(errored).toContain('不会改播系统音色');
+    expect(errored).toContain('不会偷偷换系统声音');
     expect(errored).not.toContain('播报自动回落到系统原生语音');
     evaluate(context, 'state.modelStatus = { state: "ready" }; renderSettings(state)');
     expect(evaluate<string>(context, 'renderSettings(state)')).toContain(
-      '运行时与播放会在首次试听时验证',
+      '第一次试听时会顺手检查运行时',
     );
   });
 
@@ -1093,13 +1098,13 @@ describe('renderer native voices', () => {
     const markup = evaluate<string>(context, 'renderSettings(state)');
     expect(markup).toContain('data-setting="voice.localEngine"');
     expect(markup).toMatch(/value="zipvoice" selected[^>]*>ZipVoice/);
-    expect(markup).toContain('尚未下载 ZipVoice 模型。');
-    expect(markup).toContain('下载约 162MB');
+    expect(markup).toContain('还没下载 ZipVoice 模型。');
+    expect(markup).toContain('约 162MB');
     expect(markup).toContain('data-action="download-model" data-model-kind="zipvoice"');
     expect(markup).toContain('data-action="pick-zipvoice-reference"');
     expect(markup).toContain('value="reference.wav"');
     expect(markup).toContain('value="这是一段参考录音。"');
-    expect(markup).toContain('参考录音与原文已就绪');
+    expect(markup).toContain('录音和原文都配好了');
     // ZipVoice 没有预置发音人：Kokoro 音色列表与它的 ready 状态都不得冒充当前引擎。
     expect(markup).not.toContain('<option value="kokoro:');
     expect(markup).not.toContain('本地模型已就绪');
@@ -1110,9 +1115,9 @@ describe('renderer native voices', () => {
     expect(
       plain(evaluate(context, 'buildPatch("voice.zipvoiceReferenceText", "录音原文")')),
     ).toEqual({ voice: { zipvoiceReferenceText: '录音原文' } });
-    expect(() => evaluate(context, 'buildPatch("voice.zipvoiceReferenceText", "x".repeat(501))')).toThrow(
-      '500',
-    );
+    expect(() =>
+      evaluate(context, 'buildPatch("voice.zipvoiceReferenceText", "x".repeat(501))'),
+    ).toThrow('500');
   });
 
   it('lays every setting row out as one label plus one control column', () => {
@@ -1135,7 +1140,9 @@ describe('renderer native voices', () => {
     );
     const local = evaluate<string>(context, 'renderSettings(state)');
     // 「音色」只由外层字段行提供；旧 picker 的重复标签和三栏网格已删除。
-    expect(local.match(/class="field-label" for="setting-voice-voiceProfile">音色/g)).toHaveLength(1);
+    expect(local.match(/class="field-label" for="setting-voice-voiceProfile">音色/g)).toHaveLength(
+      1,
+    );
     expect(local).not.toContain('voice-field');
     expect(local).not.toContain('voice-fields');
     expect(local).not.toContain('model-card');
@@ -1175,7 +1182,9 @@ describe('renderer native voices', () => {
     expect(voiceOptions).not.toContain('default_zh');
 
     evaluate(context, `state.settings.voice.cloudVoice = 'default_zh'`);
-    const customVoiceOptions = cloudVoiceOptions(evaluate<string>(context, 'renderSettings(state)'));
+    const customVoiceOptions = cloudVoiceOptions(
+      evaluate<string>(context, 'renderSettings(state)'),
+    );
     expect(customVoiceOptions).toContain(
       '<option value="default_zh" selected>default_zh（自定义）</option>',
     );
@@ -1185,9 +1194,7 @@ describe('renderer native voices', () => {
     const presetVoiceOptions = cloudVoiceOptions(
       evaluate<string>(context, 'renderSettings(state)'),
     );
-    expect(presetVoiceOptions).toContain(
-      '<option value="冰糖" selected>冰糖（中文女声）</option>',
-    );
+    expect(presetVoiceOptions).toContain('<option value="冰糖" selected>冰糖（中文女声）</option>');
     expect(presetVoiceOptions.match(/<option/g)).toHaveLength(9);
     evaluate(
       context,
@@ -1355,8 +1362,8 @@ describe('renderer native voices', () => {
     );
     const failed = evaluate<string>(context, 'renderSettings(state)');
     expect(failed).toContain('value="system-default"');
-    expect(failed).toContain('重试音色列表');
-    expect(failed).toContain('原音色「Saved voice」');
+    expect(failed).toContain('再试一次');
+    expect(failed).toContain('原来选的音色「Saved voice」');
     expect(failed).not.toContain('自动选择仍可使用');
     context.get = async () => ({
       voices: [{ id: 'Sinji', name: 'Sinji', language: 'zh_HK' }],
@@ -1490,7 +1497,9 @@ describe('renderer pending settings', () => {
       stagePatch(buildPatch("quiet.ranges.0.from", "21:00"));`,
     );
     expect(
-      plain(evaluate(context, 'collectPendingPatch(state.settings, pendingSettings, pendingPaths)')),
+      plain(
+        evaluate(context, 'collectPendingPatch(state.settings, pendingSettings, pendingPaths)'),
+      ),
     ).toEqual({
       voice: { rate: 1.5 },
       quiet: {
@@ -1508,7 +1517,9 @@ describe('renderer pending settings', () => {
     );
     // 改回原值后不再算作待保存，也不会写进请求体。
     expect(
-      plain(evaluate(context, 'collectPendingPatch(state.settings, pendingSettings, pendingPaths)')),
+      plain(
+        evaluate(context, 'collectPendingPatch(state.settings, pendingSettings, pendingPaths)'),
+      ),
     ).toEqual({});
     expect(evaluate(context, 'hasPendingChanges()')).toBe(false);
   });
@@ -1569,7 +1580,10 @@ describe('renderer pending settings', () => {
     context.record = (patch: unknown): void => {
       sent.push(plain(patch));
     };
-    evaluate(context, `state.settings = settingsFixture; toast = () => {}; ${saveHarness('record')}`);
+    evaluate(
+      context,
+      `state.settings = settingsFixture; toast = () => {}; ${saveHarness('record')}`,
+    );
     // 留空的密钥输入不产生待保存项，也不会覆盖已保存的 Key。
     expect(evaluate(context, 'stagePatch(buildPatch("voice.cloudApiKey", "   "))')).toBe(false);
     expect(evaluate(context, 'hasPendingChanges()')).toBe(false);
@@ -1646,9 +1660,9 @@ describe('renderer pending settings', () => {
     ).toBe('speak');
     evaluate(context, 'stageRule("task.failed", "notify")');
     expect(evaluate(context, 'pendingChangeCount()')).toBe(0);
-    expect(evaluate(context, 'previewRules().find(rule => rule.scopeEvent === "task.failed").action')).toBe(
-      'notify',
-    );
+    expect(
+      evaluate(context, 'previewRules().find(rule => rule.scopeEvent === "task.failed").action'),
+    ).toBe('notify');
     evaluate(context, 'stageRule("task.failed", "speak")');
     expect(await evaluate<Promise<boolean>>(context, 'savePendingSettings()')).toBe(true);
     // 没有设置改动时只补发规则，不额外 PUT。
@@ -1770,10 +1784,7 @@ describe('renderer pending settings', () => {
       Api.put = async () => { throw new Error('synthetic save failure'); };`,
     );
     await evaluate(context, 'handleConfirmClose({ requestId: 9, reason: "quit" })');
-    expect(calls).toEqual([
-      { shown: true },
-      { requestId: 9, proceed: false },
-    ]);
+    expect(calls).toEqual([{ shown: true }, { requestId: 9, proceed: false }]);
     expect(evaluate(context, 'hasPendingChanges()')).toBe(true);
     expect(evaluate(context, 'state.sectionErrors.settings')).toContain('synthetic save failure');
   });

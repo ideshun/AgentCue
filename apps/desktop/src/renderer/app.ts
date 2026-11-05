@@ -87,13 +87,13 @@ interface ControlDraft {
 }
 const drafts = new Map<RouteName, Map<string, ControlDraft>>();
 const ROUTE_META: Record<RouteName, { title: string; subtitle: string }> = {
-  overview: { title: '总览', subtitle: '任务、工具与提醒，尽在本机。' },
-  office: { title: '办公室', subtitle: '在每一个工位，看见工作的进展。' },
-  board: { title: '任务看板', subtitle: '从需要介入，到完成归档。' },
-  notifications: { title: '通知中心', subtitle: '需要你关注的每一条进展。' },
-  integrations: { title: '播报接入', subtitle: '按工具配置 Hooks 与 MCP，接收任务进展。' },
-  adapters: { title: '工具与扩展', subtitle: '看清安装状态，也看清监控能力。' },
-  settings: { title: '设置', subtitle: '按你的节奏，安排监控与提醒。' },
+  overview: { title: '总览', subtitle: '你的任务、工具和提醒都在这一页。' },
+  office: { title: '办公室', subtitle: '每个工位对应一个工具，一眼看到它在做什么。' },
+  board: { title: '任务看板', subtitle: '按状态查看所有任务。' },
+  notifications: { title: '通知中心', subtitle: '所有提醒的历史记录。' },
+  integrations: { title: '播报接入', subtitle: '把 AgentCue 接到你的 AI 工具里。' },
+  adapters: { title: '工具与扩展', subtitle: '本机装了哪些 AI 工具。' },
+  settings: { title: '设置', subtitle: '调整提醒方式、扫描频率和隐私选项。' },
 };
 
 function currentRoute(): RouteName {
@@ -376,10 +376,10 @@ function renderChrome(): void {
   const muted = state.settings?.quiet.globalMute === true;
   const mute = qs<HTMLElement>('#mute-toggle');
   mute.dataset.muted = String(muted);
-  mute.textContent = muted ? '已静音 · 点击恢复' : '静音自动播报';
+  mute.textContent = muted ? '已静音，点击恢复' : '静音语音播报';
   qs<HTMLElement>('#runtime-hint').textContent = state.settings
-    ? '本地引擎已连接 · 每 5 秒采集'
-    : '正在连接本地引擎…';
+    ? '已连接，每 5 秒自动更新'
+    : '正在启动…';
   // 设置页手动保存：状态文案与右上角按钮同步，未保存时按钮才可用。
   const save = document.getElementById('settings-save-status');
   const saveButton = document.getElementById('settings-save') as HTMLButtonElement | null;
@@ -388,10 +388,10 @@ function renderChrome(): void {
     save.textContent = settingsSaveCount
       ? '正在保存…'
       : pending > 0
-        ? `${String(pending)} 项未保存`
+        ? `还有 ${String(pending)} 项没保存`
         : state.sectionErrors.settings
-          ? '保存失败，修改仍保留'
-          : '全部已保存';
+          ? '没保存成功，改动还在'
+          : '都已保存';
   if (saveButton) {
     saveButton.disabled = settingsSaveCount > 0 || pending === 0;
     saveButton.textContent = pending > 0 ? `保存（${String(pending)}）` : '保存';
@@ -584,12 +584,22 @@ async function refresh(background = false): Promise<void> {
     if (route === 'office') {
       add<OfficeSnapshot>('office', '/api/v1/office', (value) => {
         state.office = value;
-        state.sessions = value.workstations.flatMap((item) => item.tasks)
-          .filter((item): item is BoardItem & { currentState: TaskState } => item.currentState !== null)
-          .map((item) => ({ sessionId: item.sessionId, toolId: item.toolId, title: item.title,
-            currentState: item.currentState, updatedAt: item.updatedAt }));
+        state.sessions = value.workstations
+          .flatMap((item) => item.tasks)
+          .filter(
+            (item): item is BoardItem & { currentState: TaskState } => item.currentState !== null,
+          )
+          .map((item) => ({
+            sessionId: item.sessionId,
+            toolId: item.toolId,
+            title: item.title,
+            currentState: item.currentState,
+            updatedAt: item.updatedAt,
+          }));
       });
-      add<ToolSummary[]>('tools', '/api/v1/tools', (value) => { state.tools = value; });
+      add<ToolSummary[]>('tools', '/api/v1/tools', (value) => {
+        state.tools = value;
+      });
     }
     if (route === 'adapters') {
       add<AdapterManifest[]>('adapters', '/api/v1/adapters', (value) => {
@@ -1065,7 +1075,10 @@ function saveSettings(
 function applySavedRule(event: string, action: string): void {
   const index = state.rules.findIndex((rule) => !rule.scopeTool && rule.scopeEvent === event);
   if (index >= 0)
-    state.rules[index] = { ...state.rules[index], action: action as VoiceRule['action'] } as VoiceRule;
+    state.rules[index] = {
+      ...state.rules[index],
+      action: action as VoiceRule['action'],
+    } as VoiceRule;
   else
     state.rules.push({
       ruleId: `event:${event}`,
@@ -1161,11 +1174,11 @@ async function requestLeaveSettings(targetHash: string): Promise<void> {
   }
   const count = pendingChangeCount();
   const choice = await openConfirm({
-    title: '离开设置前保存修改？',
-    body: `有 ${count} 项设置尚未保存，离开后会丢失。`,
-    saveLabel: '保存并离开',
-    discardLabel: '不保存',
-    cancelLabel: '取消',
+    title: '改过的设置还没保存',
+    body: `有 ${count} 项改动，直接离开就没了。`,
+    saveLabel: '保存后再走',
+    discardLabel: '不保存了',
+    cancelLabel: '留下',
   });
   if (choice === 'cancel') return;
   if (choice === 'save') {
@@ -1199,11 +1212,11 @@ async function handleConfirmClose(request: CloseRequest): Promise<void> {
     // 托盘退出时窗口可能是隐藏的：先显示出来，用户才能做选择。
     if (quitting) await window.awm?.showWindow();
     const choice = await openConfirm({
-      title: quitting ? '退出前保存设置？' : '关闭窗口前保存设置？',
-      body: `有 ${pendingChangeCount()} 项设置尚未保存，${quitting ? '退出' : '关闭窗口'}后会丢失。`,
+      title: quitting ? '改过的设置还没保存' : '改过的设置还没保存',
+      body: `有 ${pendingChangeCount()} 项改动，直接${quitting ? '退出' : '关窗口'}就没了。`,
       saveLabel: quitting ? '保存并退出' : '保存并关闭',
-      discardLabel: quitting ? '直接退出' : '不保存',
-      cancelLabel: '取消',
+      discardLabel: quitting ? '直接退出' : '不保存了',
+      cancelLabel: '留下',
     });
     if (choice === 'save') {
       respond(await savePendingSettings());
@@ -1392,10 +1405,13 @@ function bindEvents(): void {
       event.preventDefault();
       if (state.route !== 'board') navigateTo('board');
       // 路由切换经 hashchange 异步渲染，稍候聚焦；已在看板则立即聚焦。
-      window.setTimeout(() => {
-        const input = document.getElementById('board-search');
-        if (input instanceof HTMLInputElement) input.focus();
-      }, state.route === 'board' ? 0 : 150);
+      window.setTimeout(
+        () => {
+          const input = document.getElementById('board-search');
+          if (input instanceof HTMLInputElement) input.focus();
+        },
+        state.route === 'board' ? 0 : 150,
+      );
     }
   });
   qs<HTMLElement>('#btn-refresh').addEventListener('click', () => {
@@ -1444,14 +1460,19 @@ function bindEvents(): void {
       officeUi.selectedToolId = toolId;
       officeUi.openToolId = toolId;
       officeUi.suppressedToolId = '';
-      const selected = officeEmployees(state).find((item) => item.tool.toolId === officeUi.selectedToolId);
+      const selected = officeEmployees(state).find(
+        (item) => item.tool.toolId === officeUi.selectedToolId,
+      );
       officeUi.tab = officeDefaultTab(selected);
       render(true);
       document.getElementById('office-close')?.focus({ preventScroll: true });
       return;
     }
     const officeFilter = target.closest<HTMLElement>('[data-office-filter]');
-    if (officeFilter && ['all', 'working', 'attention'].includes(officeFilter.dataset.officeFilter ?? '')) {
+    if (
+      officeFilter &&
+      ['all', 'working', 'attention'].includes(officeFilter.dataset.officeFilter ?? '')
+    ) {
       officeUi.filter = officeFilter.dataset.officeFilter as OfficeFilter;
       syncOfficeSelection(state, true);
       render(true);
@@ -1613,9 +1634,7 @@ function bindEvents(): void {
     const modelKind: ModelKind =
       actionNode?.dataset.modelKind === 'zipvoice' ? 'zipvoice' : 'kokoro';
     const actionKey =
-      action === 'download-model' || action === 'cancel-model'
-        ? `${action}:${modelKind}`
-        : action;
+      action === 'download-model' || action === 'cancel-model' ? `${action}:${modelKind}` : action;
     const actionSelector =
       action === 'download-model' || action === 'cancel-model'
         ? `[data-action="${action}"][data-model-kind="${modelKind}"]`
@@ -1900,8 +1919,7 @@ function bindEvents(): void {
     const target = event.target as HTMLElement;
     // 遮罩等于「取消」：不改 hash、不保存、不丢弃。
     const choice = target.closest<HTMLElement>('[data-confirm]')?.dataset.confirm;
-    if (choice === 'save' || choice === 'discard' || choice === 'cancel')
-      resolveConfirm(choice);
+    if (choice === 'save' || choice === 'discard' || choice === 'cancel') resolveConfirm(choice);
   });
   document.addEventListener('keydown', (event) => {
     // 确认弹窗叠在抽屉之上时优先处理它；两者互斥，同一时刻只有一个焦点陷阱。
@@ -1996,7 +2014,7 @@ async function openStream(): Promise<void> {
   try {
     ticket = await Api.createStreamTicket();
   } catch {
-    qs<HTMLElement>('#runtime-hint').textContent = '实时连接暂时中断 · 正在自动重连';
+    qs<HTMLElement>('#runtime-hint').textContent = '连接断开，正在重连';
     scheduleStreamRetry();
     return;
   }
@@ -2019,8 +2037,7 @@ async function openStream(): Promise<void> {
     if (type === 'state.transition') {
       invalidateResources('board', 'overview', 'hooks', 'office');
       if (state.route === 'office') invalidateResources('tools');
-    }
-    else if (type === 'board.updated') invalidateResources('board', 'overview', 'office');
+    } else if (type === 'board.updated') invalidateResources('board', 'overview', 'office');
     else if (type === 'notify') invalidateResources('notifications');
     else if (type === 'settings.changed') invalidateResources('settings', 'rules', 'office');
     else if (type === 'tools.updated' || type === 'scan.completed')
@@ -2034,7 +2051,7 @@ async function openStream(): Promise<void> {
   stream.onerror = () => {
     stream?.close();
     stream = null;
-    qs<HTMLElement>('#runtime-hint').textContent = '实时连接暂时中断 · 正在自动重连';
+    qs<HTMLElement>('#runtime-hint').textContent = '连接断开，正在重连';
     scheduleStreamRetry();
   };
 }

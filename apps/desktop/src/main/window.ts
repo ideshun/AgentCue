@@ -50,8 +50,8 @@ export function createMainWindow(): BrowserWindow {
     show: false,
     title: APP_DISPLAY_NAME,
     icon: APP_ICON_PATH,
-    // 与渲染层 --bg（styles.css 浅色 #f3f5fa / 深色 #060910）同值，避免恢复窗口时闪底色
-    backgroundColor: nativeTheme.shouldUseDarkColors ? '#060910' : '#f3f5fa',
+    // 与渲染层 --bg（styles.css 浅色 #f5f5f7 / 深色 #000000）同值，避免恢复窗口时闪底色
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#000000' : '#f5f5f7',
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),

@@ -1,52 +1,51 @@
-/* Generated workstation art, local brand icons and accessible NPC message bubbles. */
+/* Office stage: generated workstation art, real tool icons, accessible NPC bubbles. */
 #view[data-route='office'] {
-  --office-floor: #f0f0e9;
-  --office-floor-line: rgb(121 137 123 / 8%);
-  --office-bubble: #fffefa;
-  --office-bubble-border: #d9ded4;
-  --office-bubble-shadow: 0 9px 26px rgb(52 68 55 / 9%);
-  --office-screen: #263335;
-  --office-screen-line: #435052;
-  --office-code: #a8c5b8;
+  --office-floor: var(--surface-2);
+  --office-floor-line: rgb(60 60 67 / 6%);
+  --office-bubble: #ffffff;
+  --office-bubble-border: #d8d9de;
+  --office-bubble-shadow: 0 12px 32px rgb(0 0 0 / 12%);
+  --office-screen: #1c2126;
+  --office-screen-line: #454b52;
+  --office-code: #9fc3d8;
 }
 @media (prefers-color-scheme: dark) {
   #view[data-route='office'] {
-    --office-floor: #1b2829;
-    --office-floor-line: rgb(173 195 178 / 5%);
-    --office-bubble: #263432;
-    --office-bubble-border: #4d5d54;
-    --office-bubble-shadow: 0 12px 32px rgb(0 0 0 / 23%);
-    --office-screen: #1e2b2e;
-    --office-screen-line: #39494b;
-    --office-code: #9fbeae;
+    --office-floor: #1c1c1e;
+    --office-floor-line: rgb(200 200 207 / 5%);
+    --office-bubble: #1c1c1e;
+    --office-bubble-border: #48484a;
+    --office-bubble-shadow: 0 16px 40px rgb(0 0 0 / 38%);
+    --office-screen: #1a1d21;
+    --office-screen-line: #3a4046;
+    --office-code: #9fc3d8;
   }
 }
 .office-command {
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 .office-command-heading {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 18px;
+  margin-bottom: 16px;
   font-size: var(--fs-lg);
-  font-weight: 500;
+  font-weight: 650;
+  line-height: 1.25;
 }
 .office-live-dot {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--ok);
-  box-shadow: var(--glow-ok);
 }
 .office-live-dot.is-stale {
   background: var(--muted);
-  box-shadow: none;
 }
 .office-command-meta,
 .office-last-sync {
-  font-size: var(--fs-xs);
+  font-size: 11px;
   color: var(--muted);
   font-weight: 400;
 }
@@ -54,10 +53,12 @@
   margin-left: 6px;
   padding: 2px 8px;
   border: 1px solid var(--border);
-  border-radius: 20px;
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
 }
 .office-last-sync {
   margin-left: auto;
+  font-variant-numeric: tabular-nums;
 }
 .office-controls,
 .office-view-controls {
@@ -88,16 +89,17 @@
   padding: 6px 10px;
   min-height: 30px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-xs);
   background: transparent;
   color: var(--muted);
   font-size: var(--fs-sm);
+  font-weight: 500;
 }
 .office-filters button span,
 .office-task-tabs button span {
   font-family: var(--mono);
   font-size: 11px;
-  opacity: 0.8;
+  font-variant-numeric: tabular-nums;
 }
 .office-filters button:hover,
 .office-task-tabs button:hover {
@@ -112,12 +114,11 @@
 .office-search {
   width: 166px;
   min-width: 0;
-  font-size: var(--fs-sm);
 }
 .office-room {
   min-width: 0;
   border: 1px solid var(--border-strong);
-  border-radius: 20px;
+  border-radius: var(--radius);
   background: var(--office-floor);
   box-shadow: var(--shadow-card);
 }
@@ -127,21 +128,21 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 10px;
-  padding: 22px 26px 6px;
+  padding: 16px 24px 4px;
   color: var(--muted);
-  font-size: var(--fs-xs);
+  font-size: 11px;
 }
 .office-room-caption-title {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  font: 10px var(--mono);
-  letter-spacing: 2px;
+  font: 400 11px var(--mono);
+  letter-spacing: 1px;
 }
 .office-room-caption-title b {
-  font-size: 17px;
-  font-weight: 400;
-  letter-spacing: -1px;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: -0.5px;
 }
 .office-floor {
   display: grid;
@@ -185,7 +186,7 @@
   margin: 0 auto;
   padding: 0;
   border: 0;
-  border-radius: 24px;
+  border-radius: var(--radius);
   background: transparent;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -206,7 +207,7 @@
 }
 .office-desk:hover .office-desk-art,
 .office-workstation.is-open .office-desk-art {
-  filter: drop-shadow(0 8px 8px rgb(54 67 54 / 8%));
+  filter: drop-shadow(0 6px 6px rgb(34 55 45 / 12%));
 }
 .office-workstation-image,
 .office-art-overlay {
@@ -240,7 +241,7 @@
   z-index: 2;
   width: min(282px, calc(100% - 16px));
   box-sizing: border-box;
-  padding: 13px 15px 12px;
+  padding: 12px 14px;
   border: 1px solid var(--office-bubble-border);
   border-radius: 16px;
   background: var(--office-bubble);
@@ -294,8 +295,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--fs-sm);
+  font-weight: 650;
 }
 .office-bubble-status {
   display: inline-flex;
@@ -304,7 +305,7 @@
   flex: none;
   margin-left: auto;
   color: var(--office-message-color);
-  font-size: 10px;
+  font-size: 11px;
 }
 .office-bubble-status i {
   width: 5px;
@@ -325,7 +326,7 @@
   border-radius: 50%;
   background: transparent;
   color: var(--muted);
-  font: 18px/1 var(--sans, sans-serif);
+  font: 18px / 1 var(--sans, sans-serif);
 }
 .office-bubble-close:hover {
   background: var(--surface-2);
@@ -338,7 +339,7 @@
   overflow: hidden;
   overflow-wrap: anywhere;
   margin: 8px 0 5px;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   line-height: 1.55;
 }
 .office-bubble-meta {
@@ -347,17 +348,17 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
 }
 .office-room-footer {
   display: flex;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 8px;
-  padding: 14px 24px;
+  padding: 12px 24px;
   border-top: 1px solid var(--border);
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
 }
 .office-room-empty {
   grid-column: 1 / -1;
@@ -373,7 +374,7 @@
 .office-room-empty h2 {
   color: var(--text-soft);
   font-size: var(--fs-lg);
-  font-weight: 500;
+  font-weight: 650;
 }
 .office-room-empty p {
   margin: 8px 0 18px;
@@ -393,12 +394,12 @@
   max-height: var(--office-popup-max-height, 75vh);
   overflow: auto;
   overscroll-behavior: contain;
-  padding: 19px;
+  padding: 20px;
   border: 1px solid var(--office-bubble-border);
-  border-radius: 20px;
+  border-radius: var(--radius);
   background: var(--office-bubble);
   color: var(--text);
-  box-shadow: 0 18px 65px rgb(14 32 25 / 22%);
+  box-shadow: var(--shadow-float);
   outline: none;
 }
 .office-popover-root[data-positioned='true'] .office-dialog {
@@ -420,8 +421,8 @@
 }
 .office-dialog-heading h2 {
   margin: 0 0 3px;
-  font-size: 17px;
-  font-weight: 600;
+  font-size: var(--fs-lg);
+  font-weight: 650;
 }
 .office-dialog-status,
 .office-dialog-description {
@@ -445,7 +446,7 @@
 }
 .office-dialog-note {
   padding: 10px 12px;
-  border-radius: 10px;
+  border-radius: var(--radius-xs);
   background: var(--surface-2);
   color: var(--muted);
   font-size: 11px;
@@ -455,7 +456,7 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
-  margin: 17px 0;
+  margin: 16px 0;
   padding: 12px 0;
   border-block: 1px solid var(--border);
 }
@@ -468,8 +469,9 @@
   font-size: 11px;
 }
 .office-person-metrics strong {
-  font: 22px var(--mono);
+  font: 500 22px / 1 var(--mono);
   color: var(--text);
+  font-variant-numeric: tabular-nums;
 }
 .office-task-tabs {
   padding: 3px;
@@ -492,10 +494,10 @@
   align-items: stretch;
   gap: 9px;
   width: 100%;
-  padding: 13px 7px;
+  padding: 12px 7px;
   border: 0;
   border-bottom: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-xs);
   background: transparent;
   text-align: left;
 }
@@ -509,18 +511,18 @@
   overflow: hidden;
   overflow-wrap: anywhere;
   color: var(--text);
-  font-size: 12px;
-  line-height: 1.65;
+  font-size: var(--fs-xs);
+  line-height: 1.6;
 }
 .office-task-meta {
   display: flex;
   align-items: center;
   gap: 8px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
 }
 .office-task-meta .badge {
-  font-size: 10px;
+  font-size: 11px;
 }
 .office-task-meta > span:last-child {
   margin-left: auto;

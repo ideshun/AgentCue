@@ -83,7 +83,7 @@ function stateLabel(state: string): string {
   const labels: Record<string, string | undefined> = {
     idle: '空闲',
     running: '进行中',
-    waiting_human: '等你拍板',
+    waiting_human: '等你确认',
     failed: '失败',
     completed: '已完成',
     cancelled: '已取消',
@@ -100,17 +100,17 @@ function stateLabel(state: string): string {
 function eventLabel(eventType: string): string {
   const labels: Record<string, string | undefined> = {
     'task.started': '任务开始',
-    'task.waiting_human': '等待用户',
-    'human.responded': '用户已响应',
+    'task.waiting_human': '等待你确认',
+    'human.responded': '你已确认',
     'task.failed': '任务失败',
     'task.completed': '任务完成',
-    'task.retried': '重试',
-    'task.archived': '归档',
+    'task.retried': '重新运行',
+    'task.archived': '已归档',
     'task.timeout': '等待超时',
-    'task.cancelled': '取消',
-    'heartbeat.lost': '心跳丢失',
-    'tool.detected': '发现工具',
-    anomaly: '异常',
+    'task.cancelled': '已取消',
+    'heartbeat.lost': '失去联系',
+    'tool.detected': '发现新工具',
+    anomaly: '数据异常',
   };
   return labels[eventType] ?? eventType;
 }

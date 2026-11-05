@@ -26,12 +26,12 @@ const officeUi = {
 const OFFICE_STATUS_LABELS: Record<OfficeStatus, string> = {
   working: '工作中',
   waiting: '等你确认',
-  error: '需要检查',
+  error: '有问题',
   done: '任务完成',
   idle: '空闲中',
-  paused: '监控已暂停',
-  offline: '未安装',
-  unknown: '待接入',
+  paused: '已暂停监控',
+  offline: '没装',
+  unknown: '还没接入',
 };
 
 function officeColor(id: string): number {
@@ -218,11 +218,11 @@ function officeDeskArt(employee: OfficeEmployee): string {
 }
 
 function officeTaskText(employee: OfficeEmployee, tools: ToolSummary[]): string {
-  if (employee.status === 'offline') return '尚未检测到安装，工位暂时空着。';
-  if (employee.status === 'paused') return '监控已暂停，保留上次任务记录。';
-  if (employee.status === 'unknown') return '接入任务事件后，可在这里查看工作进展。';
+  if (employee.status === 'offline') return '还没检测到安装，工位空着。';
+  if (employee.status === 'paused') return '监控暂停了，还留着上次的记录。';
+  if (employee.status === 'unknown') return '接入任务事件后，这里能看到它在干什么。';
   if (employee.primary) return displayTaskTitle(employee.primary, tools);
-  return employee.status === 'idle' ? '当前没有进行中的任务。' : '任务信息正在同步。';
+  return employee.status === 'idle' ? '现在没有正在跑的任务。' : '正在获取任务信息…';
 }
 
 /** @description: Refreshes and progress updates do not reopen a manually dismissed task message. */
@@ -249,9 +249,10 @@ function renderOfficeDesk(employee: OfficeEmployee, state: AppState, stale: bool
         : capabilityLabel(tool.sessionCapability);
   const lastEvent = workload?.lastEventAt;
   const eventTime = lastEvent ? new Date(lastEvent) : null;
-  const timeLabel = eventTime && Number.isFinite(eventTime.getTime())
-    ? `<time class="office-bubble-meta" datetime="${esc(lastEvent)}">最近事件 · ${esc(eventTime.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }))}</time>`
-    : `<span class="office-bubble-meta">${workload ? '暂无任务事件' : '事件时间尚未同步'}</span>`;
+  const timeLabel =
+    eventTime && Number.isFinite(eventTime.getTime())
+      ? `<time class="office-bubble-meta" datetime="${esc(lastEvent)}">最近事件 · ${esc(eventTime.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }))}</time>`
+      : `<span class="office-bubble-meta">${workload ? '还没收到任务事件' : '正在同步…'}</span>`;
   return `<article class="office-workstation is-${status}${active && !stale && !dismissed ? ' has-message' : ''}${open ? ' is-open' : ''}${suppressed ? ' is-tooltip-dismissed' : ''}" data-office-employee="${esc(tool.toolId)}">
     <button id="office-desk-${esc(tool.toolId)}" class="office-desk" type="button" data-office-select="${esc(tool.toolId)}" aria-controls="office-inspector" aria-expanded="${open}" aria-describedby="office-message-${esc(tool.toolId)}" aria-label="${esc(`${tool.name}，${employee.label}，展开任务详情`)}">${officeDeskArt(employee)}</button>
     <div class="office-bubble" id="office-bubble-${esc(tool.toolId)}" role="group" aria-label="${esc(tool.name)} 的任务消息">
@@ -293,8 +294,8 @@ function renderOfficeInspector(employee: OfficeEmployee, state: AppState): strin
     <div class="office-person-metrics"><span><strong>${counts ? counts.running : '—'}</strong>进行中</span><span><strong>${counts ? counts.waiting_human : '—'}</strong>待确认</span><span><strong>${counts ? counts.completed : '—'}</strong>已完成</span></div>
     <div class="office-task-tabs" role="group" aria-label="任务分组">${(
       [
-        ['active', '当前'],
-        ['issues', '需检查'],
+        ['active', '在跑的'],
+        ['issues', '有问题'],
         ['ended', '已结束'],
       ] as const
     )
@@ -303,9 +304,9 @@ function renderOfficeInspector(employee: OfficeEmployee, state: AppState): strin
           `<button type="button" id="office-task-tab-${id}" data-office-tab="${id}" aria-pressed="${officeUi.tab === id}">${label}<span>${counts ? totals[id] : '—'}</span></button>`,
       )
       .join('')}</div>
-    <div class="office-task-list" data-scroll-key="office-tasks-${esc(tool.toolId)}-${officeUi.tab}">${preview.tasks.length ? preview.tasks.map((task) => `<button class="office-task" id="office-task-${esc(task.sessionId)}" type="button" data-session="${esc(task.sessionId)}"><span class="office-task-title">${esc(displayTaskTitle(task, state.tools))}</span><span class="office-task-meta"><span class="badge" data-state="${esc(task.currentState ?? 'unknown')}">${esc(stateLabel(task.currentState ?? 'unknown'))}</span><span>${esc(fmtRelative(task.updatedAt))}</span><span aria-hidden="true">↗</span></span></button>`).join('') : `<p class="office-task-empty">${!workload ? '任务信息尚未同步。' : officeUi.tab === 'active' ? '当前没有进行中或待确认的任务。' : officeUi.tab === 'issues' ? '没有需要检查的任务。' : '尚无已结束的任务。'}</p>`}</div>
-    ${preview.total > preview.tasks.length ? `<p class="office-preview-note">已展示 ${preview.tasks.length} 项 / 共 ${preview.total} 项</p>` : ''}
-    <div class="office-dialog-actions"><button class="btn btn-primary" type="button" id="office-board-${esc(tool.toolId)}" data-office-board="${esc(tool.toolId)}">在看板中查看 ↗</button><a class="btn btn-ghost" href="#/integrations">播报接入</a></div>
+    <div class="office-task-list" data-scroll-key="office-tasks-${esc(tool.toolId)}-${officeUi.tab}">${preview.tasks.length ? preview.tasks.map((task) => `<button class="office-task" id="office-task-${esc(task.sessionId)}" type="button" data-session="${esc(task.sessionId)}"><span class="office-task-title">${esc(displayTaskTitle(task, state.tools))}</span><span class="office-task-meta"><span class="badge" data-state="${esc(task.currentState ?? 'unknown')}">${esc(stateLabel(task.currentState ?? 'unknown'))}</span><span>${esc(fmtRelative(task.updatedAt))}</span><span aria-hidden="true">↗</span></span></button>`).join('') : `<p class="office-task-empty">${!workload ? '任务信息还在路上。' : officeUi.tab === 'active' ? '现在没有在跑或等你的任务。' : officeUi.tab === 'issues' ? '没有有问题的任务。' : '还没有结束的任务。'}</p>`}</div>
+    ${preview.total > preview.tasks.length ? `<p class="office-preview-note">先显示 ${preview.tasks.length} 条，共 ${preview.total} 条</p>` : ''}
+    <div class="office-dialog-actions"><button class="btn btn-primary" type="button" id="office-board-${esc(tool.toolId)}" data-office-board="${esc(tool.toolId)}">去看板看 ↗</button><a class="btn btn-ghost" href="#/integrations">接入设置</a></div>
   </section>`;
 }
 
@@ -320,7 +321,7 @@ function renderOffice(state: AppState): string {
   const reduced =
     typeof window.matchMedia === 'function' &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  return `<section class="office-command" data-region="office-command"><div class="office-command-heading"><span class="office-live-dot${stale || !state.office ? ' is-stale' : ''}" aria-hidden="true"></span><span>我的 AI 办公室</span><span class="office-command-meta">${employees.length} 个工位</span><span class="office-last-sync">${stale ? '展示上次记录' : state.office ? `同步于 ${esc(fmtTime(state.office.generatedAt))}` : '正在同步工位…'}</span></div>${sectionError(state, 'office')}${sectionError(state, 'tools')}<div class="office-controls"><div class="office-filters" role="group" aria-label="筛选工位">${(
+  return `<section class="office-command" data-region="office-command"><div class="office-command-heading"><span class="office-live-dot${stale || !state.office ? ' is-stale' : ''}" aria-hidden="true"></span><span>我的 AI 办公室</span><span class="office-command-meta">${employees.length} 个工位</span><span class="office-last-sync">${stale ? '显示的是上次的数据' : state.office ? `更新于 ${esc(fmtTime(state.office.generatedAt))}` : '正在读取…'}</span></div>${sectionError(state, 'office')}${sectionError(state, 'tools')}<div class="office-controls"><div class="office-filters" role="group" aria-label="筛选工位">${(
     [
       ['all', '全部员工', employees.length],
       ['working', '工作中', working],
@@ -333,8 +334,8 @@ function renderOffice(state: AppState): string {
     )
     .join(
       '',
-    )}</div><div class="office-view-controls"><input class="control-input office-search" id="office-search" type="search" data-draft value="${esc(officeUi.query)}" aria-label="搜索办公室员工" placeholder="找一位员工…" /><button class="btn btn-ghost btn-small" type="button" id="office-motion" data-office-motion aria-pressed="${officeUi.motion}" ${reduced ? 'disabled title="系统已开启减少动态效果"' : ''}>${reduced ? '已减少动态效果' : officeUi.motion ? '暂停动效' : '开启动效'}</button></div></div></section>
-    <section class="office-room${!officeUi.motion ? ' is-motion-paused' : ''}${stale ? ' is-stale' : ''}" data-region="office-room" aria-label="员工工位"><div class="office-room-caption"><span class="office-room-caption-title">WORKSPACE <b>01</b></span><span>${working} 位工作中 · ${waiting} 位等你确认</span></div><div class="office-floor">${visible.length ? visible.map((employee) => renderOfficeDesk(employee, state, stale)).join('') : `<div class="office-room-empty"><span aria-hidden="true">⌑</span><h2>${employees.length ? '这里暂时很安静' : '办公室等你入驻'}</h2><p>${employees.length ? '没有符合筛选条件的员工。' : !state.office ? '正在读取工具与工作状态。' : '扫描本机工具后，员工会出现在对应工位。'}</p>${employees.length ? '<button class="btn btn-ghost" type="button" id="office-reset" data-office-reset>显示全部员工</button>' : '<a class="btn btn-primary" href="#/adapters">查看工具与扩展</a>'}</div>`}</div><div class="office-room-footer"><span>悬浮查看消息 · 点击展开任务</span><span>仅进行中与待确认自动显示消息</span></div></section>
+    )}</div><div class="office-view-controls"><input class="control-input office-search" id="office-search" type="search" data-draft value="${esc(officeUi.query)}" aria-label="搜索办公室员工" placeholder="找一位员工…" /><button class="btn btn-ghost btn-small" type="button" id="office-motion" data-office-motion aria-pressed="${officeUi.motion}" ${reduced ? 'disabled title="系统开了减少动态效果"' : ''}>${reduced ? '系统已减少动效' : officeUi.motion ? '暂停动效' : '开启动效'}</button></div></div></section>
+    <section class="office-room${!officeUi.motion ? ' is-motion-paused' : ''}${stale ? ' is-stale' : ''}" data-region="office-room" aria-label="员工工位"><div class="office-room-caption"><span class="office-room-caption-title">WORKSPACE <b>01</b></span><span>${working} 位工作中 · ${waiting} 位等你确认</span></div><div class="office-floor">${visible.length ? visible.map((employee) => renderOfficeDesk(employee, state, stale)).join('') : `<div class="office-room-empty"><span aria-hidden="true">⌑</span><h2>${employees.length ? '现在很安静' : '办公室还空着'}</h2><p>${employees.length ? '没有符合条件的员工。' : !state.office ? '正在读取工具和工作状态…' : '扫描本机工具后，员工会坐到对应的工位上。'}</p>${employees.length ? '<button class="btn btn-ghost" type="button" id="office-reset" data-office-reset>显示全部员工</button>' : '<a class="btn btn-primary" href="#/adapters">查看工具与扩展</a>'}</div>`}</div><div class="office-room-footer"><span>鼠标移上去看消息 · 点击看任务</span><span>工作中和等你确认的会自动亮出消息</span></div></section>
     <div class="office-popover-root" id="office-popover-root" data-region="office-popover">${open ? renderOfficeInspector(open, state) : ''}</div>`;
 }
 
