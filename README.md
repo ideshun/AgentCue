@@ -13,7 +13,7 @@ AgentCue 是一款本地优先的 AI 编码任务监控桌面应用。将多个�
 
 ## 下载与安装
 
-从 [Releases](https://github.com/ideshun/AgentCue/releases) 下载对应安装包。当前正式版为 **v0.1.2**。
+从 [Releases](https://github.com/ideshun/AgentCue/releases) 下载对应安装包。当前正式版为 **v0.2.0**。
 
 | 系统 | 安装包 |
 | --- | --- |

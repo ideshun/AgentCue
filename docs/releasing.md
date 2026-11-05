@@ -2,7 +2,7 @@
 
 ## 当前流程
 
-GitHub 仓库：[ideshun/AgentCue](https://github.com/ideshun/AgentCue)。仓库保留为私有。
+GitHub 仓库：[ideshun/AgentCue](https://github.com/ideshun/AgentCue)。
 
 - `.github/workflows/l1.yml` 在 `main`、PR 与手动触发时运行完整检查并存档日志。
 - `.github/workflows/release.yml` 接受版本标签或手动指定现有标签，检查全部包版本，运行完整 L1，然后在原生 runner 构建 macOS arm64 / x64、Windows x64、Linux x64。
