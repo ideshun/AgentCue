@@ -1,0 +1,11 @@
+{
+  "bundle": {
+    "externalBin": ["binaries/agentcue-tts"],
+    "resources": {
+      "../../LICENSE": "licenses/AgentCue-MIT.txt",
+      "../desktop/build/licenses/Apache-2.0.txt": "licenses/Apache-2.0.txt",
+      "licenses/ONNXRuntime-MIT.txt": "licenses/ONNXRuntime-MIT.txt",
+      "licenses/ONNXRuntime-ThirdPartyNotices.txt": "licenses/ONNXRuntime-ThirdPartyNotices.txt"
+    }
+  }
+}

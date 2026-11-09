@@ -1,0 +1,9 @@
+[package]
+name = "agentcue-core"
+description = "AgentCue native task-state contracts, independent of the desktop UI"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false

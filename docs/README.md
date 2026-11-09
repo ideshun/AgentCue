@@ -17,7 +17,7 @@
 
 ## ADR 存放
 
-首次安装、资源体积和版本发布流程见[AgentCue 发版手册](./releasing.md)。
+v0.x 安装、资源和发布见 [Electron 发版手册](./releasing.md)。1.0 构建、隔离验证和工具接入见[原生版交付手册](./native-preview.md)。
 
 历史决策见详细设计第 1.3 章（ADR-01~10）。实现期新增决策见
 [adr/ADR-11-implementation-decisions.md](./adr/ADR-11-implementation-decisions.md)（ADR-11~16）、
@@ -25,4 +25,5 @@
 [adr/ADR-18-reliable-monitoring.md](./adr/ADR-18-reliable-monitoring.md)，
 [adr/ADR-19-local-ai-tts.md](./adr/ADR-19-local-ai-tts.md)，
 [adr/ADR-20-tts-voice-quality.md](./adr/ADR-20-tts-voice-quality.md)，
+[adr/ADR-21-rust-tauri-migration.md](./adr/ADR-21-rust-tauri-migration.md)，
 后续决策写入 `adr/ADR-XX-<主题>.md` 并在详细设计文档中登记。

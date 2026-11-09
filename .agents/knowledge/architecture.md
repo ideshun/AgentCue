@@ -53,6 +53,8 @@ awm-mcp ──stdio──▶ HTTP Bearer ──▶ 同一套 FSM
 
 命令：`pnpm install`、`pnpm dev`、`pnpm build`、`sh scripts/l1-verify.sh`。跨包类型检查依赖各包 `dist/*.d.ts`，`pnpm typecheck` 前会 `pretypecheck` 全量 build。
 
+Rust / Tauri 2 渐进迁移见 [ADR-21](../../docs/adr/ADR-21-rust-tauri-migration.md)。`crates/agentcue-core` 提供任务状态契约，`agentcue-store` 提供五版 SQLite 升级、显式文件备份与事件/检查点事务；`agentcue-adapters` 保留标题、JSONL、历史索引及原生 Hooks 的格式逻辑；`agentcue-runtime` 承载本机控制 API、定时采集、心跳、Hooks 与 MCP。兼容夹具由 TS 导出，并同时校验迁移 SQL、事件 ID、分批上下文、设置及接入模板。Tauri 宿主位于 `apps/tauri/`，使用 `bridge.js` 复用现有渲染层并接通窗口、托盘、通知和试听。原生语音由系统负责；`agentcue-tts` 独立合成 Kokoro / ZipVoice。预览使用隔离的合成数据，正式发布仍遵循[原生版交付手册](../../docs/native-preview.md)中的验收要求。
+
 ## 待确认
 
 - 设计要求扫描子进程（RK-07）；实现仍在主进程。未测内存前不要拆。

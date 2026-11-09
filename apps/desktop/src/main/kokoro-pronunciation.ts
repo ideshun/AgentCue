@@ -4,7 +4,7 @@
  * 单字「重」默认读 zhòng，会把整词读错（实测：重构以外的重写、重排等均读错）。
  * 有意排除有歧义的词：重载（zài/“过载”）、重用（zhòngyòng“委以重任”），交由原词典判断。
  */
-const CHONG_PHRASES = [
+export const CHONG_PHRASES = [
   '重构',
   '重建',
   '重试',

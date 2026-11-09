@@ -56,6 +56,7 @@
 | ADR-08 | TTS | 平台原生优先（macOS `say`/AVSpeech、Windows SAPI、Linux espeak-ng）+ 可插拔 piper/云 TTS | 单一云 TTS | 零延迟零出网（C-01），失败逐级降级且降级记审计不播报 | 已定 |
 | ADR-09 | 打包分发 | electron-builder；macOS 签名 + 公证 | 各平台手包 | 公证为 macOS 分发硬门槛（RK-06） | 已定 |
 | ADR-10 | 适配器形态 | 声明式 manifest（YAML，探测/心跳/映射规则）+ 可选 TS 事件提取器（复杂解析） | 纯代码插件 | 新增工具零核心改动（FR-02）；manifest 可热加载、可被校验器验证（M3） | 已定 |
+| [ADR-21](../adr/ADR-21-rust-tauri-migration.md) | 1.0 迁移 | Rust 核心 + Tauri 2，复用现有 TS/CSS 界面 | egui 全量重写 UI | 缩减桌面运行环境体积，先通过状态与数据兼容验证；v0.2.0 继续提供可用 Electron 版本 | 已接受，原生预览版已构建 |
 
 ---
 

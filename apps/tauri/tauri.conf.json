@@ -1,0 +1,27 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "AgentCue",
+  "mainBinaryName": "AgentCue",
+  "identifier": "com.awm.app",
+  "version": "1.0.0-alpha.1",
+  "build": { "frontendDist": "./dist" },
+  "app": {
+    "windows": [],
+    "withGlobalTauri": true,
+    "security": {
+      "csp": "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data: http://127.0.0.1:*; connect-src 'self' ipc: http://ipc.localhost http://127.0.0.1:*; object-src 'none'; base-uri 'self'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "category": "Productivity",
+    "shortDescription": "Local AI coding task monitoring and voice alerts",
+    "longDescription": "AgentCue monitors AI coding tools locally and announces task milestones.",
+    "icon": [
+      "../desktop/src/renderer/assets/brand/app-icon.png",
+      "../desktop/build/icon.icns",
+      "../desktop/build/icon.ico"
+    ],
+    "macOS": { "minimumSystemVersion": "11.0" }
+  }
+}

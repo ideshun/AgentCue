@@ -5,6 +5,9 @@ out/
 *.log
 .DS_Store
 coverage/
+/target/
+/apps/tauri/gen/
+/apps/tauri/binaries/
 .vite/
 
 # 本地运行态，不应入版本控制

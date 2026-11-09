@@ -95,6 +95,8 @@ pnpm dev
 
 `better-sqlite3` 需匹配 Electron ABI。项目测试脚本会探测可用运行时，不会为跑测试重编译共享模块或读取生产数据库。`pnpm dev` 会先对齐桌面原生依赖；跨平台打包应在对应系统与架构运行。
 
+**1.0 原生预览版**使用 Rust + Tauri 2，复用原有页面及办公室。安装 rustup 后，运行 `pnpm rust:verify` 验证核心，运行 `pnpm tauri:bundle` 构建当前平台的安装包。预览版构建、隔离运行及 Hooks / MCP 升级说明见 [原生版交付手册](docs/native-preview.md)。迁移决策见 [ADR-21](docs/adr/ADR-21-rust-tauri-migration.md)。
+
 - [开发与架构说明](docs/development.md)
 - [版本发布与安装包验证](docs/releasing.md)
 - [产品与设计文档](docs/README.md)

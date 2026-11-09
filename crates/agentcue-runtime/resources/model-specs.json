@@ -1,0 +1,75 @@
+[
+  {
+    "kind": "kokoro",
+    "dirName": "kokoro-multi-lang-v1_1",
+    "archiveUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-multi-lang-v1_1.tar.bz2",
+    "requiredFiles": [
+      {
+        "name": "model.onnx",
+        "minBytes": 104857600
+      },
+      {
+        "name": "voices.bin",
+        "minBytes": 10485760
+      },
+      {
+        "name": "tokens.txt",
+        "minBytes": 10
+      },
+      {
+        "name": "lexicon-us-en.txt",
+        "minBytes": 1024
+      },
+      {
+        "name": "lexicon-zh.txt",
+        "minBytes": 1024
+      }
+    ],
+    "requiredDirs": [
+      "espeak-ng-data"
+    ]
+  },
+  {
+    "kind": "zipvoice",
+    "dirName": "sherpa-onnx-zipvoice-distill-int8-zh-en-emilia",
+    "archiveUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/sherpa-onnx-zipvoice-distill-int8-zh-en-emilia.tar.bz2",
+    "requiredFiles": [
+      {
+        "name": "encoder.int8.onnx",
+        "minBytes": 2097152
+      },
+      {
+        "name": "decoder.int8.onnx",
+        "minBytes": 2097152
+      },
+      {
+        "name": "tokens.txt",
+        "minBytes": 10
+      },
+      {
+        "name": "lexicon.txt",
+        "minBytes": 1024
+      },
+      {
+        "name": "vocos_24khz.onnx",
+        "minBytes": 41943040
+      },
+      {
+        "name": "lexicon-en-us.txt",
+        "minBytes": 1048576
+      }
+    ],
+    "extraFiles": [
+      {
+        "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/vocoder-models/vocos_24khz.onnx",
+        "name": "vocos_24khz.onnx",
+        "minBytes": 41943040
+      },
+      {
+        "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/lexicon-en-us.txt",
+        "name": "lexicon-en-us.txt",
+        "minBytes": 1048576
+      }
+    ]
+  }
+]

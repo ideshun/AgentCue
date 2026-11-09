@@ -65,11 +65,11 @@ export const voiceSettingsSchema = z.object({
   zipvoiceReferenceText: z.string().max(500).default(''),
   /**
    * 播报范围：只播需要你处理的事，还是把进展也读出来。
-   * - 'attention'：仅待确认（默认）
-   * - 'milestones'：待确认 + 开始/完成
-   * - 'all'：全部事件
+   * - 'attention'：仅待确认
+   * - 'milestones'：待确认 + 开始/完成（默认）
+   * - 'all'：兼容旧设置，语音仍限于三个关键节点
    */
-  scope: z.enum(['attention', 'milestones', 'all']).default('attention'),
+  scope: z.enum(['attention', 'milestones', 'all']).default('milestones'),
   /**
    * 播报内容来源：会话标题（短、可听）还是用户输入正文（可能很长）。
    * - 'title'：只播标题（默认）

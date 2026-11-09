@@ -108,6 +108,7 @@ function eventLabel(eventType: string): string {
     'task.archived': '已归档',
     'task.timeout': '等待超时',
     'task.cancelled': '已取消',
+    'task.action_undone': '撤回了状态标记',
     'heartbeat.lost': '失去联系',
     'tool.detected': '发现新工具',
     anomaly: '数据异常',
@@ -152,12 +153,33 @@ let toastTimer: number | null = null;
  * 显示一条短暂的界面提示。
  * @param message 提示内容
  */
-function toast(message: string): void {
+function toast(
+  message: string,
+  action?: { label: string; run: () => void | Promise<void> },
+): void {
   const node = document.getElementById('toast');
   if (!node) {
     return;
   }
-  node.textContent = message;
+  node.replaceChildren();
+  node.classList.toggle('has-action', !!action);
+  const text = document.createElement('span');
+  text.textContent = message;
+  node.append(text);
+  if (action) {
+    const button = document.createElement('button');
+    button.className = 'toast-action';
+    button.type = 'button';
+    button.textContent = action.label;
+    button.addEventListener('click', () => {
+      button.disabled = true;
+      void Promise.resolve(action.run()).catch((error: unknown) => {
+        const reason = error instanceof Error ? error.message : String(error);
+        toast(`撤回失败：${reason}`);
+      });
+    });
+    node.append(button);
+  }
   node.hidden = false;
   if (toastTimer !== null) {
     window.clearTimeout(toastTimer);
@@ -165,7 +187,7 @@ function toast(message: string): void {
   toastTimer = window.setTimeout(() => {
     node.hidden = true;
     toastTimer = null;
-  }, 2400);
+  }, action ? 6000 : 2400);
 }
 
 /**

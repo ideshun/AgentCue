@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "scan": {
+    "autoIntervalHours": 6,
+    "ignoredToolIds": [],
+    "customTools": []
+  },
+  "voice": {
+    "enabled": true,
+    "rulesRevision": 0,
+    "volume": 0.8,
+    "rate": 1,
+    "voiceProfile": "system-default",
+    "savedVoices": [],
+    "backend": "native",
+    "localEngine": "kokoro",
+    "zipvoiceReferencePath": "",
+    "zipvoiceReferenceText": "",
+    "scope": "milestones",
+    "content": "title",
+    "cloudEnabled": false,
+    "cloudProvider": "mimo",
+    "cloudEndpoint": "https://api.xiaomimimo.com/v1/chat/completions",
+    "cloudModel": "",
+    "cloudVoice": "",
+    "cloudApiKey": ""
+  },
+  "quiet": {
+    "globalMute": false,
+    "ranges": [
+      {
+        "from": "22:30",
+        "to": "08:30"
+      }
+    ],
+    "waitingHumanOverride": true
+  },
+  "privacy": {
+    "sessionFileRead": true,
+    "auditLog": true,
+    "scanScope": "minimal"
+  }
+}

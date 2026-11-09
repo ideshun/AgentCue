@@ -14,6 +14,7 @@ try {
     for (const directory of ['apps', 'packages']) {
       for (const entry of readdirSync(path.join(root, directory), { withFileTypes: true })) {
         if (!entry.isDirectory()) continue;
+        if (directory === 'apps' && entry.name === 'tauri') continue;
         const file = path.join(root, directory, entry.name, 'package.json');
         const pkg = JSON.parse(readFileSync(file, 'utf8'));
         if (pkg.version !== version) throw new Error(`${pkg.name} 的版本与根版本不一致`);
@@ -23,7 +24,7 @@ try {
   } else if (command === 'checksums') {
     if (!argument) throw new Error('请提供安装包目录');
     const directory = path.resolve(argument);
-    const files = readdirSync(directory).filter((file) => /\.(?:dmg|zip|exe|AppImage)$/.test(file)).sort();
+    const files = readdirSync(directory).filter((file) => /\.(?:dmg|zip|exe|deb|AppImage)$/.test(file)).sort();
     if (!files.length) throw new Error('没有找到安装包，不生成空校验文件');
     const lines = files.map((file) => {
       const hash = createHash('sha256').update(readFileSync(path.join(directory, file))).digest('hex');

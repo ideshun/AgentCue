@@ -7,7 +7,7 @@
 import { listVoiceRules, upsertVoiceRule, type AppDb } from '@awm/store';
 
 /** 出厂规则：动作 + 模板 + 优先级 */
-const LEGACY_RULES = [
+export const LEGACY_RULES = [
   {
     scopeEvent: 'task.waiting_human',
     action: 'speak',
@@ -100,7 +100,7 @@ const LEGACY_RULES = [
  * 出厂播报均包含工具、任务与事件，便于定位需要处理的会话。
  * 用逗号把固定短语和标题分开：合成器会在逗号处自然换气，短播报不再一字一顿。
  */
-const DEFAULT_RULES = [
+export const DEFAULT_RULES = [
   {
     scopeEvent: 'task.waiting_human',
     action: 'speak',

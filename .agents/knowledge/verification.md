@@ -40,9 +40,12 @@ pnpm lint
 - 监控链路：`tests/integration/monitor-service.test.ts`
 - 进程内时延预算：`tests/perf/latency-report.test.ts`
 
+Rust 迁移模块按 [ADR-21](../../docs/adr/ADR-21-rust-tauri-migration.md) 独立验证：`pnpm rust:verify` 运行 workspace 格式检查以及核心库的 Clippy 与 Rust 测试，`pnpm rust:contract` 从构建后的 TS 包重新导出兼容夹具。现有 Vitest 中的 `rust-state-contract.test.ts` 检查夹具仍与当前 TS 行为一致；`rust-store-contract.test.ts` 检查五版 SQL 与 TS 存储一致；`rust-runtime-contract.test.ts` 校验共享设置、接入模板、出厂规则及适配器合成夹具；L1 workflow 设有独立 Rust job，不以 TS 测试通过代替 Rust 测试通过。Rust API/MCP 集成测试需要允许临时回环监听和模拟子进程，不能在权限受限时静默跳过；采集、数据库与设置测试不读取用户真实目录。
+
 ## 待确认
 
 - `.github/workflows/l1.yml` 在 main/PR 执行；`.github/workflows/release.yml` 对已有版本标签运行 L1，并原生构建/自检 macOS 双架构、Windows x64 与 Linux x64，发布草稿预览版和 SHA-256。
+- `.github/workflows/native-release.yml` 为 Tauri 打包和发布草稿。手动运行只产出构建包，`v1.*` 标签进入草稿流程。用 `pnpm tauri:bundle` 在本机复现，打包后运行可执行文件的 `--self-test`，再用隔离窗口检查原生交互和真实试听。
 - 主进程模块（api-server / monitor-service / voice-service / hook-setup 等）与渲染层纯函数逻辑有单测覆盖（`tests/unit/`，渲染层经 vm 直跑原生脚本）；Electron 窗口与真实交互无自动测试。
 - 10×100 会话浸泡压测未做，现有预算测试不启动 Electron。
 

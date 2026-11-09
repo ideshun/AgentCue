@@ -1,0 +1,42 @@
+[
+  {
+    "pattern": "^(?:Shelley)(?:\\s*\\(|$)",
+    "language": "^zh[_-]CN$"
+  },
+  {
+    "pattern": "^(?:Sandy)(?:\\s*\\(|$)",
+    "language": "^zh[_-]CN$"
+  },
+  {
+    "pattern": "^(?:Reed)(?:\\s*\\(|$)",
+    "language": "^zh[_-]CN$"
+  },
+  {
+    "pattern": "^(?:Rocko)(?:\\s*\\(|$)",
+    "language": "^zh[_-]CN$"
+  },
+  {
+    "pattern": "^(?:Eddy)(?:\\s*\\(|$)",
+    "language": "^zh[_-]CN$"
+  },
+  {
+    "pattern": "^(?:Flo)(?:\\s*\\(|$)",
+    "language": "^zh[_-]CN$"
+  },
+  {
+    "pattern": "^(?:Tingting|婷婷)(?:\\s*\\(|$)",
+    "language": "^zh[_-]CN$"
+  },
+  {
+    "pattern": "^(?:Meijia|美佳)(?:\\s*\\(|$)",
+    "language": "^zh[_-]TW$"
+  },
+  {
+    "pattern": "^(?:Sinji|善怡)(?:\\s*\\(|$)",
+    "language": "^zh[_-]HK$"
+  },
+  {
+    "pattern": "^(?:Samantha|Alex|Daniel|Karen|Moira|Tessa|Rishi|Aman|Serena|Tom|Victoria|Klaus|Steffi|Oliver)(?:\\s*\\(|$)",
+    "language": "^en[_-]"
+  }
+]

@@ -1,0 +1,102 @@
+[
+  {
+    "id": "cursor",
+    "name": "Cursor",
+    "hint": "~/.cursor/mcp.json 或项目 .cursor/mcp.json",
+    "json": "{\n  \"mcpServers\": {\n    \"ai-workflow-monitor\": {\n      \"type\": \"stdio\",\n      \"command\": \"/__AGENTCUE_EXECUTABLE__\",\n      \"args\": [\n        \"--mcp-stdio\"\n      ]\n    }\n  }\n}",
+    "format": "json",
+    "steps": [
+      "保持 AgentCue 桌面应用运行。",
+      "打开 Cursor Settings → Tools & Integrations → MCP，或编辑提示位置的配置文件。",
+      "将配置合并进现有 MCP 配置，保留其他服务条目。",
+      "保存后在客户端刷新 MCP，确认出现 6 个 AgentCue 工具；在 AgentCue 中也可验证桥接。"
+    ],
+    "commandReady": true
+  },
+  {
+    "id": "cline",
+    "name": "Cline",
+    "hint": "Cline 面板 → MCP Servers → Configure MCP Servers",
+    "json": "{\n  \"mcpServers\": {\n    \"ai-workflow-monitor\": {\n      \"command\": \"/__AGENTCUE_EXECUTABLE__\",\n      \"args\": [\n        \"--mcp-stdio\"\n      ],\n      \"disabled\": false,\n      \"autoApprove\": []\n    }\n  }\n}",
+    "format": "json",
+    "steps": [
+      "保持 AgentCue 桌面应用运行。",
+      "在 Cursor 的 Cline 扩展中打开 MCP Servers → Configure → Configure MCP Servers。",
+      "将配置合并进现有 MCP 配置，保留其他服务条目。",
+      "保存后在客户端刷新 MCP，确认出现 6 个 AgentCue 工具；在 AgentCue 中也可验证桥接。"
+    ],
+    "commandReady": true
+  },
+  {
+    "id": "codebuddy",
+    "name": "CodeBuddy",
+    "hint": "CodeBuddy 设置 → MCP → 添加 MCP",
+    "json": "{\n  \"mcpServers\": {\n    \"ai-workflow-monitor\": {\n      \"type\": \"stdio\",\n      \"command\": \"/__AGENTCUE_EXECUTABLE__\",\n      \"args\": [\n        \"--mcp-stdio\"\n      ]\n    }\n  }\n}",
+    "format": "json",
+    "steps": [
+      "保持 AgentCue 桌面应用运行。",
+      "打开 CodeBuddy 的 MCP 设置，选择手动添加／JSON 配置。",
+      "将配置合并进现有 MCP 配置，保留其他服务条目。",
+      "保存后在客户端刷新 MCP，确认出现 6 个 AgentCue 工具；在 AgentCue 中也可验证桥接。"
+    ],
+    "commandReady": true
+  },
+  {
+    "id": "claude-code",
+    "name": "Claude Code",
+    "hint": "项目 .mcp.json",
+    "json": "{\n  \"mcpServers\": {\n    \"ai-workflow-monitor\": {\n      \"type\": \"stdio\",\n      \"command\": \"/__AGENTCUE_EXECUTABLE__\",\n      \"args\": [\n        \"--mcp-stdio\"\n      ]\n    }\n  }\n}",
+    "format": "json",
+    "steps": [
+      "保持 AgentCue 桌面应用运行。",
+      "在项目根目录打开或新建 .mcp.json。",
+      "重新进入 Claude Code，并按客户端提示批准此 MCP 服务。",
+      "将配置合并进现有 MCP 配置，保留其他服务条目。",
+      "保存后在客户端刷新 MCP，确认出现 6 个 AgentCue 工具；在 AgentCue 中也可验证桥接。"
+    ],
+    "commandReady": true
+  },
+  {
+    "id": "claude-desktop",
+    "name": "Claude Desktop",
+    "hint": "Settings → Developer → Edit Config",
+    "json": "{\n  \"mcpServers\": {\n    \"ai-workflow-monitor\": {\n      \"command\": \"/__AGENTCUE_EXECUTABLE__\",\n      \"args\": [\n        \"--mcp-stdio\"\n      ]\n    }\n  }\n}",
+    "format": "json",
+    "steps": [
+      "保持 AgentCue 桌面应用运行。",
+      "在 Claude Desktop 开发者设置中打开配置文件。",
+      "将配置合并进现有 MCP 配置，保留其他服务条目。",
+      "保存后在客户端刷新 MCP，确认出现 6 个 AgentCue 工具；在 AgentCue 中也可验证桥接。"
+    ],
+    "commandReady": true
+  },
+  {
+    "id": "vscode",
+    "name": "VS Code",
+    "hint": ".vscode/mcp.json",
+    "json": "{\n  \"servers\": {\n    \"ai-workflow-monitor\": {\n      \"type\": \"stdio\",\n      \"command\": \"/__AGENTCUE_EXECUTABLE__\",\n      \"args\": [\n        \"--mcp-stdio\"\n      ]\n    }\n  }\n}",
+    "format": "json",
+    "steps": [
+      "保持 AgentCue 桌面应用运行。",
+      "在项目的 .vscode/mcp.json 中添加 servers 条目。",
+      "从 MCP 服务列表启动并信任 AgentCue。",
+      "将配置合并进现有 MCP 配置，保留其他服务条目。",
+      "保存后在客户端刷新 MCP，确认出现 6 个 AgentCue 工具；在 AgentCue 中也可验证桥接。"
+    ],
+    "commandReady": true
+  },
+  {
+    "id": "codex",
+    "name": "Codex",
+    "hint": "~/.codex/config.toml",
+    "json": "[mcp_servers.ai-workflow-monitor]\ncommand = \"/__AGENTCUE_EXECUTABLE__\"\nargs = [\"--mcp-stdio\"]\n",
+    "format": "toml",
+    "steps": [
+      "保持 AgentCue 桌面应用运行。",
+      "打开 Codex 的 config.toml，粘贴下方 TOML 配置段。",
+      "将配置合并进现有 MCP 配置，保留其他服务条目。",
+      "保存后在客户端刷新 MCP，确认出现 6 个 AgentCue 工具；在 AgentCue 中也可验证桥接。"
+    ],
+    "commandReady": true
+  }
+]

@@ -1,0 +1,15 @@
+[package]
+name = "agentcue-store"
+description = "SQLite schema compatibility for AgentCue's native migration"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+agentcue-core = { path = "../agentcue-core" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rusqlite = { version = "0.37", features = ["bundled", "backup"] }

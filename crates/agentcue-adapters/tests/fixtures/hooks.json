@@ -1,0 +1,1002 @@
+[
+  {
+    "tool": "cursor",
+    "input": {
+      "hook_event_name": "beforeSubmitPrompt",
+      "conversation_id": "会话/a?#",
+      "generation_id": "turn:b",
+      "prompt": "检查 @repo/src/index.ts",
+      "status": "completed",
+      "tool_name": "AskQuestion"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "expected": [
+      {
+        "eventId": "evt_hook_b6e7f6635c623e7b60b3b1152cea41572306d9b2d8fa8032167e6077641deb5d",
+        "sessionId": "cursor:hooks:%E4%BC%9A%E8%AF%9D%2Fa%3F%23:turn:turn%3Ab",
+        "toolId": "cursor",
+        "eventType": "task.started",
+        "occurredAt": "2026-11-08T00:00:01.000Z",
+        "actor": "tool",
+        "payload": {
+          "taskTitle": "检查 @repo/src/index.ts",
+          "taskSpeechTitle": "检查 index.ts"
+        },
+        "schemaVersion": 1
+      }
+    ]
+  },
+  {
+    "tool": "cursor",
+    "input": {
+      "hook_event_name": "beforeSubmitPrompt",
+      "conversation_id": "会话/a?#",
+      "generation_id": "turn:b",
+      "prompt": "检查 @repo/src/index.ts",
+      "status": "completed",
+      "tool_name": "Bash"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "expected": [
+      {
+        "eventId": "evt_hook_b6e7f6635c623e7b60b3b1152cea41572306d9b2d8fa8032167e6077641deb5d",
+        "sessionId": "cursor:hooks:%E4%BC%9A%E8%AF%9D%2Fa%3F%23:turn:turn%3Ab",
+        "toolId": "cursor",
+        "eventType": "task.started",
+        "occurredAt": "2026-11-08T00:00:01.000Z",
+        "actor": "tool",
+        "payload": {
+          "taskTitle": "检查 @repo/src/index.ts",
+          "taskSpeechTitle": "检查 index.ts"
+        },
+        "schemaVersion": 1
+      }
+    ]
+  },
+  {
+    "tool": "cursor",
+    "input": {
+      "hook_event_name": "preToolUse",
+      "conversation_id": "会话/a?#",
+      "generation_id": "turn:b",
+      "prompt": "检查 @repo/src/index.ts",
+      "status": "completed",
+      "tool_name": "AskQuestion"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "expected": [
+      {
+        "eventId": "evt_hook_cbf22c532b2fb1e0360116dbada0f1a291a26a327e5ba472e9df459849b1658d",
+        "sessionId": "cursor:hooks:%E4%BC%9A%E8%AF%9D%2Fa%3F%23:turn:turn%3Ab",
+        "toolId": "cursor",
+        "eventType": "task.waiting_human",
+        "occurredAt": "2026-11-08T00:00:01.000Z",
+        "actor": "tool",
+        "payload": {},
+        "schemaVersion": 1
+      }
+    ]
+  },
+  {
+    "tool": "cursor",
+    "input": {
+      "hook_event_name": "preToolUse",
+      "conversation_id": "会话/a?#",
+      "generation_id": "turn:b",
+      "prompt": "检查 @repo/src/index.ts",
+      "status": "completed",
+      "tool_name": "Bash"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "expected": []
+  },
+  {
+    "tool": "cursor",
+    "input": {
+      "hook_event_name": "stop",
+      "conversation_id": "会话/a?#",
+      "generation_id": "turn:b",
+      "prompt": "检查 @repo/src/index.ts",
+      "status": "completed",
+      "tool_name": "AskQuestion"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "expected": [
+      {
+        "eventId": "evt_hook_bfd3ccbae4c979c90f34cbb6d31b939b3795ae98f947d14ba7b9539b7d8c80c4",
+        "sessionId": "cursor:hooks:%E4%BC%9A%E8%AF%9D%2Fa%3F%23:turn:turn%3Ab",
+        "toolId": "cursor",
+        "eventType": "task.completed",
+        "occurredAt": "2026-11-08T00:00:01.000Z",
+        "actor": "tool",
+        "payload": {},
+        "schemaVersion": 1
+      }
+    ]
+  },
+  {
+    "tool": "cursor",
+    "input": {
+      "hook_event_name": "stop",
+      "conversation_id": "会话/a?#",
+      "generation_id": "turn:b",
+      "prompt": "检查 @repo/src/index.ts",
+      "status": "completed",
+      "tool_name": "Bash"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "expected": [
+      {
+        "eventId": "evt_hook_bfd3ccbae4c979c90f34cbb6d31b939b3795ae98f947d14ba7b9539b7d8c80c4",
+        "sessionId": "cursor:hooks:%E4%BC%9A%E8%AF%9D%2Fa%3F%23:turn:turn%3Ab",
+        "toolId": "cursor",
+        "eventType": "task.completed",
+        "occurredAt": "2026-11-08T00:00:01.000Z",
+        "actor": "tool",
+        "payload": {},
+        "schemaVersion": 1
+      }
+    ]
+  },
+  {
+    "tool": "cursor",
+    "input": {
+      "hook_event_name": "other",
+      "conversation_id": "会话/a?#",
+      "generation_id": "turn:b",
+      "prompt": "检查 @repo/src/index.ts",
+      "status": "completed",
+      "tool_name": "AskQuestion"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "expected": []
+  },
+  {
+    "tool": "cursor",
+    "input": {
+      "hook_event_name": "other",
+      "conversation_id": "会话/a?#",
+      "generation_id": "turn:b",
+      "prompt": "检查 @repo/src/index.ts",
+      "status": "completed",
+      "tool_name": "Bash"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "expected": []
+  },
+  {
+    "tool": "cursor",
+    "input": {
+      "hook_event_name": "stop",
+      "conversation_id": "fixture",
+      "generation_id": "one",
+      "status": "aborted"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "expected": [
+      {
+        "eventId": "evt_hook_36702caa5bbd0f2edec718646e6c36ca8fb7cdd926e210fc3311e48cf99ff1c6",
+        "sessionId": "cursor:hooks:fixture:turn:one",
+        "toolId": "cursor",
+        "eventType": "task.cancelled",
+        "occurredAt": "2026-11-08T00:00:01.000Z",
+        "actor": "tool",
+        "payload": {},
+        "schemaVersion": 1
+      }
+    ]
+  },
+  {
+    "tool": "cursor",
+    "input": {
+      "hook_event_name": "stop",
+      "conversation_id": "fixture",
+      "generation_id": "one",
+      "status": "error"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "expected": [
+      {
+        "eventId": "evt_hook_36702caa5bbd0f2edec718646e6c36ca8fb7cdd926e210fc3311e48cf99ff1c6",
+        "sessionId": "cursor:hooks:fixture:turn:one",
+        "toolId": "cursor",
+        "eventType": "task.failed",
+        "occurredAt": "2026-11-08T00:00:01.000Z",
+        "actor": "tool",
+        "payload": {},
+        "schemaVersion": 1
+      }
+    ]
+  },
+  {
+    "tool": "cursor",
+    "input": {
+      "hook_event_name": "stop",
+      "conversation_id": "fixture",
+      "generation_id": "one",
+      "status": "invalid"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "error": true
+  },
+  {
+    "tool": "cline",
+    "input": {
+      "hookName": "TaskStart",
+      "taskId": "fixture-private-task",
+      "timestamp": "1794096000000",
+      "taskStart": {
+        "taskMetadata": {
+          "initialTask": "检查 @repo/src/index.ts"
+        }
+      }
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z",
+      "phase": "TaskStart"
+    },
+    "expected": [
+      {
+        "eventId": "evt_hook_5ec186321e85fb9b3bad9a8ba59e76f2629d2b526f9e9d37b49ab1758df07493",
+        "sessionId": "cline:hooks:e4222410b68bb2310fda7126f35f2a7bccb217d3ed04f216bcdd59b7ad5cdb81",
+        "toolId": "cline",
+        "eventType": "task.started",
+        "occurredAt": "2026-11-08T00:00:00.000Z",
+        "actor": "tool",
+        "payload": {
+          "taskTitle": "检查 @repo/src/index.ts",
+          "taskSpeechTitle": "检查 index.ts"
+        },
+        "schemaVersion": 1
+      }
+    ]
+  },
+  {
+    "tool": "cline",
+    "input": {
+      "hookName": "TaskComplete",
+      "taskId": "fixture-private-task",
+      "timestamp": "1794096000000",
+      "taskStart": {
+        "taskMetadata": {
+          "initialTask": "检查 @repo/src/index.ts"
+        }
+      }
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z",
+      "phase": "TaskComplete"
+    },
+    "expected": [
+      {
+        "eventId": "evt_hook_d8f2aa033ff6238e9106b4c575e1a0353213c8f4ab9e0d8d7826c206a6f0801b",
+        "sessionId": "cline:hooks:e4222410b68bb2310fda7126f35f2a7bccb217d3ed04f216bcdd59b7ad5cdb81",
+        "toolId": "cline",
+        "eventType": "task.completed",
+        "occurredAt": "2026-11-08T00:00:00.000Z",
+        "actor": "tool",
+        "payload": {},
+        "schemaVersion": 1
+      }
+    ]
+  },
+  {
+    "tool": "cline",
+    "input": {
+      "hookName": "TaskCancel",
+      "taskId": "fixture-private-task",
+      "timestamp": "1794096000000",
+      "taskStart": {
+        "taskMetadata": {
+          "initialTask": "检查 @repo/src/index.ts"
+        }
+      }
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z",
+      "phase": "TaskCancel"
+    },
+    "expected": [
+      {
+        "eventId": "evt_hook_cf5d8ab4c077ef7152eebacfa300dde3c7f027dbd6424d3437800de1619eead8",
+        "sessionId": "cline:hooks:e4222410b68bb2310fda7126f35f2a7bccb217d3ed04f216bcdd59b7ad5cdb81",
+        "toolId": "cline",
+        "eventType": "task.cancelled",
+        "occurredAt": "2026-11-08T00:00:00.000Z",
+        "actor": "tool",
+        "payload": {},
+        "schemaVersion": 1
+      }
+    ]
+  },
+  {
+    "tool": "cline",
+    "input": {
+      "hookName": "Other",
+      "taskId": "fixture-private-task",
+      "timestamp": "1794096000000",
+      "taskStart": {
+        "taskMetadata": {
+          "initialTask": "检查 @repo/src/index.ts"
+        }
+      }
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z",
+      "phase": "Other"
+    },
+    "expected": []
+  },
+  {
+    "tool": "cline",
+    "input": {
+      "hookName": "TaskComplete",
+      "taskId": "fixture",
+      "timestamp": "0001"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "error": true
+  },
+  {
+    "tool": "cline",
+    "input": {
+      "hookName": "TaskComplete",
+      "taskId": "fixture",
+      "timestamp": "-1"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "error": true
+  },
+  {
+    "tool": "cline",
+    "input": {
+      "hookName": "TaskComplete",
+      "taskId": "fixture",
+      "timestamp": "invalid"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "error": true
+  },
+  {
+    "tool": "cline",
+    "input": {
+      "hookName": "TaskComplete",
+      "taskId": "fixture",
+      "timestamp": "9007199254740992"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "error": true
+  },
+  {
+    "tool": "claude-code",
+    "input": {
+      "hook_event_name": "UserPromptSubmit",
+      "session_id": "fixture-session",
+      "prompt": "检查 @repo/src/index.ts",
+      "notification_type": "permission_prompt"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "expected": [
+      {
+        "eventId": "evt_hook_b7fbd3085a30dd47571341599aa38c99730678d23b49d5d71f8e3104dcbbeaca",
+        "sessionId": "claude-code:hooks:d6440983c454c2e5999fdb66bbe9cf5f89a8f5847d6c9578ef14afd26eee122c",
+        "toolId": "claude-code",
+        "eventType": "task.started",
+        "occurredAt": "2026-11-08T00:00:01.000Z",
+        "actor": "tool",
+        "payload": {
+          "taskTitle": "检查 @repo/src/index.ts",
+          "taskSpeechTitle": "检查 index.ts"
+        },
+        "schemaVersion": 1
+      }
+    ]
+  },
+  {
+    "tool": "claude-code",
+    "input": {
+      "hook_event_name": "UserPromptSubmit",
+      "session_id": "fixture-session",
+      "prompt": "检查 @repo/src/index.ts",
+      "notification_type": "permission_prompt",
+      "transcript_path": "/synthetic/project/fixture.jsonl"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "expected": [
+      {
+        "eventId": "evt_hook_c5ee8aa01ceef646e5cf3026f489307011044de7800433fbde98b20fe40fbf95",
+        "sessionId": "claude-code:project:fixture",
+        "toolId": "claude-code",
+        "eventType": "task.started",
+        "occurredAt": "2026-11-08T00:00:01.000Z",
+        "actor": "tool",
+        "payload": {
+          "taskTitle": "检查 @repo/src/index.ts",
+          "taskSpeechTitle": "检查 index.ts"
+        },
+        "schemaVersion": 1
+      }
+    ]
+  },
+  {
+    "tool": "claude-code",
+    "input": {
+      "hook_event_name": "UserPromptSubmit",
+      "session_id": "fixture-session",
+      "prompt": "检查 @repo/src/index.ts",
+      "notification_type": "permission_prompt",
+      "generation_id": "fixture-turn",
+      "prompt_id": "fixture-turn"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "expected": [
+      {
+        "eventId": "evt_hook_eaffcc12f1450b8699df62b025d013fb48a61a689917a859ea124d3325a6f0f3",
+        "sessionId": "claude-code:hooks:d6440983c454c2e5999fdb66bbe9cf5f89a8f5847d6c9578ef14afd26eee122c",
+        "toolId": "claude-code",
+        "eventType": "task.started",
+        "occurredAt": "2026-11-08T00:00:01.000Z",
+        "actor": "tool",
+        "payload": {
+          "taskTitle": "检查 @repo/src/index.ts",
+          "taskSpeechTitle": "检查 index.ts"
+        },
+        "schemaVersion": 1
+      }
+    ]
+  },
+  {
+    "tool": "claude-code",
+    "input": {
+      "hook_event_name": "UserPromptSubmit",
+      "session_id": "fixture-session",
+      "prompt": "检查 @repo/src/index.ts",
+      "notification_type": "permission_prompt",
+      "generation_id": "fixture-turn",
+      "prompt_id": "fixture-turn",
+      "transcript_path": "/synthetic/project/fixture.jsonl"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "expected": [
+      {
+        "eventId": "evt_hook_2a3c83c1bab20a53e4b870d2bcd9e4461eba382d0ea691452d7be3cbadc99932",
+        "sessionId": "claude-code:project:fixture",
+        "toolId": "claude-code",
+        "eventType": "task.started",
+        "occurredAt": "2026-11-08T00:00:01.000Z",
+        "actor": "tool",
+        "payload": {
+          "taskTitle": "检查 @repo/src/index.ts",
+          "taskSpeechTitle": "检查 index.ts"
+        },
+        "schemaVersion": 1
+      }
+    ]
+  },
+  {
+    "tool": "claude-code",
+    "input": {
+      "hook_event_name": "Stop",
+      "session_id": "fixture-session",
+      "prompt": "检查 @repo/src/index.ts",
+      "notification_type": "permission_prompt"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "expected": [
+      {
+        "eventId": "evt_hook_1d641b0c7612bfcae28a155976b4f42c77fad10216636adff16ea8ec2abfcc31",
+        "sessionId": "claude-code:hooks:d6440983c454c2e5999fdb66bbe9cf5f89a8f5847d6c9578ef14afd26eee122c",
+        "toolId": "claude-code",
+        "eventType": "task.completed",
+        "occurredAt": "2026-11-08T00:00:01.000Z",
+        "actor": "tool",
+        "payload": {},
+        "schemaVersion": 1
+      }
+    ]
+  },
+  {
+    "tool": "claude-code",
+    "input": {
+      "hook_event_name": "Stop",
+      "session_id": "fixture-session",
+      "prompt": "检查 @repo/src/index.ts",
+      "notification_type": "permission_prompt",
+      "transcript_path": "/synthetic/project/fixture.jsonl"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "expected": [
+      {
+        "eventId": "evt_hook_73edcd2344f16cb5c4a4cda03344a7bcfeaa1204bdc2008e73f223d4f4b7be91",
+        "sessionId": "claude-code:project:fixture",
+        "toolId": "claude-code",
+        "eventType": "task.completed",
+        "occurredAt": "2026-11-08T00:00:01.000Z",
+        "actor": "tool",
+        "payload": {},
+        "schemaVersion": 1
+      }
+    ]
+  },
+  {
+    "tool": "claude-code",
+    "input": {
+      "hook_event_name": "Stop",
+      "session_id": "fixture-session",
+      "prompt": "检查 @repo/src/index.ts",
+      "notification_type": "permission_prompt",
+      "generation_id": "fixture-turn",
+      "prompt_id": "fixture-turn"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "expected": [
+      {
+        "eventId": "evt_hook_2a5e69b2677d7849a4cd384cd551c8d4899c65b419a2626961fcdeacba32cd14",
+        "sessionId": "claude-code:hooks:d6440983c454c2e5999fdb66bbe9cf5f89a8f5847d6c9578ef14afd26eee122c",
+        "toolId": "claude-code",
+        "eventType": "task.completed",
+        "occurredAt": "2026-11-08T00:00:01.000Z",
+        "actor": "tool",
+        "payload": {},
+        "schemaVersion": 1
+      }
+    ]
+  },
+  {
+    "tool": "claude-code",
+    "input": {
+      "hook_event_name": "Stop",
+      "session_id": "fixture-session",
+      "prompt": "检查 @repo/src/index.ts",
+      "notification_type": "permission_prompt",
+      "generation_id": "fixture-turn",
+      "prompt_id": "fixture-turn",
+      "transcript_path": "/synthetic/project/fixture.jsonl"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "expected": [
+      {
+        "eventId": "evt_hook_62a88007d1d5424d3ab3618f64ec6973f19de203709c35ccc755392fca1b6035",
+        "sessionId": "claude-code:project:fixture",
+        "toolId": "claude-code",
+        "eventType": "task.completed",
+        "occurredAt": "2026-11-08T00:00:01.000Z",
+        "actor": "tool",
+        "payload": {},
+        "schemaVersion": 1
+      }
+    ]
+  },
+  {
+    "tool": "claude-code",
+    "input": {
+      "hook_event_name": "Notification",
+      "session_id": "fixture-session",
+      "prompt": "检查 @repo/src/index.ts",
+      "notification_type": "permission_prompt"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "expected": [
+      {
+        "eventId": "evt_hook_d6fd1e1ade73d9fe3e81637ead849f4c5acf84d7d143c8e9d504c7c666d7c152",
+        "sessionId": "claude-code:hooks:d6440983c454c2e5999fdb66bbe9cf5f89a8f5847d6c9578ef14afd26eee122c",
+        "toolId": "claude-code",
+        "eventType": "task.waiting_human",
+        "occurredAt": "2026-11-08T00:00:01.000Z",
+        "actor": "tool",
+        "payload": {},
+        "schemaVersion": 1
+      }
+    ]
+  },
+  {
+    "tool": "claude-code",
+    "input": {
+      "hook_event_name": "Notification",
+      "session_id": "fixture-session",
+      "prompt": "检查 @repo/src/index.ts",
+      "notification_type": "permission_prompt",
+      "transcript_path": "/synthetic/project/fixture.jsonl"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "expected": [
+      {
+        "eventId": "evt_hook_0b1cc379be0cd49d53225ed96ef8b6fbd29b9c3e723fc08defcb98a2d3fadfd9",
+        "sessionId": "claude-code:project:fixture",
+        "toolId": "claude-code",
+        "eventType": "task.waiting_human",
+        "occurredAt": "2026-11-08T00:00:01.000Z",
+        "actor": "tool",
+        "payload": {},
+        "schemaVersion": 1
+      }
+    ]
+  },
+  {
+    "tool": "claude-code",
+    "input": {
+      "hook_event_name": "Notification",
+      "session_id": "fixture-session",
+      "prompt": "检查 @repo/src/index.ts",
+      "notification_type": "permission_prompt",
+      "generation_id": "fixture-turn",
+      "prompt_id": "fixture-turn"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "expected": [
+      {
+        "eventId": "evt_hook_4f6c1aad2d33f05c33495445b4524f563fed743b2daf59a4c09c39418f9e96d7",
+        "sessionId": "claude-code:hooks:d6440983c454c2e5999fdb66bbe9cf5f89a8f5847d6c9578ef14afd26eee122c",
+        "toolId": "claude-code",
+        "eventType": "task.waiting_human",
+        "occurredAt": "2026-11-08T00:00:01.000Z",
+        "actor": "tool",
+        "payload": {},
+        "schemaVersion": 1
+      }
+    ]
+  },
+  {
+    "tool": "claude-code",
+    "input": {
+      "hook_event_name": "Notification",
+      "session_id": "fixture-session",
+      "prompt": "检查 @repo/src/index.ts",
+      "notification_type": "permission_prompt",
+      "generation_id": "fixture-turn",
+      "prompt_id": "fixture-turn",
+      "transcript_path": "/synthetic/project/fixture.jsonl"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "expected": [
+      {
+        "eventId": "evt_hook_93a54c685db45b32a02f07fae55dcba413accc2cac71e6c24b67a4bc053a8897",
+        "sessionId": "claude-code:project:fixture",
+        "toolId": "claude-code",
+        "eventType": "task.waiting_human",
+        "occurredAt": "2026-11-08T00:00:01.000Z",
+        "actor": "tool",
+        "payload": {},
+        "schemaVersion": 1
+      }
+    ]
+  },
+  {
+    "tool": "claude-code",
+    "input": {
+      "hook_event_name": "Other",
+      "session_id": "fixture-session",
+      "prompt": "检查 @repo/src/index.ts",
+      "notification_type": "permission_prompt"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "expected": []
+  },
+  {
+    "tool": "claude-code",
+    "input": {
+      "hook_event_name": "Other",
+      "session_id": "fixture-session",
+      "prompt": "检查 @repo/src/index.ts",
+      "notification_type": "permission_prompt",
+      "transcript_path": "/synthetic/project/fixture.jsonl"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "expected": []
+  },
+  {
+    "tool": "claude-code",
+    "input": {
+      "hook_event_name": "Other",
+      "session_id": "fixture-session",
+      "prompt": "检查 @repo/src/index.ts",
+      "notification_type": "permission_prompt",
+      "generation_id": "fixture-turn",
+      "prompt_id": "fixture-turn"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "expected": []
+  },
+  {
+    "tool": "claude-code",
+    "input": {
+      "hook_event_name": "Other",
+      "session_id": "fixture-session",
+      "prompt": "检查 @repo/src/index.ts",
+      "notification_type": "permission_prompt",
+      "generation_id": "fixture-turn",
+      "prompt_id": "fixture-turn",
+      "transcript_path": "/synthetic/project/fixture.jsonl"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "expected": []
+  },
+  {
+    "tool": "codebuddy",
+    "input": {
+      "hook_event_name": "UserPromptSubmit",
+      "session_id": "fixture-session",
+      "prompt": "检查 @repo/src/index.ts",
+      "notification_type": "permission_prompt"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "expected": [
+      {
+        "eventId": "evt_hook_2affbe8dc9ac46a87c0336ccc8a1f21238df6a1dfb7e32d0fc1bf749764f00b4",
+        "sessionId": "codebuddy:hooks:d6440983c454c2e5999fdb66bbe9cf5f89a8f5847d6c9578ef14afd26eee122c",
+        "toolId": "codebuddy",
+        "eventType": "task.started",
+        "occurredAt": "2026-11-08T00:00:01.000Z",
+        "actor": "tool",
+        "payload": {
+          "taskTitle": "检查 @repo/src/index.ts",
+          "taskSpeechTitle": "检查 index.ts"
+        },
+        "schemaVersion": 1
+      }
+    ]
+  },
+  {
+    "tool": "codebuddy",
+    "input": {
+      "hook_event_name": "UserPromptSubmit",
+      "session_id": "fixture-session",
+      "prompt": "检查 @repo/src/index.ts",
+      "notification_type": "permission_prompt",
+      "generation_id": "fixture-turn",
+      "prompt_id": "fixture-turn"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "expected": [
+      {
+        "eventId": "evt_hook_49888a26624ea41c9ea635025f3d458d19c328ee62e139d8bb34c338aec05fad",
+        "sessionId": "codebuddy:hooks:d6440983c454c2e5999fdb66bbe9cf5f89a8f5847d6c9578ef14afd26eee122c:turn:b91a31db35cdd028412ce39e18fc6f9378e763fac1d5f9fde3b14abfd3ff0e1c",
+        "toolId": "codebuddy",
+        "eventType": "task.started",
+        "occurredAt": "2026-11-08T00:00:01.000Z",
+        "actor": "tool",
+        "payload": {
+          "taskTitle": "检查 @repo/src/index.ts",
+          "taskSpeechTitle": "检查 index.ts"
+        },
+        "schemaVersion": 1
+      }
+    ]
+  },
+  {
+    "tool": "codebuddy",
+    "input": {
+      "hook_event_name": "Stop",
+      "session_id": "fixture-session",
+      "prompt": "检查 @repo/src/index.ts",
+      "notification_type": "permission_prompt"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "expected": [
+      {
+        "eventId": "evt_hook_888c405d77a6c725d50d2fedd62838d7157f18f9d38acfd80f62faa7b68a4195",
+        "sessionId": "codebuddy:hooks:d6440983c454c2e5999fdb66bbe9cf5f89a8f5847d6c9578ef14afd26eee122c",
+        "toolId": "codebuddy",
+        "eventType": "task.completed",
+        "occurredAt": "2026-11-08T00:00:01.000Z",
+        "actor": "tool",
+        "payload": {},
+        "schemaVersion": 1
+      }
+    ]
+  },
+  {
+    "tool": "codebuddy",
+    "input": {
+      "hook_event_name": "Stop",
+      "session_id": "fixture-session",
+      "prompt": "检查 @repo/src/index.ts",
+      "notification_type": "permission_prompt",
+      "generation_id": "fixture-turn",
+      "prompt_id": "fixture-turn"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "expected": [
+      {
+        "eventId": "evt_hook_3c26385a9b4884ffc4b6788c1eaa86b7a534da4c9ae56881ce2c3b1c80991226",
+        "sessionId": "codebuddy:hooks:d6440983c454c2e5999fdb66bbe9cf5f89a8f5847d6c9578ef14afd26eee122c:turn:b91a31db35cdd028412ce39e18fc6f9378e763fac1d5f9fde3b14abfd3ff0e1c",
+        "toolId": "codebuddy",
+        "eventType": "task.completed",
+        "occurredAt": "2026-11-08T00:00:01.000Z",
+        "actor": "tool",
+        "payload": {},
+        "schemaVersion": 1
+      }
+    ]
+  },
+  {
+    "tool": "codebuddy",
+    "input": {
+      "hook_event_name": "Notification",
+      "session_id": "fixture-session",
+      "prompt": "检查 @repo/src/index.ts",
+      "notification_type": "permission_prompt"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "expected": []
+  },
+  {
+    "tool": "codebuddy",
+    "input": {
+      "hook_event_name": "Notification",
+      "session_id": "fixture-session",
+      "prompt": "检查 @repo/src/index.ts",
+      "notification_type": "permission_prompt",
+      "generation_id": "fixture-turn",
+      "prompt_id": "fixture-turn"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "expected": []
+  },
+  {
+    "tool": "codebuddy",
+    "input": {
+      "hook_event_name": "Other",
+      "session_id": "fixture-session",
+      "prompt": "检查 @repo/src/index.ts",
+      "notification_type": "permission_prompt"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "expected": []
+  },
+  {
+    "tool": "codebuddy",
+    "input": {
+      "hook_event_name": "Other",
+      "session_id": "fixture-session",
+      "prompt": "检查 @repo/src/index.ts",
+      "notification_type": "permission_prompt",
+      "generation_id": "fixture-turn",
+      "prompt_id": "fixture-turn"
+    },
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "expected": []
+  },
+  {
+    "tool": "cursor",
+    "input": null,
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "error": true
+  },
+  {
+    "tool": "cursor",
+    "input": {},
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "error": true
+  },
+  {
+    "tool": "cline",
+    "input": null,
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "error": true
+  },
+  {
+    "tool": "cline",
+    "input": {},
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "error": true
+  },
+  {
+    "tool": "claude-code",
+    "input": null,
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "error": true
+  },
+  {
+    "tool": "claude-code",
+    "input": {},
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "error": true
+  },
+  {
+    "tool": "codebuddy",
+    "input": null,
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "error": true
+  },
+  {
+    "tool": "codebuddy",
+    "input": {},
+    "options": {
+      "receivedAt": "2026-11-08T00:00:01.000Z"
+    },
+    "error": true
+  }
+]

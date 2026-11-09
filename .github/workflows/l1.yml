@@ -10,6 +10,14 @@ concurrency:
   group: l1-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  rust:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - run: sh scripts/rust-verify.sh
   verify:
     runs-on: ubuntu-24.04
     timeout-minutes: 20

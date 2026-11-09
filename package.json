@@ -29,7 +29,11 @@
     "release:checksums": "node scripts/release.mjs checksums",
     "rebuild:native": "pnpm --filter @awm/store run rebuild",
     "adapter:validate": "pnpm --filter @awm/adapters exec node dist/validate-cli.js",
-    "latency-report": "node scripts/run-tests.mjs run tests/perf/latency-report.test.ts"
+    "latency-report": "node scripts/run-tests.mjs run tests/perf/latency-report.test.ts",
+    "rust:contract": "pnpm build && node scripts/export-rust-contract.mjs",
+    "rust:verify": "sh scripts/rust-verify.sh",
+    "tauri:assets": "node scripts/tauri-assets.mjs",
+    "tauri:bundle": "node scripts/tauri-bundle.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",

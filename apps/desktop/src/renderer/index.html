@@ -14,7 +14,7 @@
   </head>
   <body>
     <div id="app" class="app">
-      <aside class="rail">
+      <aside class="rail" data-tauri-drag-region="deep">
         <div class="brand">
           <span class="brand-mark" aria-hidden="true">
             <img
@@ -27,7 +27,7 @@
           </span>
           <div class="brand-text">
             <strong>AgentCue</strong>
-            <span>AI 任务监控与提醒</span>
+            <span>AI Agent 任务监控提醒</span>
           </div>
         </div>
 
@@ -149,37 +149,47 @@
         </nav>
 
         <div class="rail-footer">
-          <div class="engine-status">
-            <span class="engine-dot" aria-hidden="true"></span>
-            <p id="runtime-hint" class="hint">正在启动…</p>
+          <div class="rail-volume">
+            <button
+              id="mute-toggle"
+              class="volume-mute"
+              type="button"
+              aria-label="静音语音播报"
+              title="静音语音播报"
+              aria-pressed="false"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 10v4h4l5 4V6l-5 4H4Z" />
+                <path class="volume-wave" d="M16 9a5 5 0 0 1 0 6M18.5 6.5a8.5 8.5 0 0 1 0 11" />
+                <path class="volume-muted-mark" d="m16 9 5 6m0-6-5 6" />
+              </svg>
+            </button>
+            <label class="volume-control">
+              <span class="sr-only">语音播报音量</span>
+              <input id="volume-slider" type="range" min="0" max="1" step="0.01" value="0.8" aria-label="语音播报音量" />
+              <output id="rail-volume-value" for="volume-slider">80%</output>
+            </label>
           </div>
-          <button id="mute-toggle" class="mute-btn" type="button">静音语音播报</button>
         </div>
       </aside>
 
       <main class="main">
-        <header class="pagehead" id="topbar">
-          <div class="pagehead-title">
-            <h1 id="page-title">总览</h1>
-            <p id="page-subtitle">正在加载…</p>
-          </div>
-          <div class="pagehead-actions">
-            <button
-              id="btn-refresh"
-              class="btn btn-ghost"
-              type="button"
-              title="重新获取最新的任务和通知"
-            >
-              刷新
-            </button>
-            <button
-              id="btn-scan"
-              class="btn btn-primary"
-              type="button"
-              title="重新检查本机装了哪些 AI 工具。任务状态每 5 秒自动更新，不用手动刷新"
-            >
-              扫描工具
-            </button>
+        <header class="pagehead" id="topbar" data-tauri-drag-region="deep">
+          <div class="pagehead-inner">
+            <div class="pagehead-title">
+              <h1 id="page-title">总览</h1>
+              <p id="page-subtitle">正在加载…</p>
+            </div>
+            <div class="pagehead-actions">
+              <button
+                id="btn-scan"
+                class="btn btn-primary"
+                type="button"
+                title="重新检查本机装了哪些 AI 工具。任务状态每 5 秒自动更新，不用手动刷新"
+              >
+                扫描工具
+              </button>
+            </div>
           </div>
         </header>
 

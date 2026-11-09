@@ -1,0 +1,95 @@
+[
+  {
+    "id": "claude-code",
+    "name": "Claude Code",
+    "files": [
+      {
+        "path": "~/.claude/settings.json",
+        "content": "{\n  \"hooks\": {\n    \"UserPromptSubmit\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"'/__AGENTCUE_EXECUTABLE__' '--tool-hook' 'claude-code'\",\n            \"timeout\": 10\n          }\n        ]\n      }\n    ],\n    \"Stop\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"'/__AGENTCUE_EXECUTABLE__' '--tool-hook' 'claude-code'\",\n            \"timeout\": 10\n          }\n        ]\n      }\n    ],\n    \"Notification\": [\n      {\n        \"matcher\": \"permission_prompt\",\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"'/__AGENTCUE_EXECUTABLE__' '--tool-hook' 'claude-code'\",\n            \"timeout\": 10\n          }\n        ]\n      }\n    ]\n  }\n}"
+      }
+    ],
+    "steps": [
+      "保持 AgentCue 桌面应用运行，并开启本地来源读取；被忽略的工具不接收任务事件。",
+      "配置由你粘贴；保留已有设置、Hooks 和脚本，不覆盖其他逻辑。",
+      "配置后发送一个新任务，观察下方最近事件时间；收到开始或结束后才表示任务播报已接入。",
+      "将 hooks 合并进用户级 ~/.claude/settings.json；保留已有事件与 matcher，不要覆盖其他 Hooks。",
+      "重新打开 Claude Code 会话后发送一个新任务；会话身份取自 transcript 路径，与文件采集一致。"
+    ],
+    "commandReady": false,
+    "lastEventAt": null,
+    "enabled": true,
+    "capabilityReason": "开始与完成来自 UserPromptSubmit / Stop；Notification 的 permission_prompt 视为等待确认。批准本身只通过之后的开始或完成事件间接观察。"
+  },
+  {
+    "id": "cursor",
+    "name": "Cursor",
+    "files": [
+      {
+        "path": "~/.cursor/hooks.json",
+        "content": "{\n  \"version\": 1,\n  \"hooks\": {\n    \"beforeSubmitPrompt\": [\n      {\n        \"command\": \"'/__AGENTCUE_EXECUTABLE__' '--tool-hook' 'cursor'\",\n        \"type\": \"command\",\n        \"timeout\": 3,\n        \"failClosed\": false\n      }\n    ],\n    \"preToolUse\": [\n      {\n        \"command\": \"'/__AGENTCUE_EXECUTABLE__' '--tool-hook' 'cursor'\",\n        \"type\": \"command\",\n        \"timeout\": 3,\n        \"failClosed\": false\n      }\n    ],\n    \"stop\": [\n      {\n        \"command\": \"'/__AGENTCUE_EXECUTABLE__' '--tool-hook' 'cursor'\",\n        \"type\": \"command\",\n        \"timeout\": 3,\n        \"failClosed\": false\n      }\n    ]\n  }\n}"
+      }
+    ],
+    "steps": [
+      "保持 AgentCue 桌面应用运行，并开启本地来源读取；被忽略的工具不接收任务事件。",
+      "配置由你粘贴；保留已有设置、Hooks 和脚本，不覆盖其他逻辑。",
+      "配置后发送一个新任务，观察下方最近事件时间；收到开始或结束后才表示任务播报已接入。",
+      "合并 hooks.json 后，重新加载 Cursor 窗口；适用于自带 Agent / 聊天。"
+    ],
+    "commandReady": false,
+    "lastEventAt": null,
+    "enabled": true,
+    "capabilityReason": "开始与结束来自 beforeSubmitPrompt / stop；Agent 弹出提问框时 preToolUse 携带 AskQuestion 工具，据此播报待确认。"
+  },
+  {
+    "id": "cline",
+    "name": "Cline",
+    "files": [
+      {
+        "path": "~/Documents/Cline/Hooks/TaskStart",
+        "content": "#!/bin/sh\nexec '/__AGENTCUE_EXECUTABLE__' '--tool-hook' 'cline' --hook-phase TaskStart\n",
+        "executable": true
+      },
+      {
+        "path": "~/Documents/Cline/Hooks/TaskComplete",
+        "content": "#!/bin/sh\nexec '/__AGENTCUE_EXECUTABLE__' '--tool-hook' 'cline' --hook-phase TaskComplete\n",
+        "executable": true
+      },
+      {
+        "path": "~/Documents/Cline/Hooks/TaskCancel",
+        "content": "#!/bin/sh\nexec '/__AGENTCUE_EXECUTABLE__' '--tool-hook' 'cline' --hook-phase TaskCancel\n",
+        "executable": true
+      }
+    ],
+    "steps": [
+      "保持 AgentCue 桌面应用运行，并开启本地来源读取；被忽略的工具不接收任务事件。",
+      "配置由你粘贴；保留已有设置、Hooks 和脚本，不覆盖其他逻辑。",
+      "配置后发送一个新任务，观察下方最近事件时间；收到开始或结束后才表示任务播报已接入。",
+      "在 Cline Feature Settings 中启用 Hooks；将三个脚本分别保存到显示的路径。",
+      "在终端对脚本执行 chmod u+x，赋予当前用户执行权限；已有同名脚本时合并调用。"
+    ],
+    "commandReady": false,
+    "lastEventAt": null,
+    "enabled": true,
+    "capabilityReason": "官方 Hooks 接收任务开始和结束；当前已验证接口不提供可靠的待确认事件。"
+  },
+  {
+    "id": "codebuddy",
+    "name": "CodeBuddy",
+    "files": [
+      {
+        "path": "~/.codebuddy/settings.json",
+        "content": "{\n  \"hooks\": {\n    \"UserPromptSubmit\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"'/__AGENTCUE_EXECUTABLE__' '--tool-hook' 'codebuddy'\",\n            \"timeout\": 3\n          }\n        ]\n      }\n    ],\n    \"Stop\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"'/__AGENTCUE_EXECUTABLE__' '--tool-hook' 'codebuddy'\",\n            \"timeout\": 3\n          }\n        ]\n      }\n    ]\n  }\n}"
+      }
+    ],
+    "steps": [
+      "保持 AgentCue 桌面应用运行，并开启本地来源读取；被忽略的工具不接收任务事件。",
+      "配置由你粘贴；保留已有设置、Hooks 和脚本，不覆盖其他逻辑。",
+      "配置后发送一个新任务，观察下方最近事件时间；收到开始或结束后才表示任务播报已接入。",
+      "将 hooks 合并进 CodeBuddy 的用户设置；如项目设置覆盖它，则合并到项目 .codebuddy/settings.json，再重新加载 Agent。"
+    ],
+    "commandReady": false,
+    "lastEventAt": null,
+    "enabled": true,
+    "capabilityReason": "官方 Hooks 接收任务开始和结束；当前已验证接口不提供可靠的待确认事件。"
+  }
+]

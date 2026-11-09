@@ -6,8 +6,10 @@ const state: AppState = {
   sessions: [],
   board: null,
   boardQuery: { q: '', toolId: '' },
+  kokoroVoiceSearch: '',
   adapters: [],
   tools: [],
+  toolsLoading: true,
   settings: null,
   rules: [],
   notifications: [],
@@ -69,6 +71,9 @@ let activeSessionId = '';
 let returnFocus: HTMLElement | null = null;
 let settingsSaveTail: Promise<void> = Promise.resolve();
 let settingsSaveCount = 0;
+let railVolumeTimer: number | null = null;
+let railVolumeDraft: number | null = null;
+let railVolumeRevision = 0;
 let draftRevision = 0;
 /** 设置页的待保存副本；null 表示预览与已保存设置一致。 */
 let pendingSettings: Settings | null = null;
@@ -179,13 +184,6 @@ function restoreDrafts(): void {
   const rate = document.querySelector<HTMLInputElement>('[data-setting="voice.rate"]');
   const label = document.getElementById('rate-value');
   if (rate && label) label.textContent = `${Number(rate.value).toFixed(1)}×`;
-  const volume = document.querySelector<HTMLInputElement>('[data-setting="voice.volume"]');
-  const volumeLabel = document.getElementById('volume-value');
-  if (volume && volumeLabel) {
-    const percent = `${Math.round(Number(volume.value) * 100)}%`;
-    volumeLabel.textContent = percent;
-    volume.setAttribute('aria-valuetext', percent);
-  }
 }
 
 /** @description: Patch named regions, leaving an actively edited region untouched until blur. */
@@ -229,6 +227,7 @@ function render(force = false): void {
                       workingSettings()?.voice.voiceProfile,
                     workingSettings(),
                     previewRules(),
+                    settingsSectionId || 'voice',
                   );
   const template = document.createElement('template');
   // 标记当前路由：设置页据此去掉画布顶部留白，吸顶导航紧贴页头上沿
@@ -249,6 +248,7 @@ function render(force = false): void {
       if (!old) continue;
       // 动效开关等纯类名状态不一定改变内容，也需要同步。
       old.className = node.className;
+      old.hidden = node.hidden;
       if (old.innerHTML === node.innerHTML) continue;
       if (
         !force &&
@@ -266,9 +266,7 @@ function render(force = false): void {
   restoreDisclosures(view);
   restoreDrafts();
   if (samePage) {
-    // 相同值的 scrollTop 赋值也会中断进行中的平滑滚动：点击分区导航后 focusout
-    // 触发的 0ms 重绘会把 scrollTo({behavior:'smooth'}) 吞掉，表现为要点两次。
-    // 因此仅在确实偏移（内容重建导致布局变化）时才恢复滚动位置。
+    // 赋相同值也会打断正在进行的平滑滚动；只在重绘确实改变位置时恢复。
     if (view.scrollTop !== scrollTop) view.scrollTop = scrollTop;
     for (const node of view.querySelectorAll<HTMLElement>('[data-scroll-key]')) {
       const restore = columnScroll.get(node.dataset.scrollKey);
@@ -291,70 +289,19 @@ function render(force = false): void {
 
 let settingsSectionId = '';
 
-/** @description: 吸顶的分区导航只标记当前分区，点击与滚动都走同一处状态。 */
+/** @description: Keep the four settings tabs and panel visibility in sync. */
 function paintSettingsNav(): void {
+  if (state.route !== 'settings') return;
+  settingsSectionId ||= 'voice';
   for (const button of document.querySelectorAll<HTMLElement>(
     '.settings-nav [data-settings-section]',
   )) {
     const active = button.dataset.settingsSection === settingsSectionId;
-    if (active) button.setAttribute('aria-current', 'true');
-    else button.removeAttribute('aria-current');
+    button.setAttribute('aria-selected', String(active));
+    button.tabIndex = active ? 0 : -1;
   }
-}
-
-function settingsPanels(): HTMLElement[] {
-  const view = document.getElementById('view');
-  return view ? Array.from(view.querySelectorAll<HTMLElement>('.settings-panel')) : [];
-}
-
-// 跳转落点与「当前分区」判定共用同一条基准线，否则高亮会差一个分区。
-const SETTINGS_NAV_GAP = 12;
-
-function settingsNavLine(): number {
-  const nav = document.querySelector<HTMLElement>('.settings-nav');
-  return (nav?.getBoundingClientRect().bottom ?? 0) + SETTINGS_NAV_GAP;
-}
-
-/**
- * @description: 当前分区 = 占据视口上部阅读区的那个分区。
- * 判定线取「导航下沿」与「视口上方 28%」中更靠下的一条：跳转落点贴着导航，
- * 而滚动时用户看到的分区标题往往已在导航下方一段距离，太贴边会让高亮慢一拍。
- */
-function syncSettingsNav(): void {
-  if (state.route !== 'settings') {
-    settingsSectionId = '';
-    return;
-  }
-  const panels = settingsPanels();
-  const view = document.getElementById('view');
-  if (!panels.length || !view) return;
-  const viewBox = view.getBoundingClientRect();
-  const line = Math.max(settingsNavLine(), viewBox.top + viewBox.height * 0.28);
-  // 滚到底时最后一个分区进不了判定线，直接认定它，避免高亮卡在倒数第二个。
-  const atEnd = view.scrollTop + view.clientHeight >= view.scrollHeight - 2;
-  let current = panels[0]!.id.replace(/^settings-/, '');
-  if (atEnd) current = panels[panels.length - 1]!.id.replace(/^settings-/, '');
-  else
-    for (const panel of panels)
-      if (panel.getBoundingClientRect().top <= line) current = panel.id.replace(/^settings-/, '');
-  settingsSectionId = current;
-  // 区域重建会丢掉属性，所以每次都画，不做「值未变就跳过」。
-  paintSettingsNav();
-}
-
-function jumpToSettingsSection(section: string): void {
-  const view = document.getElementById('view');
-  const target = document.getElementById(`settings-${section}`);
-  if (!view || !target) return;
-  const top = view.scrollTop + target.getBoundingClientRect().top - settingsNavLine();
-  const distance = Math.abs(top - view.scrollTop);
-  // 分区很长，平滑滚动会持续一秒以上；长距离直接落位，短距离保留过渡。
-  const smooth =
-    distance < view.clientHeight * 1.5 &&
-    !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  view.scrollTo({ top, behavior: smooth ? 'smooth' : 'instant' });
-  settingsSectionId = section;
-  paintSettingsNav();
+  for (const panel of document.querySelectorAll<HTMLElement>('.settings-panel'))
+    panel.hidden = panel.id !== `settings-${settingsSectionId}`;
 }
 
 function renderChrome(): void {
@@ -365,8 +312,9 @@ function renderChrome(): void {
     if (button.dataset.route === state.route) button.setAttribute('aria-current', 'page');
     else button.removeAttribute('aria-current');
   }
-  // 分区导航随区域重建，属性会丢；按当前分区补画一次。
-  syncSettingsNav();
+  // 分区区域按需隐藏；补画 tab 状态并同步键盘焦点顺序。
+  if (state.route !== 'settings') settingsSectionId = '';
+  paintSettingsNav();
   const badge = document.getElementById('nav-notice-badge');
   if (badge) {
     const unread = state.notifications.filter((item) => !item.read).length;
@@ -375,11 +323,21 @@ function renderChrome(): void {
   }
   const muted = state.settings?.quiet.globalMute === true;
   const mute = qs<HTMLElement>('#mute-toggle');
-  mute.dataset.muted = String(muted);
-  mute.textContent = muted ? '已静音，点击恢复' : '静音语音播报';
-  qs<HTMLElement>('#runtime-hint').textContent = state.settings
-    ? '已连接，每 5 秒自动更新'
-    : '正在启动…';
+  mute.setAttribute('aria-pressed', String(muted));
+  mute.setAttribute('aria-label', muted ? '恢复语音播报' : '静音语音播报');
+  mute.title = muted ? '恢复语音播报' : '静音语音播报';
+  const scanButton = qs<HTMLButtonElement>('#btn-scan');
+  scanButton.hidden = state.route !== 'overview' && state.route !== 'adapters';
+  const volumeSlider = qs<HTMLInputElement>('#volume-slider');
+  const volume = Math.round((railVolumeDraft ?? state.settings?.voice.volume ?? 0.8) * 100) / 100;
+  if (document.activeElement !== volumeSlider) volumeSlider.value = String(volume);
+  volumeSlider.style.setProperty('--range-progress', `${volume * 100}%`);
+  volumeSlider.dataset.muted = String(muted);
+  volumeSlider.title = muted ? '已静音，调整音量可恢复播报' : '语音播报音量';
+  volumeSlider.setAttribute('aria-label', muted ? '语音播报音量，已静音；调整音量可恢复播报' : '语音播报音量');
+  const volumeText = `${Math.round(volume * 100)}%`;
+  volumeSlider.setAttribute('aria-valuetext', volumeText);
+  qs<HTMLOutputElement>('#rail-volume-value').value = volumeText;
   // 设置页手动保存：状态文案与右上角按钮同步，未保存时按钮才可用。
   const save = document.getElementById('settings-save-status');
   const saveButton = document.getElementById('settings-save') as HTMLButtonElement | null;
@@ -396,6 +354,43 @@ function renderChrome(): void {
     saveButton.disabled = settingsSaveCount > 0 || pending === 0;
     saveButton.textContent = pending > 0 ? `保存（${String(pending)}）` : '保存';
   }
+}
+
+function saveRailVolume(volume: number, revision: number): Promise<void> {
+  ++settingsSaveCount;
+  renderChrome();
+  const operation = settingsSaveTail.then(async () => {
+    const next = await Api.put<Settings>('/api/v1/settings', { voice: { volume } });
+    pendingPaths.delete('voice.volume');
+    routeDrafts('settings').delete('setting-voice-volume');
+    rebasePendingSettings(next);
+    if (pendingChangeCount() === 0) pendingSettings = null;
+    if (revision === railVolumeRevision) railVolumeDraft = null;
+    delete state.sectionErrors.settings;
+  });
+  settingsSaveTail = operation.catch(() => undefined);
+  return operation
+    .catch((error: unknown) => {
+      if (revision === railVolumeRevision) railVolumeDraft = null;
+      state.sectionErrors.settings = errorMessage(error);
+      throw error;
+    })
+    .finally(() => {
+      --settingsSaveCount;
+      render();
+    });
+}
+
+function setGlobalMute(muted: boolean): Promise<void> {
+  const previous = state.settings?.quiet.globalMute ?? false;
+  if (previous === muted) return Promise.resolve();
+  if (state.settings) state.settings.quiet.globalMute = muted;
+  renderChrome();
+  return (window.awm?.setMuted(muted) ?? Promise.resolve()).catch((error: unknown) => {
+    if (state.settings?.quiet.globalMute === muted) state.settings.quiet.globalMute = previous;
+    renderChrome();
+    throw error;
+  });
 }
 /** 动作期间被临时禁用的按钮，记录它们在临时禁用前的真实状态。 */
 const pendingDisabled = new WeakMap<HTMLButtonElement, boolean>();
@@ -531,6 +526,8 @@ async function refresh(background = false): Promise<void> {
     state.route = route;
     if (changedRoute && (route === 'board' || route === 'overview')) state.board = null;
     state.boardLoading = (route === 'board' || route === 'overview') && state.board === null;
+    if (['overview', 'board', 'office', 'adapters', 'notifications'].includes(route))
+      state.toolsLoading = state.tools.length === 0 && !state.sectionErrors.tools;
     if (renderedRoute !== route) render();
     const sequence = ++loadSequence;
     const windowVersion = boardWindowVersion;
@@ -655,6 +652,7 @@ async function refresh(background = false): Promise<void> {
         delete state.sectionErrors[request.key];
       } else state.sectionErrors[request.key] = errorMessage(result.reason);
     });
+    if (requests.some((request) => request.key === 'tools')) state.toolsLoading = false;
     if (route === 'office') syncOfficeSelection(state);
     state.boardLoading = false;
     render();
@@ -1174,11 +1172,11 @@ async function requestLeaveSettings(targetHash: string): Promise<void> {
   }
   const count = pendingChangeCount();
   const choice = await openConfirm({
-    title: '改过的设置还没保存',
-    body: `有 ${count} 项改动，直接离开就没了。`,
-    saveLabel: '保存后再走',
-    discardLabel: '不保存了',
-    cancelLabel: '留下',
+    title: '保存确认',
+    body: `有 ${count} 项改动尚未保存，是否离开？`,
+    saveLabel: '保存',
+    discardLabel: '放弃',
+    cancelLabel: '取消',
   });
   if (choice === 'cancel') return;
   if (choice === 'save') {
@@ -1212,11 +1210,11 @@ async function handleConfirmClose(request: CloseRequest): Promise<void> {
     // 托盘退出时窗口可能是隐藏的：先显示出来，用户才能做选择。
     if (quitting) await window.awm?.showWindow();
     const choice = await openConfirm({
-      title: quitting ? '改过的设置还没保存' : '改过的设置还没保存',
-      body: `有 ${pendingChangeCount()} 项改动，直接${quitting ? '退出' : '关窗口'}就没了。`,
-      saveLabel: quitting ? '保存并退出' : '保存并关闭',
-      discardLabel: quitting ? '直接退出' : '不保存了',
-      cancelLabel: '留下',
+      title: '保存确认',
+      body: `有 ${pendingChangeCount()} 项改动尚未保存，是否离开？`,
+      saveLabel: '保存',
+      discardLabel: '放弃',
+      cancelLabel: '取消',
     });
     if (choice === 'save') {
       respond(await savePendingSettings());
@@ -1362,10 +1360,28 @@ async function updateTask(button: HTMLElement): Promise<void> {
   const event = button.dataset.taskEvent;
   if (!id || !event) return;
   await perform(`task:${id}`, `[data-task-id="${CSS.escape(id)}"]`, async () => {
-    await Api.post(`/api/v1/tasks/${encodeURIComponent(id)}/state`, { event });
-    toast('AgentCue 记录已更新');
+    const result = await Api.post<{ eventId: string }>(
+      `/api/v1/tasks/${encodeURIComponent(id)}/state`,
+      { event },
+    );
     closeDrawer();
     await refresh();
+    const undoable = ['human.responded', 'task.retried', 'task.archived'].includes(event);
+    toast(
+      'AgentCue 记录已更新；原工具任务未受影响。',
+      undoable
+        ? {
+            label: '撤回',
+            run: async () => {
+              await Api.post(`/api/v1/tasks/${encodeURIComponent(id)}/undo`, {
+                eventId: result.eventId,
+              });
+              await refresh();
+              toast('刚才的状态标记已撤回；任务仍在原工具中。');
+            },
+          }
+        : undefined,
+    );
   });
 }
 
@@ -1377,7 +1393,7 @@ function bindEvents(): void {
     if (!route) return;
     navigateTo(route);
   });
-  // 键盘快捷键：Cmd/Ctrl+1..6 切页，/ 聚焦看板搜索；弹层打开或正在输入时不生效。
+  // 键盘快捷键按侧栏顺序覆盖全部七个页面，/ 聚焦看板搜索。
   document.addEventListener('keydown', (event) => {
     if (!qs<HTMLElement>('#confirm').hidden || !qs<HTMLElement>('#drawer').hidden) return;
     const active = document.activeElement;
@@ -1386,9 +1402,10 @@ function bindEvents(): void {
       active instanceof HTMLTextAreaElement ||
       active instanceof HTMLSelectElement;
     const key = event.key;
-    if ((event.metaKey || event.ctrlKey) && !event.altKey && key >= '1' && key <= '6') {
+    if ((event.metaKey || event.ctrlKey) && !event.altKey && key >= '1' && key <= '7') {
       const routes: RouteName[] = [
         'overview',
+        'office',
         'board',
         'notifications',
         'integrations',
@@ -1414,10 +1431,6 @@ function bindEvents(): void {
       );
     }
   });
-  qs<HTMLElement>('#btn-refresh').addEventListener('click', () => {
-    state.error = null;
-    void refresh();
-  });
   qs<HTMLElement>('#btn-scan').addEventListener(
     'click',
     () =>
@@ -1432,11 +1445,36 @@ function bindEvents(): void {
     () =>
       void perform('mute', '#mute-toggle', async () => {
         const next = !(state.settings?.quiet.globalMute ?? false);
-        await window.awm?.setMuted(next);
-        if (state.settings) state.settings.quiet.globalMute = next;
+        await setGlobalMute(next);
         render();
       }),
   );
+  const volumeSlider = qs<HTMLInputElement>('#volume-slider');
+  const volumeOutput = qs<HTMLOutputElement>('#rail-volume-value');
+  volumeSlider.addEventListener('input', () => {
+    railVolumeDraft = Math.round(Number(volumeSlider.value) * 100) / 100;
+    ++railVolumeRevision;
+    const value = `${Math.round(railVolumeDraft * 100)}%`;
+    volumeOutput.value = value;
+    volumeSlider.setAttribute('aria-valuetext', value);
+    volumeSlider.style.setProperty('--range-progress', `${railVolumeDraft * 100}%`);
+    if (state.settings?.quiet.globalMute) {
+      void setGlobalMute(false).catch((error: unknown) => toast(errorMessage(error)));
+    }
+  });
+  volumeSlider.addEventListener('change', () => {
+    const volume = Math.round(Number(volumeSlider.value) * 100) / 100;
+    if (!Number.isFinite(volume)) return;
+    const revision = railVolumeRevision;
+    if (railVolumeTimer !== null) window.clearTimeout(railVolumeTimer);
+    railVolumeTimer = window.setTimeout(() => {
+      railVolumeTimer = null;
+      void saveRailVolume(volume, revision).catch((error: unknown) => toast(errorMessage(error)));
+    }, 120);
+  });
+  volumeSlider.addEventListener('blur', () => {
+    if (railVolumeDraft === null) renderChrome();
+  });
   const view = qs<HTMLElement>('#view');
   bindOfficeInteractions(view);
   view.addEventListener('click', (event) => {
@@ -1519,7 +1557,8 @@ function bindEvents(): void {
     }
     const section = target.closest<HTMLElement>('[data-settings-section]');
     if (section?.dataset.settingsSection) {
-      jumpToSettingsSection(section.dataset.settingsSection);
+      settingsSectionId = section.dataset.settingsSection;
+      render();
       return;
     }
     const more = target.closest<HTMLElement>('[data-load-group]');
@@ -1783,8 +1822,24 @@ function bindEvents(): void {
       }
     });
   });
-  // 滚动只更新吸顶导航的当前分区，不触发重绘。
-  view.addEventListener('scroll', syncSettingsNav, { passive: true });
+  view.addEventListener('keydown', (event) => {
+    const tab = (event.target as HTMLElement).closest<HTMLElement>('[data-settings-section]');
+    if (!tab || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    const tabs = Array.from(
+      view.querySelectorAll<HTMLElement>('.settings-nav [data-settings-section]'),
+    );
+    if (!tabs.length) return;
+    const current = Math.max(0, tabs.indexOf(tab));
+    const next = event.key === 'Home'
+      ? 0
+      : event.key === 'End'
+        ? tabs.length - 1
+        : (current + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+    event.preventDefault();
+    settingsSectionId = tabs[next]!.dataset.settingsSection ?? 'voice';
+    render(true);
+    document.getElementById(`settings-tab-${settingsSectionId}`)?.focus();
+  });
   view.addEventListener('input', (event) => {
     const control = event.target;
     if (!(
@@ -1794,15 +1849,14 @@ function bindEvents(): void {
     ))
       return;
     if (control.hasAttribute('data-draft') || control.dataset.setting) rememberControl(control);
+    if (control.id === 'kokoro-voice-search') {
+      state.kokoroVoiceSearch = control.value;
+      render(true);
+      return;
+    }
     if (control.dataset.setting === 'voice.rate') {
       const label = document.getElementById('rate-value');
       if (label) label.textContent = `${Number(control.value).toFixed(1)}×`;
-    }
-    if (control.dataset.setting === 'voice.volume') {
-      const percent = `${Math.round(Number(control.value) * 100)}%`;
-      const label = document.getElementById('volume-value');
-      if (label) label.textContent = percent;
-      control.setAttribute('aria-valuetext', percent);
     }
     if (control.id === 'office-search') {
       officeUi.query = control.value;
@@ -1889,11 +1943,8 @@ function bindEvents(): void {
     // 切换本地引擎会换模型卡与音色区，需要立即重绘。
     if (path === 'voice.localEngine') render(true);
   });
-  view.addEventListener('focusout', () =>
-    window.setTimeout(() => {
-      if (renderedRoute === state.route) render();
-    }, 0),
-  );
+  // input/change handlers already retain drafts and paint saved-state controls.
+  // Rebuilding on focusout can replace a clicked button before its click event fires.
   qs<HTMLElement>('#drawer').addEventListener('click', (event) => {
     const target = event.target as HTMLElement;
     if (target.closest('[data-close]')) {
@@ -2014,7 +2065,6 @@ async function openStream(): Promise<void> {
   try {
     ticket = await Api.createStreamTicket();
   } catch {
-    qs<HTMLElement>('#runtime-hint').textContent = '连接断开，正在重连';
     scheduleStreamRetry();
     return;
   }
@@ -2051,7 +2101,6 @@ async function openStream(): Promise<void> {
   stream.onerror = () => {
     stream?.close();
     stream = null;
-    qs<HTMLElement>('#runtime-hint').textContent = '连接断开，正在重连';
     scheduleStreamRetry();
   };
 }

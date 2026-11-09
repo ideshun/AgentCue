@@ -1,0 +1,5819 @@
+{
+  "sources": [
+    {
+      "name": "claude-code-fixture-batch-1",
+      "manifest": {
+        "id": "claude-code",
+        "name": "Claude Code",
+        "detect": {
+          "configPaths": [
+            {
+              "mac": "~/.claude/settings.json",
+              "win": "%USERPROFILE%/.claude/settings.json",
+              "envOverride": [
+                "CLAUDE_CONFIG_DIR"
+              ]
+            }
+          ],
+          "processNames": [
+            "claude"
+          ],
+          "apis": []
+        },
+        "sessionSource": {
+          "type": "jsonl",
+          "pathPattern": "~/.claude/projects/**/*.jsonl"
+        },
+        "eventMapping": {
+          "waiting_human": {
+            "match": "permission_request",
+            "reason": "tool_approval"
+          },
+          "completed": {
+            "match": "result",
+            "ok": true
+          },
+          "failed": {
+            "match": "result",
+            "ok": false
+          }
+        },
+        "heartbeat": {
+          "intervalSec": 30,
+          "probe": "file_mtime"
+        },
+        "mcp": {
+          "clientConfigFormat": "claude-code"
+        },
+        "hookConfig": {
+          "name": "Claude Code",
+          "mode": "turn",
+          "reopenOnStart": true
+        }
+      },
+      "ctx": {
+        "toolId": "claude-code",
+        "project": "fixture-project",
+        "sessionKey": "fixture-session",
+        "sourcePath": "/synthetic/claude-code/fixture.jsonl"
+      },
+      "batches": [
+        {
+          "rows": [
+            {
+              "type": "user",
+              "sessionId": "sess-1",
+              "timestamp": "2026-10-19T10:00:00.000Z",
+              "message": {
+                "role": "user",
+                "content": "重构登录模块"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "context": {
+              "title": "重构登录模块"
+            },
+            "titles": [
+              {
+                "sessionId": "claude-code:fixture-project:fixture-session",
+                "title": "重构登录模块"
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "type": "assistant",
+              "sessionId": "sess-1",
+              "timestamp": "2026-10-19T10:00:30.000Z",
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "开始分析代码结构"
+                  }
+                ]
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "context": {
+              "title": "重构登录模块"
+            },
+            "titles": []
+          }
+        },
+        {
+          "rows": [
+            {
+              "type": "permission_request",
+              "sessionId": "sess-1",
+              "timestamp": "2026-10-19T10:01:00.000Z",
+              "toolName": "Bash"
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_f1718e5d5ff3306a390b4afeb9352f79ca1524fbfb5498452c36a91175dd0cbb",
+                "sessionId": "claude-code:fixture-project:fixture-session",
+                "toolId": "claude-code",
+                "eventType": "task.waiting_human",
+                "occurredAt": "2026-10-19T10:01:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "重构登录模块",
+                  "reason": "tool_approval"
+                },
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "title": "重构登录模块"
+            },
+            "titles": [
+              {
+                "sessionId": "claude-code:fixture-project:fixture-session",
+                "title": "重构登录模块"
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "type": "result",
+              "sessionId": "sess-1",
+              "timestamp": "2026-10-19T10:05:00.000Z",
+              "is_error": false,
+              "result": "done"
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_0e3ec68721e145d9e994cf66412ee4d3e27c50799fbab7d18081b3476eb848c5",
+                "sessionId": "claude-code:fixture-project:fixture-session",
+                "toolId": "claude-code",
+                "eventType": "task.completed",
+                "occurredAt": "2026-10-19T10:05:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "重构登录模块"
+                },
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "title": "重构登录模块"
+            },
+            "titles": [
+              {
+                "sessionId": "claude-code:fixture-project:fixture-session",
+                "title": "重构登录模块"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "claude-code-fixture-batch-2",
+      "manifest": {
+        "id": "claude-code",
+        "name": "Claude Code",
+        "detect": {
+          "configPaths": [
+            {
+              "mac": "~/.claude/settings.json",
+              "win": "%USERPROFILE%/.claude/settings.json",
+              "envOverride": [
+                "CLAUDE_CONFIG_DIR"
+              ]
+            }
+          ],
+          "processNames": [
+            "claude"
+          ],
+          "apis": []
+        },
+        "sessionSource": {
+          "type": "jsonl",
+          "pathPattern": "~/.claude/projects/**/*.jsonl"
+        },
+        "eventMapping": {
+          "waiting_human": {
+            "match": "permission_request",
+            "reason": "tool_approval"
+          },
+          "completed": {
+            "match": "result",
+            "ok": true
+          },
+          "failed": {
+            "match": "result",
+            "ok": false
+          }
+        },
+        "heartbeat": {
+          "intervalSec": 30,
+          "probe": "file_mtime"
+        },
+        "mcp": {
+          "clientConfigFormat": "claude-code"
+        },
+        "hookConfig": {
+          "name": "Claude Code",
+          "mode": "turn",
+          "reopenOnStart": true
+        }
+      },
+      "ctx": {
+        "toolId": "claude-code",
+        "project": "fixture-project",
+        "sessionKey": "fixture-session",
+        "sourcePath": "/synthetic/claude-code/fixture.jsonl"
+      },
+      "batches": [
+        {
+          "rows": [
+            {
+              "type": "user",
+              "sessionId": "sess-1",
+              "timestamp": "2026-10-19T10:00:00.000Z",
+              "message": {
+                "role": "user",
+                "content": "重构登录模块"
+              }
+            },
+            {
+              "type": "assistant",
+              "sessionId": "sess-1",
+              "timestamp": "2026-10-19T10:00:30.000Z",
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "开始分析代码结构"
+                  }
+                ]
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "context": {
+              "title": "重构登录模块"
+            },
+            "titles": [
+              {
+                "sessionId": "claude-code:fixture-project:fixture-session",
+                "title": "重构登录模块"
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "type": "permission_request",
+              "sessionId": "sess-1",
+              "timestamp": "2026-10-19T10:01:00.000Z",
+              "toolName": "Bash"
+            },
+            {
+              "type": "result",
+              "sessionId": "sess-1",
+              "timestamp": "2026-10-19T10:05:00.000Z",
+              "is_error": false,
+              "result": "done"
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_f1718e5d5ff3306a390b4afeb9352f79ca1524fbfb5498452c36a91175dd0cbb",
+                "sessionId": "claude-code:fixture-project:fixture-session",
+                "toolId": "claude-code",
+                "eventType": "task.waiting_human",
+                "occurredAt": "2026-10-19T10:01:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "重构登录模块",
+                  "reason": "tool_approval"
+                },
+                "schemaVersion": 1
+              },
+              {
+                "eventId": "evt_0e3ec68721e145d9e994cf66412ee4d3e27c50799fbab7d18081b3476eb848c5",
+                "sessionId": "claude-code:fixture-project:fixture-session",
+                "toolId": "claude-code",
+                "eventType": "task.completed",
+                "occurredAt": "2026-10-19T10:05:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "重构登录模块"
+                },
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "title": "重构登录模块"
+            },
+            "titles": [
+              {
+                "sessionId": "claude-code:fixture-project:fixture-session",
+                "title": "重构登录模块"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "claude-code-fixture-batch-1000",
+      "manifest": {
+        "id": "claude-code",
+        "name": "Claude Code",
+        "detect": {
+          "configPaths": [
+            {
+              "mac": "~/.claude/settings.json",
+              "win": "%USERPROFILE%/.claude/settings.json",
+              "envOverride": [
+                "CLAUDE_CONFIG_DIR"
+              ]
+            }
+          ],
+          "processNames": [
+            "claude"
+          ],
+          "apis": []
+        },
+        "sessionSource": {
+          "type": "jsonl",
+          "pathPattern": "~/.claude/projects/**/*.jsonl"
+        },
+        "eventMapping": {
+          "waiting_human": {
+            "match": "permission_request",
+            "reason": "tool_approval"
+          },
+          "completed": {
+            "match": "result",
+            "ok": true
+          },
+          "failed": {
+            "match": "result",
+            "ok": false
+          }
+        },
+        "heartbeat": {
+          "intervalSec": 30,
+          "probe": "file_mtime"
+        },
+        "mcp": {
+          "clientConfigFormat": "claude-code"
+        },
+        "hookConfig": {
+          "name": "Claude Code",
+          "mode": "turn",
+          "reopenOnStart": true
+        }
+      },
+      "ctx": {
+        "toolId": "claude-code",
+        "project": "fixture-project",
+        "sessionKey": "fixture-session",
+        "sourcePath": "/synthetic/claude-code/fixture.jsonl"
+      },
+      "batches": [
+        {
+          "rows": [
+            {
+              "type": "user",
+              "sessionId": "sess-1",
+              "timestamp": "2026-10-19T10:00:00.000Z",
+              "message": {
+                "role": "user",
+                "content": "重构登录模块"
+              }
+            },
+            {
+              "type": "assistant",
+              "sessionId": "sess-1",
+              "timestamp": "2026-10-19T10:00:30.000Z",
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "开始分析代码结构"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "permission_request",
+              "sessionId": "sess-1",
+              "timestamp": "2026-10-19T10:01:00.000Z",
+              "toolName": "Bash"
+            },
+            {
+              "type": "result",
+              "sessionId": "sess-1",
+              "timestamp": "2026-10-19T10:05:00.000Z",
+              "is_error": false,
+              "result": "done"
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_f1718e5d5ff3306a390b4afeb9352f79ca1524fbfb5498452c36a91175dd0cbb",
+                "sessionId": "claude-code:fixture-project:fixture-session",
+                "toolId": "claude-code",
+                "eventType": "task.waiting_human",
+                "occurredAt": "2026-10-19T10:01:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "重构登录模块",
+                  "reason": "tool_approval"
+                },
+                "schemaVersion": 1
+              },
+              {
+                "eventId": "evt_0e3ec68721e145d9e994cf66412ee4d3e27c50799fbab7d18081b3476eb848c5",
+                "sessionId": "claude-code:fixture-project:fixture-session",
+                "toolId": "claude-code",
+                "eventType": "task.completed",
+                "occurredAt": "2026-10-19T10:05:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "重构登录模块"
+                },
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "title": "重构登录模块"
+            },
+            "titles": [
+              {
+                "sessionId": "claude-code:fixture-project:fixture-session",
+                "title": "重构登录模块"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "codex-fixture-batch-1",
+      "manifest": {
+        "id": "codex",
+        "name": "CodeX CLI",
+        "detect": {
+          "configPaths": [
+            {
+              "mac": "~/.codex",
+              "win": "%USERPROFILE%/.codex",
+              "linux": "~/.codex",
+              "envOverride": [
+                "CODEX_HOME"
+              ]
+            }
+          ],
+          "processNames": [
+            "codex"
+          ],
+          "apis": []
+        },
+        "sessionSource": {
+          "type": "jsonl",
+          "pathPattern": "~/.codex/sessions/**/*.jsonl",
+          "identityMode": "turn"
+        },
+        "eventMapping": {
+          "started": {
+            "match": "task_started"
+          },
+          "completed": {
+            "match": "task_complete",
+            "ok": true
+          },
+          "failed": {
+            "match": "task_complete",
+            "ok": false
+          },
+          "cancelled": {
+            "match": "turn_aborted"
+          }
+        },
+        "heartbeat": {
+          "intervalSec": 30,
+          "probe": "file_mtime"
+        },
+        "mcp": {
+          "clientConfigFormat": "codex"
+        }
+      },
+      "ctx": {
+        "toolId": "codex",
+        "project": "fixture-project",
+        "sessionKey": "fixture-session",
+        "sourcePath": "/synthetic/codex/fixture.jsonl"
+      },
+      "batches": [
+        {
+          "rows": [
+            {
+              "timestamp": "2026-10-20T10:00:00.000Z",
+              "type": "session_meta",
+              "payload": {
+                "id": "sess-demo",
+                "cwd": "/tmp/demo"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "context": {
+              "excluded": false
+            },
+            "titles": []
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-10-20T10:00:01.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_started",
+                "turn_id": "t1"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_8d3997fd219b6de05ef30e195364158f68f5d488aac2f5f5935a8a50f38f741d",
+                "sessionId": "codex:fixture-project:fixture-session:turn:t1",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-10-20T10:00:01.000Z",
+                "actor": "tool",
+                "payload": {},
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "excluded": false,
+              "taskId": "t1",
+              "title": null,
+              "closed": false
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:t1",
+                "title": null
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-10-20T10:00:01.100Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "user_message",
+                "message": "重构演示模块"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "context": {
+              "excluded": false,
+              "taskId": "t1",
+              "title": "重构演示模块",
+              "closed": false
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:t1",
+                "title": "重构演示模块"
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-10-20T10:00:08.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_complete",
+                "turn_id": "t1",
+                "last_agent_message": "已完成演示任务",
+                "error": null
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_638d6d3c494fa00297856b06875c352306a377b4824d9c153789cd6394d5d8bc",
+                "sessionId": "codex:fixture-project:fixture-session:turn:t1",
+                "toolId": "codex",
+                "eventType": "task.completed",
+                "occurredAt": "2026-10-20T10:00:08.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "重构演示模块"
+                },
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "excluded": false,
+              "taskId": "t1",
+              "title": "重构演示模块",
+              "closed": true
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:t1",
+                "title": "重构演示模块"
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-10-20T10:01:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_started",
+                "turn_id": "t2"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_438f3834b20b60ad96017d8bdf4c29c923d0a30afbda80961352d73f034ef38d",
+                "sessionId": "codex:fixture-project:fixture-session:turn:t2",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-10-20T10:01:00.000Z",
+                "actor": "tool",
+                "payload": {},
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "excluded": false,
+              "taskId": "t2",
+              "title": null,
+              "closed": false
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:t2",
+                "title": null
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-10-20T10:01:00.100Z",
+              "type": "response_item",
+              "payload": {
+                "type": "message",
+                "role": "user",
+                "content": [
+                  {
+                    "type": "input_text",
+                    "text": "补充失败处理"
+                  }
+                ]
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "context": {
+              "excluded": false,
+              "taskId": "t2",
+              "title": "补充失败处理",
+              "closed": false
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:t2",
+                "title": "补充失败处理"
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-10-20T10:01:03.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_complete",
+                "turn_id": "t2",
+                "last_agent_message": null,
+                "error": "command failed"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_069585a5aa683000d01294d8aba79b2f6685e29da0bba0fc32ef152ecf736e1d",
+                "sessionId": "codex:fixture-project:fixture-session:turn:t2",
+                "toolId": "codex",
+                "eventType": "task.failed",
+                "occurredAt": "2026-10-20T10:01:03.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "补充失败处理"
+                },
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "excluded": false,
+              "taskId": "t2",
+              "title": "补充失败处理",
+              "closed": true
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:t2",
+                "title": "补充失败处理"
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-10-20T10:02:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_aborted",
+                "turn_id": "t3",
+                "reason": "user interrupt"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_570216050ad810a2ee4ea8349de5e3fe47581f805f6d573c3b8ab384b8c978a8",
+                "sessionId": "codex:fixture-project:fixture-session:turn:t3",
+                "toolId": "codex",
+                "eventType": "task.cancelled",
+                "occurredAt": "2026-10-20T10:02:00.000Z",
+                "actor": "tool",
+                "payload": {},
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "excluded": false,
+              "taskId": "t2",
+              "title": "补充失败处理",
+              "closed": true
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:t3",
+                "title": null
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "codex-fixture-batch-2",
+      "manifest": {
+        "id": "codex",
+        "name": "CodeX CLI",
+        "detect": {
+          "configPaths": [
+            {
+              "mac": "~/.codex",
+              "win": "%USERPROFILE%/.codex",
+              "linux": "~/.codex",
+              "envOverride": [
+                "CODEX_HOME"
+              ]
+            }
+          ],
+          "processNames": [
+            "codex"
+          ],
+          "apis": []
+        },
+        "sessionSource": {
+          "type": "jsonl",
+          "pathPattern": "~/.codex/sessions/**/*.jsonl",
+          "identityMode": "turn"
+        },
+        "eventMapping": {
+          "started": {
+            "match": "task_started"
+          },
+          "completed": {
+            "match": "task_complete",
+            "ok": true
+          },
+          "failed": {
+            "match": "task_complete",
+            "ok": false
+          },
+          "cancelled": {
+            "match": "turn_aborted"
+          }
+        },
+        "heartbeat": {
+          "intervalSec": 30,
+          "probe": "file_mtime"
+        },
+        "mcp": {
+          "clientConfigFormat": "codex"
+        }
+      },
+      "ctx": {
+        "toolId": "codex",
+        "project": "fixture-project",
+        "sessionKey": "fixture-session",
+        "sourcePath": "/synthetic/codex/fixture.jsonl"
+      },
+      "batches": [
+        {
+          "rows": [
+            {
+              "timestamp": "2026-10-20T10:00:00.000Z",
+              "type": "session_meta",
+              "payload": {
+                "id": "sess-demo",
+                "cwd": "/tmp/demo"
+              }
+            },
+            {
+              "timestamp": "2026-10-20T10:00:01.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_started",
+                "turn_id": "t1"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_8d3997fd219b6de05ef30e195364158f68f5d488aac2f5f5935a8a50f38f741d",
+                "sessionId": "codex:fixture-project:fixture-session:turn:t1",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-10-20T10:00:01.000Z",
+                "actor": "tool",
+                "payload": {},
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "excluded": false,
+              "taskId": "t1",
+              "title": null,
+              "closed": false
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:t1",
+                "title": null
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-10-20T10:00:01.100Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "user_message",
+                "message": "重构演示模块"
+              }
+            },
+            {
+              "timestamp": "2026-10-20T10:00:08.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_complete",
+                "turn_id": "t1",
+                "last_agent_message": "已完成演示任务",
+                "error": null
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_638d6d3c494fa00297856b06875c352306a377b4824d9c153789cd6394d5d8bc",
+                "sessionId": "codex:fixture-project:fixture-session:turn:t1",
+                "toolId": "codex",
+                "eventType": "task.completed",
+                "occurredAt": "2026-10-20T10:00:08.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "重构演示模块"
+                },
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "excluded": false,
+              "taskId": "t1",
+              "title": "重构演示模块",
+              "closed": true
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:t1",
+                "title": "重构演示模块"
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-10-20T10:01:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_started",
+                "turn_id": "t2"
+              }
+            },
+            {
+              "timestamp": "2026-10-20T10:01:00.100Z",
+              "type": "response_item",
+              "payload": {
+                "type": "message",
+                "role": "user",
+                "content": [
+                  {
+                    "type": "input_text",
+                    "text": "补充失败处理"
+                  }
+                ]
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_438f3834b20b60ad96017d8bdf4c29c923d0a30afbda80961352d73f034ef38d",
+                "sessionId": "codex:fixture-project:fixture-session:turn:t2",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-10-20T10:01:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "补充失败处理"
+                },
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "excluded": false,
+              "taskId": "t2",
+              "title": "补充失败处理",
+              "closed": false
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:t2",
+                "title": "补充失败处理"
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-10-20T10:01:03.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_complete",
+                "turn_id": "t2",
+                "last_agent_message": null,
+                "error": "command failed"
+              }
+            },
+            {
+              "timestamp": "2026-10-20T10:02:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_aborted",
+                "turn_id": "t3",
+                "reason": "user interrupt"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_069585a5aa683000d01294d8aba79b2f6685e29da0bba0fc32ef152ecf736e1d",
+                "sessionId": "codex:fixture-project:fixture-session:turn:t2",
+                "toolId": "codex",
+                "eventType": "task.failed",
+                "occurredAt": "2026-10-20T10:01:03.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "补充失败处理"
+                },
+                "schemaVersion": 1
+              },
+              {
+                "eventId": "evt_570216050ad810a2ee4ea8349de5e3fe47581f805f6d573c3b8ab384b8c978a8",
+                "sessionId": "codex:fixture-project:fixture-session:turn:t3",
+                "toolId": "codex",
+                "eventType": "task.cancelled",
+                "occurredAt": "2026-10-20T10:02:00.000Z",
+                "actor": "tool",
+                "payload": {},
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "excluded": false,
+              "taskId": "t2",
+              "title": "补充失败处理",
+              "closed": true
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:t2",
+                "title": "补充失败处理"
+              },
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:t3",
+                "title": null
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "codex-fixture-batch-1000",
+      "manifest": {
+        "id": "codex",
+        "name": "CodeX CLI",
+        "detect": {
+          "configPaths": [
+            {
+              "mac": "~/.codex",
+              "win": "%USERPROFILE%/.codex",
+              "linux": "~/.codex",
+              "envOverride": [
+                "CODEX_HOME"
+              ]
+            }
+          ],
+          "processNames": [
+            "codex"
+          ],
+          "apis": []
+        },
+        "sessionSource": {
+          "type": "jsonl",
+          "pathPattern": "~/.codex/sessions/**/*.jsonl",
+          "identityMode": "turn"
+        },
+        "eventMapping": {
+          "started": {
+            "match": "task_started"
+          },
+          "completed": {
+            "match": "task_complete",
+            "ok": true
+          },
+          "failed": {
+            "match": "task_complete",
+            "ok": false
+          },
+          "cancelled": {
+            "match": "turn_aborted"
+          }
+        },
+        "heartbeat": {
+          "intervalSec": 30,
+          "probe": "file_mtime"
+        },
+        "mcp": {
+          "clientConfigFormat": "codex"
+        }
+      },
+      "ctx": {
+        "toolId": "codex",
+        "project": "fixture-project",
+        "sessionKey": "fixture-session",
+        "sourcePath": "/synthetic/codex/fixture.jsonl"
+      },
+      "batches": [
+        {
+          "rows": [
+            {
+              "timestamp": "2026-10-20T10:00:00.000Z",
+              "type": "session_meta",
+              "payload": {
+                "id": "sess-demo",
+                "cwd": "/tmp/demo"
+              }
+            },
+            {
+              "timestamp": "2026-10-20T10:00:01.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_started",
+                "turn_id": "t1"
+              }
+            },
+            {
+              "timestamp": "2026-10-20T10:00:01.100Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "user_message",
+                "message": "重构演示模块"
+              }
+            },
+            {
+              "timestamp": "2026-10-20T10:00:08.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_complete",
+                "turn_id": "t1",
+                "last_agent_message": "已完成演示任务",
+                "error": null
+              }
+            },
+            {
+              "timestamp": "2026-10-20T10:01:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_started",
+                "turn_id": "t2"
+              }
+            },
+            {
+              "timestamp": "2026-10-20T10:01:00.100Z",
+              "type": "response_item",
+              "payload": {
+                "type": "message",
+                "role": "user",
+                "content": [
+                  {
+                    "type": "input_text",
+                    "text": "补充失败处理"
+                  }
+                ]
+              }
+            },
+            {
+              "timestamp": "2026-10-20T10:01:03.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_complete",
+                "turn_id": "t2",
+                "last_agent_message": null,
+                "error": "command failed"
+              }
+            },
+            {
+              "timestamp": "2026-10-20T10:02:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_aborted",
+                "turn_id": "t3",
+                "reason": "user interrupt"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_8d3997fd219b6de05ef30e195364158f68f5d488aac2f5f5935a8a50f38f741d",
+                "sessionId": "codex:fixture-project:fixture-session:turn:t1",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-10-20T10:00:01.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "重构演示模块"
+                },
+                "schemaVersion": 1
+              },
+              {
+                "eventId": "evt_638d6d3c494fa00297856b06875c352306a377b4824d9c153789cd6394d5d8bc",
+                "sessionId": "codex:fixture-project:fixture-session:turn:t1",
+                "toolId": "codex",
+                "eventType": "task.completed",
+                "occurredAt": "2026-10-20T10:00:08.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "重构演示模块"
+                },
+                "schemaVersion": 1
+              },
+              {
+                "eventId": "evt_438f3834b20b60ad96017d8bdf4c29c923d0a30afbda80961352d73f034ef38d",
+                "sessionId": "codex:fixture-project:fixture-session:turn:t2",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-10-20T10:01:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "补充失败处理"
+                },
+                "schemaVersion": 1
+              },
+              {
+                "eventId": "evt_069585a5aa683000d01294d8aba79b2f6685e29da0bba0fc32ef152ecf736e1d",
+                "sessionId": "codex:fixture-project:fixture-session:turn:t2",
+                "toolId": "codex",
+                "eventType": "task.failed",
+                "occurredAt": "2026-10-20T10:01:03.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "补充失败处理"
+                },
+                "schemaVersion": 1
+              },
+              {
+                "eventId": "evt_570216050ad810a2ee4ea8349de5e3fe47581f805f6d573c3b8ab384b8c978a8",
+                "sessionId": "codex:fixture-project:fixture-session:turn:t3",
+                "toolId": "codex",
+                "eventType": "task.cancelled",
+                "occurredAt": "2026-10-20T10:02:00.000Z",
+                "actor": "tool",
+                "payload": {},
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "excluded": false,
+              "taskId": "t2",
+              "title": "补充失败处理",
+              "closed": true
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:t1",
+                "title": "重构演示模块"
+              },
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:t2",
+                "title": "补充失败处理"
+              },
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:t3",
+                "title": null
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "turns-batch-1",
+      "manifest": {
+        "id": "codex",
+        "name": "CodeX CLI",
+        "detect": {
+          "configPaths": [
+            {
+              "mac": "~/.codex",
+              "win": "%USERPROFILE%/.codex",
+              "linux": "~/.codex",
+              "envOverride": [
+                "CODEX_HOME"
+              ]
+            }
+          ],
+          "processNames": [
+            "codex"
+          ],
+          "apis": []
+        },
+        "sessionSource": {
+          "type": "jsonl",
+          "pathPattern": "~/.codex/sessions/**/*.jsonl",
+          "identityMode": "turn"
+        },
+        "eventMapping": {
+          "started": {
+            "match": "task_started"
+          },
+          "completed": {
+            "match": "task_complete",
+            "ok": true
+          },
+          "failed": {
+            "match": "task_complete",
+            "ok": false
+          },
+          "cancelled": {
+            "match": "turn_aborted"
+          }
+        },
+        "heartbeat": {
+          "intervalSec": 30,
+          "probe": "file_mtime"
+        },
+        "mcp": {
+          "clientConfigFormat": "codex"
+        }
+      },
+      "ctx": {
+        "toolId": "codex",
+        "project": "fixture-project",
+        "sessionKey": "fixture-session",
+        "sourcePath": "/synthetic/codex/fixture.jsonl"
+      },
+      "batches": [
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_started",
+                "turn_id": "one"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_48284b771302ec6c34b4276b6aa2cb12af5e16afe99bbcf0bd6e4c7867956aa6",
+                "sessionId": "codex:fixture-project:fixture-session:turn:one",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {},
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "taskId": "one",
+              "title": null,
+              "closed": false
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:one",
+                "title": null
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "type": "event_msg",
+              "payload": {
+                "type": "user_message",
+                "message": "改造 @minmetals-ui/packages/biz-components 的 org-user-group-picker 组件"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "context": {
+              "taskId": "one",
+              "title": "改造 @minmetals-ui/packages/biz-components",
+              "closed": false,
+              "speechTitle": "改造 biz-components 的 org-user-group-picker 组件"
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:one",
+                "title": "改造 @minmetals-ui/packages/biz-components"
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_complete",
+                "turn_id": "one"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_a0a4bec9c68792576a1893f5cc43571a8bc8ecf8c38e9c72a6067d3d3f5d598e",
+                "sessionId": "codex:fixture-project:fixture-session:turn:one",
+                "toolId": "codex",
+                "eventType": "task.completed",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "改造 @minmetals-ui/packages/biz-components",
+                  "taskSpeechTitle": "改造 biz-components 的 org-user-group-picker 组件"
+                },
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "taskId": "one",
+              "title": "改造 @minmetals-ui/packages/biz-components",
+              "closed": true,
+              "speechTitle": "改造 biz-components 的 org-user-group-picker 组件"
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:one",
+                "title": "改造 @minmetals-ui/packages/biz-components"
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "type": "event_msg",
+              "payload": {
+                "type": "user_message",
+                "message": "第二轮真实用户请求"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "context": {
+              "taskId": "one",
+              "title": "改造 @minmetals-ui/packages/biz-components",
+              "closed": true,
+              "speechTitle": "改造 biz-components 的 org-user-group-picker 组件",
+              "pendingTitle": "第二轮真实用户请求"
+            },
+            "titles": []
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_started",
+                "turn_id": "two"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_472ac76bd10e251a2ededd03fc3ae7bb3d2146217134a07345d9179b16b0d119",
+                "sessionId": "codex:fixture-project:fixture-session:turn:two",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "第二轮真实用户请求"
+                },
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "taskId": "two",
+              "title": "第二轮真实用户请求",
+              "closed": false
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:two",
+                "title": "第二轮真实用户请求"
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_complete",
+                "turn_id": "two",
+                "error": "failure"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_f57f91fc94b0e9664bad6e48d3e312294c14f0b1207894c7a0d67b94a3cfb07f",
+                "sessionId": "codex:fixture-project:fixture-session:turn:two",
+                "toolId": "codex",
+                "eventType": "task.failed",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "第二轮真实用户请求"
+                },
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "taskId": "two",
+              "title": "第二轮真实用户请求",
+              "closed": true
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:two",
+                "title": "第二轮真实用户请求"
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_started",
+                "turn_id": "three"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_6840f48f2cb7115c57f9952c36fca79b60d9ace8455b727e0e40a2010cc37fe5",
+                "sessionId": "codex:fixture-project:fixture-session:turn:three",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {},
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "taskId": "three",
+              "title": null,
+              "closed": false
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:three",
+                "title": null
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_aborted",
+                "turn_id": "three"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_fa59ae877cf29e54fe27e71fa8614529918278df140076daf78386e083845f99",
+                "sessionId": "codex:fixture-project:fixture-session:turn:three",
+                "toolId": "codex",
+                "eventType": "task.cancelled",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {},
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "taskId": "three",
+              "title": null,
+              "closed": true
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:three",
+                "title": null
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "turns-batch-2",
+      "manifest": {
+        "id": "codex",
+        "name": "CodeX CLI",
+        "detect": {
+          "configPaths": [
+            {
+              "mac": "~/.codex",
+              "win": "%USERPROFILE%/.codex",
+              "linux": "~/.codex",
+              "envOverride": [
+                "CODEX_HOME"
+              ]
+            }
+          ],
+          "processNames": [
+            "codex"
+          ],
+          "apis": []
+        },
+        "sessionSource": {
+          "type": "jsonl",
+          "pathPattern": "~/.codex/sessions/**/*.jsonl",
+          "identityMode": "turn"
+        },
+        "eventMapping": {
+          "started": {
+            "match": "task_started"
+          },
+          "completed": {
+            "match": "task_complete",
+            "ok": true
+          },
+          "failed": {
+            "match": "task_complete",
+            "ok": false
+          },
+          "cancelled": {
+            "match": "turn_aborted"
+          }
+        },
+        "heartbeat": {
+          "intervalSec": 30,
+          "probe": "file_mtime"
+        },
+        "mcp": {
+          "clientConfigFormat": "codex"
+        }
+      },
+      "ctx": {
+        "toolId": "codex",
+        "project": "fixture-project",
+        "sessionKey": "fixture-session",
+        "sourcePath": "/synthetic/codex/fixture.jsonl"
+      },
+      "batches": [
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_started",
+                "turn_id": "one"
+              }
+            },
+            {
+              "type": "event_msg",
+              "payload": {
+                "type": "user_message",
+                "message": "改造 @minmetals-ui/packages/biz-components 的 org-user-group-picker 组件"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_48284b771302ec6c34b4276b6aa2cb12af5e16afe99bbcf0bd6e4c7867956aa6",
+                "sessionId": "codex:fixture-project:fixture-session:turn:one",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "改造 @minmetals-ui/packages/biz-components",
+                  "taskSpeechTitle": "改造 biz-components 的 org-user-group-picker 组件"
+                },
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "taskId": "one",
+              "title": "改造 @minmetals-ui/packages/biz-components",
+              "closed": false,
+              "speechTitle": "改造 biz-components 的 org-user-group-picker 组件"
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:one",
+                "title": "改造 @minmetals-ui/packages/biz-components"
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_complete",
+                "turn_id": "one"
+              }
+            },
+            {
+              "type": "event_msg",
+              "payload": {
+                "type": "user_message",
+                "message": "第二轮真实用户请求"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_a0a4bec9c68792576a1893f5cc43571a8bc8ecf8c38e9c72a6067d3d3f5d598e",
+                "sessionId": "codex:fixture-project:fixture-session:turn:one",
+                "toolId": "codex",
+                "eventType": "task.completed",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "改造 @minmetals-ui/packages/biz-components",
+                  "taskSpeechTitle": "改造 biz-components 的 org-user-group-picker 组件"
+                },
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "taskId": "one",
+              "title": "改造 @minmetals-ui/packages/biz-components",
+              "closed": true,
+              "speechTitle": "改造 biz-components 的 org-user-group-picker 组件",
+              "pendingTitle": "第二轮真实用户请求"
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:one",
+                "title": "改造 @minmetals-ui/packages/biz-components"
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_started",
+                "turn_id": "two"
+              }
+            },
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_complete",
+                "turn_id": "two",
+                "error": "failure"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_472ac76bd10e251a2ededd03fc3ae7bb3d2146217134a07345d9179b16b0d119",
+                "sessionId": "codex:fixture-project:fixture-session:turn:two",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "第二轮真实用户请求"
+                },
+                "schemaVersion": 1
+              },
+              {
+                "eventId": "evt_f57f91fc94b0e9664bad6e48d3e312294c14f0b1207894c7a0d67b94a3cfb07f",
+                "sessionId": "codex:fixture-project:fixture-session:turn:two",
+                "toolId": "codex",
+                "eventType": "task.failed",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "第二轮真实用户请求"
+                },
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "taskId": "two",
+              "title": "第二轮真实用户请求",
+              "closed": true
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:two",
+                "title": "第二轮真实用户请求"
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_started",
+                "turn_id": "three"
+              }
+            },
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_aborted",
+                "turn_id": "three"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_6840f48f2cb7115c57f9952c36fca79b60d9ace8455b727e0e40a2010cc37fe5",
+                "sessionId": "codex:fixture-project:fixture-session:turn:three",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {},
+                "schemaVersion": 1
+              },
+              {
+                "eventId": "evt_fa59ae877cf29e54fe27e71fa8614529918278df140076daf78386e083845f99",
+                "sessionId": "codex:fixture-project:fixture-session:turn:three",
+                "toolId": "codex",
+                "eventType": "task.cancelled",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {},
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "taskId": "three",
+              "title": null,
+              "closed": true
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:three",
+                "title": null
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "turns-batch-3",
+      "manifest": {
+        "id": "codex",
+        "name": "CodeX CLI",
+        "detect": {
+          "configPaths": [
+            {
+              "mac": "~/.codex",
+              "win": "%USERPROFILE%/.codex",
+              "linux": "~/.codex",
+              "envOverride": [
+                "CODEX_HOME"
+              ]
+            }
+          ],
+          "processNames": [
+            "codex"
+          ],
+          "apis": []
+        },
+        "sessionSource": {
+          "type": "jsonl",
+          "pathPattern": "~/.codex/sessions/**/*.jsonl",
+          "identityMode": "turn"
+        },
+        "eventMapping": {
+          "started": {
+            "match": "task_started"
+          },
+          "completed": {
+            "match": "task_complete",
+            "ok": true
+          },
+          "failed": {
+            "match": "task_complete",
+            "ok": false
+          },
+          "cancelled": {
+            "match": "turn_aborted"
+          }
+        },
+        "heartbeat": {
+          "intervalSec": 30,
+          "probe": "file_mtime"
+        },
+        "mcp": {
+          "clientConfigFormat": "codex"
+        }
+      },
+      "ctx": {
+        "toolId": "codex",
+        "project": "fixture-project",
+        "sessionKey": "fixture-session",
+        "sourcePath": "/synthetic/codex/fixture.jsonl"
+      },
+      "batches": [
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_started",
+                "turn_id": "one"
+              }
+            },
+            {
+              "type": "event_msg",
+              "payload": {
+                "type": "user_message",
+                "message": "改造 @minmetals-ui/packages/biz-components 的 org-user-group-picker 组件"
+              }
+            },
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_complete",
+                "turn_id": "one"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_48284b771302ec6c34b4276b6aa2cb12af5e16afe99bbcf0bd6e4c7867956aa6",
+                "sessionId": "codex:fixture-project:fixture-session:turn:one",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "改造 @minmetals-ui/packages/biz-components",
+                  "taskSpeechTitle": "改造 biz-components 的 org-user-group-picker 组件"
+                },
+                "schemaVersion": 1
+              },
+              {
+                "eventId": "evt_a0a4bec9c68792576a1893f5cc43571a8bc8ecf8c38e9c72a6067d3d3f5d598e",
+                "sessionId": "codex:fixture-project:fixture-session:turn:one",
+                "toolId": "codex",
+                "eventType": "task.completed",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "改造 @minmetals-ui/packages/biz-components",
+                  "taskSpeechTitle": "改造 biz-components 的 org-user-group-picker 组件"
+                },
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "taskId": "one",
+              "title": "改造 @minmetals-ui/packages/biz-components",
+              "closed": true,
+              "speechTitle": "改造 biz-components 的 org-user-group-picker 组件"
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:one",
+                "title": "改造 @minmetals-ui/packages/biz-components"
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "type": "event_msg",
+              "payload": {
+                "type": "user_message",
+                "message": "第二轮真实用户请求"
+              }
+            },
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_started",
+                "turn_id": "two"
+              }
+            },
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_complete",
+                "turn_id": "two",
+                "error": "failure"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_472ac76bd10e251a2ededd03fc3ae7bb3d2146217134a07345d9179b16b0d119",
+                "sessionId": "codex:fixture-project:fixture-session:turn:two",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "第二轮真实用户请求"
+                },
+                "schemaVersion": 1
+              },
+              {
+                "eventId": "evt_f57f91fc94b0e9664bad6e48d3e312294c14f0b1207894c7a0d67b94a3cfb07f",
+                "sessionId": "codex:fixture-project:fixture-session:turn:two",
+                "toolId": "codex",
+                "eventType": "task.failed",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "第二轮真实用户请求"
+                },
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "taskId": "two",
+              "title": "第二轮真实用户请求",
+              "closed": true
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:two",
+                "title": "第二轮真实用户请求"
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_started",
+                "turn_id": "three"
+              }
+            },
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_aborted",
+                "turn_id": "three"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_6840f48f2cb7115c57f9952c36fca79b60d9ace8455b727e0e40a2010cc37fe5",
+                "sessionId": "codex:fixture-project:fixture-session:turn:three",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {},
+                "schemaVersion": 1
+              },
+              {
+                "eventId": "evt_fa59ae877cf29e54fe27e71fa8614529918278df140076daf78386e083845f99",
+                "sessionId": "codex:fixture-project:fixture-session:turn:three",
+                "toolId": "codex",
+                "eventType": "task.cancelled",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {},
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "taskId": "three",
+              "title": null,
+              "closed": true
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:three",
+                "title": null
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "turns-batch-4",
+      "manifest": {
+        "id": "codex",
+        "name": "CodeX CLI",
+        "detect": {
+          "configPaths": [
+            {
+              "mac": "~/.codex",
+              "win": "%USERPROFILE%/.codex",
+              "linux": "~/.codex",
+              "envOverride": [
+                "CODEX_HOME"
+              ]
+            }
+          ],
+          "processNames": [
+            "codex"
+          ],
+          "apis": []
+        },
+        "sessionSource": {
+          "type": "jsonl",
+          "pathPattern": "~/.codex/sessions/**/*.jsonl",
+          "identityMode": "turn"
+        },
+        "eventMapping": {
+          "started": {
+            "match": "task_started"
+          },
+          "completed": {
+            "match": "task_complete",
+            "ok": true
+          },
+          "failed": {
+            "match": "task_complete",
+            "ok": false
+          },
+          "cancelled": {
+            "match": "turn_aborted"
+          }
+        },
+        "heartbeat": {
+          "intervalSec": 30,
+          "probe": "file_mtime"
+        },
+        "mcp": {
+          "clientConfigFormat": "codex"
+        }
+      },
+      "ctx": {
+        "toolId": "codex",
+        "project": "fixture-project",
+        "sessionKey": "fixture-session",
+        "sourcePath": "/synthetic/codex/fixture.jsonl"
+      },
+      "batches": [
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_started",
+                "turn_id": "one"
+              }
+            },
+            {
+              "type": "event_msg",
+              "payload": {
+                "type": "user_message",
+                "message": "改造 @minmetals-ui/packages/biz-components 的 org-user-group-picker 组件"
+              }
+            },
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_complete",
+                "turn_id": "one"
+              }
+            },
+            {
+              "type": "event_msg",
+              "payload": {
+                "type": "user_message",
+                "message": "第二轮真实用户请求"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_48284b771302ec6c34b4276b6aa2cb12af5e16afe99bbcf0bd6e4c7867956aa6",
+                "sessionId": "codex:fixture-project:fixture-session:turn:one",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "改造 @minmetals-ui/packages/biz-components",
+                  "taskSpeechTitle": "改造 biz-components 的 org-user-group-picker 组件"
+                },
+                "schemaVersion": 1
+              },
+              {
+                "eventId": "evt_a0a4bec9c68792576a1893f5cc43571a8bc8ecf8c38e9c72a6067d3d3f5d598e",
+                "sessionId": "codex:fixture-project:fixture-session:turn:one",
+                "toolId": "codex",
+                "eventType": "task.completed",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "改造 @minmetals-ui/packages/biz-components",
+                  "taskSpeechTitle": "改造 biz-components 的 org-user-group-picker 组件"
+                },
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "taskId": "one",
+              "title": "改造 @minmetals-ui/packages/biz-components",
+              "closed": true,
+              "speechTitle": "改造 biz-components 的 org-user-group-picker 组件",
+              "pendingTitle": "第二轮真实用户请求"
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:one",
+                "title": "改造 @minmetals-ui/packages/biz-components"
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_started",
+                "turn_id": "two"
+              }
+            },
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_complete",
+                "turn_id": "two",
+                "error": "failure"
+              }
+            },
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_started",
+                "turn_id": "three"
+              }
+            },
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_aborted",
+                "turn_id": "three"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_472ac76bd10e251a2ededd03fc3ae7bb3d2146217134a07345d9179b16b0d119",
+                "sessionId": "codex:fixture-project:fixture-session:turn:two",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "第二轮真实用户请求"
+                },
+                "schemaVersion": 1
+              },
+              {
+                "eventId": "evt_f57f91fc94b0e9664bad6e48d3e312294c14f0b1207894c7a0d67b94a3cfb07f",
+                "sessionId": "codex:fixture-project:fixture-session:turn:two",
+                "toolId": "codex",
+                "eventType": "task.failed",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "第二轮真实用户请求"
+                },
+                "schemaVersion": 1
+              },
+              {
+                "eventId": "evt_6840f48f2cb7115c57f9952c36fca79b60d9ace8455b727e0e40a2010cc37fe5",
+                "sessionId": "codex:fixture-project:fixture-session:turn:three",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {},
+                "schemaVersion": 1
+              },
+              {
+                "eventId": "evt_fa59ae877cf29e54fe27e71fa8614529918278df140076daf78386e083845f99",
+                "sessionId": "codex:fixture-project:fixture-session:turn:three",
+                "toolId": "codex",
+                "eventType": "task.cancelled",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {},
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "taskId": "three",
+              "title": null,
+              "closed": true
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:two",
+                "title": "第二轮真实用户请求"
+              },
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:three",
+                "title": null
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "turns-batch-5",
+      "manifest": {
+        "id": "codex",
+        "name": "CodeX CLI",
+        "detect": {
+          "configPaths": [
+            {
+              "mac": "~/.codex",
+              "win": "%USERPROFILE%/.codex",
+              "linux": "~/.codex",
+              "envOverride": [
+                "CODEX_HOME"
+              ]
+            }
+          ],
+          "processNames": [
+            "codex"
+          ],
+          "apis": []
+        },
+        "sessionSource": {
+          "type": "jsonl",
+          "pathPattern": "~/.codex/sessions/**/*.jsonl",
+          "identityMode": "turn"
+        },
+        "eventMapping": {
+          "started": {
+            "match": "task_started"
+          },
+          "completed": {
+            "match": "task_complete",
+            "ok": true
+          },
+          "failed": {
+            "match": "task_complete",
+            "ok": false
+          },
+          "cancelled": {
+            "match": "turn_aborted"
+          }
+        },
+        "heartbeat": {
+          "intervalSec": 30,
+          "probe": "file_mtime"
+        },
+        "mcp": {
+          "clientConfigFormat": "codex"
+        }
+      },
+      "ctx": {
+        "toolId": "codex",
+        "project": "fixture-project",
+        "sessionKey": "fixture-session",
+        "sourcePath": "/synthetic/codex/fixture.jsonl"
+      },
+      "batches": [
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_started",
+                "turn_id": "one"
+              }
+            },
+            {
+              "type": "event_msg",
+              "payload": {
+                "type": "user_message",
+                "message": "改造 @minmetals-ui/packages/biz-components 的 org-user-group-picker 组件"
+              }
+            },
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_complete",
+                "turn_id": "one"
+              }
+            },
+            {
+              "type": "event_msg",
+              "payload": {
+                "type": "user_message",
+                "message": "第二轮真实用户请求"
+              }
+            },
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_started",
+                "turn_id": "two"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_48284b771302ec6c34b4276b6aa2cb12af5e16afe99bbcf0bd6e4c7867956aa6",
+                "sessionId": "codex:fixture-project:fixture-session:turn:one",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "改造 @minmetals-ui/packages/biz-components",
+                  "taskSpeechTitle": "改造 biz-components 的 org-user-group-picker 组件"
+                },
+                "schemaVersion": 1
+              },
+              {
+                "eventId": "evt_a0a4bec9c68792576a1893f5cc43571a8bc8ecf8c38e9c72a6067d3d3f5d598e",
+                "sessionId": "codex:fixture-project:fixture-session:turn:one",
+                "toolId": "codex",
+                "eventType": "task.completed",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "改造 @minmetals-ui/packages/biz-components",
+                  "taskSpeechTitle": "改造 biz-components 的 org-user-group-picker 组件"
+                },
+                "schemaVersion": 1
+              },
+              {
+                "eventId": "evt_472ac76bd10e251a2ededd03fc3ae7bb3d2146217134a07345d9179b16b0d119",
+                "sessionId": "codex:fixture-project:fixture-session:turn:two",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "第二轮真实用户请求"
+                },
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "taskId": "two",
+              "title": "第二轮真实用户请求",
+              "closed": false
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:one",
+                "title": "改造 @minmetals-ui/packages/biz-components"
+              },
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:two",
+                "title": "第二轮真实用户请求"
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_complete",
+                "turn_id": "two",
+                "error": "failure"
+              }
+            },
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_started",
+                "turn_id": "three"
+              }
+            },
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_aborted",
+                "turn_id": "three"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_f57f91fc94b0e9664bad6e48d3e312294c14f0b1207894c7a0d67b94a3cfb07f",
+                "sessionId": "codex:fixture-project:fixture-session:turn:two",
+                "toolId": "codex",
+                "eventType": "task.failed",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "第二轮真实用户请求"
+                },
+                "schemaVersion": 1
+              },
+              {
+                "eventId": "evt_6840f48f2cb7115c57f9952c36fca79b60d9ace8455b727e0e40a2010cc37fe5",
+                "sessionId": "codex:fixture-project:fixture-session:turn:three",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {},
+                "schemaVersion": 1
+              },
+              {
+                "eventId": "evt_fa59ae877cf29e54fe27e71fa8614529918278df140076daf78386e083845f99",
+                "sessionId": "codex:fixture-project:fixture-session:turn:three",
+                "toolId": "codex",
+                "eventType": "task.cancelled",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {},
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "taskId": "three",
+              "title": null,
+              "closed": true
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:two",
+                "title": "第二轮真实用户请求"
+              },
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:three",
+                "title": null
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "turns-batch-6",
+      "manifest": {
+        "id": "codex",
+        "name": "CodeX CLI",
+        "detect": {
+          "configPaths": [
+            {
+              "mac": "~/.codex",
+              "win": "%USERPROFILE%/.codex",
+              "linux": "~/.codex",
+              "envOverride": [
+                "CODEX_HOME"
+              ]
+            }
+          ],
+          "processNames": [
+            "codex"
+          ],
+          "apis": []
+        },
+        "sessionSource": {
+          "type": "jsonl",
+          "pathPattern": "~/.codex/sessions/**/*.jsonl",
+          "identityMode": "turn"
+        },
+        "eventMapping": {
+          "started": {
+            "match": "task_started"
+          },
+          "completed": {
+            "match": "task_complete",
+            "ok": true
+          },
+          "failed": {
+            "match": "task_complete",
+            "ok": false
+          },
+          "cancelled": {
+            "match": "turn_aborted"
+          }
+        },
+        "heartbeat": {
+          "intervalSec": 30,
+          "probe": "file_mtime"
+        },
+        "mcp": {
+          "clientConfigFormat": "codex"
+        }
+      },
+      "ctx": {
+        "toolId": "codex",
+        "project": "fixture-project",
+        "sessionKey": "fixture-session",
+        "sourcePath": "/synthetic/codex/fixture.jsonl"
+      },
+      "batches": [
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_started",
+                "turn_id": "one"
+              }
+            },
+            {
+              "type": "event_msg",
+              "payload": {
+                "type": "user_message",
+                "message": "改造 @minmetals-ui/packages/biz-components 的 org-user-group-picker 组件"
+              }
+            },
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_complete",
+                "turn_id": "one"
+              }
+            },
+            {
+              "type": "event_msg",
+              "payload": {
+                "type": "user_message",
+                "message": "第二轮真实用户请求"
+              }
+            },
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_started",
+                "turn_id": "two"
+              }
+            },
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_complete",
+                "turn_id": "two",
+                "error": "failure"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_48284b771302ec6c34b4276b6aa2cb12af5e16afe99bbcf0bd6e4c7867956aa6",
+                "sessionId": "codex:fixture-project:fixture-session:turn:one",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "改造 @minmetals-ui/packages/biz-components",
+                  "taskSpeechTitle": "改造 biz-components 的 org-user-group-picker 组件"
+                },
+                "schemaVersion": 1
+              },
+              {
+                "eventId": "evt_a0a4bec9c68792576a1893f5cc43571a8bc8ecf8c38e9c72a6067d3d3f5d598e",
+                "sessionId": "codex:fixture-project:fixture-session:turn:one",
+                "toolId": "codex",
+                "eventType": "task.completed",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "改造 @minmetals-ui/packages/biz-components",
+                  "taskSpeechTitle": "改造 biz-components 的 org-user-group-picker 组件"
+                },
+                "schemaVersion": 1
+              },
+              {
+                "eventId": "evt_472ac76bd10e251a2ededd03fc3ae7bb3d2146217134a07345d9179b16b0d119",
+                "sessionId": "codex:fixture-project:fixture-session:turn:two",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "第二轮真实用户请求"
+                },
+                "schemaVersion": 1
+              },
+              {
+                "eventId": "evt_f57f91fc94b0e9664bad6e48d3e312294c14f0b1207894c7a0d67b94a3cfb07f",
+                "sessionId": "codex:fixture-project:fixture-session:turn:two",
+                "toolId": "codex",
+                "eventType": "task.failed",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "第二轮真实用户请求"
+                },
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "taskId": "two",
+              "title": "第二轮真实用户请求",
+              "closed": true
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:one",
+                "title": "改造 @minmetals-ui/packages/biz-components"
+              },
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:two",
+                "title": "第二轮真实用户请求"
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_started",
+                "turn_id": "three"
+              }
+            },
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_aborted",
+                "turn_id": "three"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_6840f48f2cb7115c57f9952c36fca79b60d9ace8455b727e0e40a2010cc37fe5",
+                "sessionId": "codex:fixture-project:fixture-session:turn:three",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {},
+                "schemaVersion": 1
+              },
+              {
+                "eventId": "evt_fa59ae877cf29e54fe27e71fa8614529918278df140076daf78386e083845f99",
+                "sessionId": "codex:fixture-project:fixture-session:turn:three",
+                "toolId": "codex",
+                "eventType": "task.cancelled",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {},
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "taskId": "three",
+              "title": null,
+              "closed": true
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:three",
+                "title": null
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "turns-batch-7",
+      "manifest": {
+        "id": "codex",
+        "name": "CodeX CLI",
+        "detect": {
+          "configPaths": [
+            {
+              "mac": "~/.codex",
+              "win": "%USERPROFILE%/.codex",
+              "linux": "~/.codex",
+              "envOverride": [
+                "CODEX_HOME"
+              ]
+            }
+          ],
+          "processNames": [
+            "codex"
+          ],
+          "apis": []
+        },
+        "sessionSource": {
+          "type": "jsonl",
+          "pathPattern": "~/.codex/sessions/**/*.jsonl",
+          "identityMode": "turn"
+        },
+        "eventMapping": {
+          "started": {
+            "match": "task_started"
+          },
+          "completed": {
+            "match": "task_complete",
+            "ok": true
+          },
+          "failed": {
+            "match": "task_complete",
+            "ok": false
+          },
+          "cancelled": {
+            "match": "turn_aborted"
+          }
+        },
+        "heartbeat": {
+          "intervalSec": 30,
+          "probe": "file_mtime"
+        },
+        "mcp": {
+          "clientConfigFormat": "codex"
+        }
+      },
+      "ctx": {
+        "toolId": "codex",
+        "project": "fixture-project",
+        "sessionKey": "fixture-session",
+        "sourcePath": "/synthetic/codex/fixture.jsonl"
+      },
+      "batches": [
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_started",
+                "turn_id": "one"
+              }
+            },
+            {
+              "type": "event_msg",
+              "payload": {
+                "type": "user_message",
+                "message": "改造 @minmetals-ui/packages/biz-components 的 org-user-group-picker 组件"
+              }
+            },
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_complete",
+                "turn_id": "one"
+              }
+            },
+            {
+              "type": "event_msg",
+              "payload": {
+                "type": "user_message",
+                "message": "第二轮真实用户请求"
+              }
+            },
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_started",
+                "turn_id": "two"
+              }
+            },
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_complete",
+                "turn_id": "two",
+                "error": "failure"
+              }
+            },
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_started",
+                "turn_id": "three"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_48284b771302ec6c34b4276b6aa2cb12af5e16afe99bbcf0bd6e4c7867956aa6",
+                "sessionId": "codex:fixture-project:fixture-session:turn:one",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "改造 @minmetals-ui/packages/biz-components",
+                  "taskSpeechTitle": "改造 biz-components 的 org-user-group-picker 组件"
+                },
+                "schemaVersion": 1
+              },
+              {
+                "eventId": "evt_a0a4bec9c68792576a1893f5cc43571a8bc8ecf8c38e9c72a6067d3d3f5d598e",
+                "sessionId": "codex:fixture-project:fixture-session:turn:one",
+                "toolId": "codex",
+                "eventType": "task.completed",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "改造 @minmetals-ui/packages/biz-components",
+                  "taskSpeechTitle": "改造 biz-components 的 org-user-group-picker 组件"
+                },
+                "schemaVersion": 1
+              },
+              {
+                "eventId": "evt_472ac76bd10e251a2ededd03fc3ae7bb3d2146217134a07345d9179b16b0d119",
+                "sessionId": "codex:fixture-project:fixture-session:turn:two",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "第二轮真实用户请求"
+                },
+                "schemaVersion": 1
+              },
+              {
+                "eventId": "evt_f57f91fc94b0e9664bad6e48d3e312294c14f0b1207894c7a0d67b94a3cfb07f",
+                "sessionId": "codex:fixture-project:fixture-session:turn:two",
+                "toolId": "codex",
+                "eventType": "task.failed",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "第二轮真实用户请求"
+                },
+                "schemaVersion": 1
+              },
+              {
+                "eventId": "evt_6840f48f2cb7115c57f9952c36fca79b60d9ace8455b727e0e40a2010cc37fe5",
+                "sessionId": "codex:fixture-project:fixture-session:turn:three",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {},
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "taskId": "three",
+              "title": null,
+              "closed": false
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:one",
+                "title": "改造 @minmetals-ui/packages/biz-components"
+              },
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:two",
+                "title": "第二轮真实用户请求"
+              },
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:three",
+                "title": null
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_aborted",
+                "turn_id": "three"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_fa59ae877cf29e54fe27e71fa8614529918278df140076daf78386e083845f99",
+                "sessionId": "codex:fixture-project:fixture-session:turn:three",
+                "toolId": "codex",
+                "eventType": "task.cancelled",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {},
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "taskId": "three",
+              "title": null,
+              "closed": true
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:three",
+                "title": null
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "turns-batch-8",
+      "manifest": {
+        "id": "codex",
+        "name": "CodeX CLI",
+        "detect": {
+          "configPaths": [
+            {
+              "mac": "~/.codex",
+              "win": "%USERPROFILE%/.codex",
+              "linux": "~/.codex",
+              "envOverride": [
+                "CODEX_HOME"
+              ]
+            }
+          ],
+          "processNames": [
+            "codex"
+          ],
+          "apis": []
+        },
+        "sessionSource": {
+          "type": "jsonl",
+          "pathPattern": "~/.codex/sessions/**/*.jsonl",
+          "identityMode": "turn"
+        },
+        "eventMapping": {
+          "started": {
+            "match": "task_started"
+          },
+          "completed": {
+            "match": "task_complete",
+            "ok": true
+          },
+          "failed": {
+            "match": "task_complete",
+            "ok": false
+          },
+          "cancelled": {
+            "match": "turn_aborted"
+          }
+        },
+        "heartbeat": {
+          "intervalSec": 30,
+          "probe": "file_mtime"
+        },
+        "mcp": {
+          "clientConfigFormat": "codex"
+        }
+      },
+      "ctx": {
+        "toolId": "codex",
+        "project": "fixture-project",
+        "sessionKey": "fixture-session",
+        "sourcePath": "/synthetic/codex/fixture.jsonl"
+      },
+      "batches": [
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_started",
+                "turn_id": "one"
+              }
+            },
+            {
+              "type": "event_msg",
+              "payload": {
+                "type": "user_message",
+                "message": "改造 @minmetals-ui/packages/biz-components 的 org-user-group-picker 组件"
+              }
+            },
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_complete",
+                "turn_id": "one"
+              }
+            },
+            {
+              "type": "event_msg",
+              "payload": {
+                "type": "user_message",
+                "message": "第二轮真实用户请求"
+              }
+            },
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_started",
+                "turn_id": "two"
+              }
+            },
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_complete",
+                "turn_id": "two",
+                "error": "failure"
+              }
+            },
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_started",
+                "turn_id": "three"
+              }
+            },
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_aborted",
+                "turn_id": "three"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_48284b771302ec6c34b4276b6aa2cb12af5e16afe99bbcf0bd6e4c7867956aa6",
+                "sessionId": "codex:fixture-project:fixture-session:turn:one",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "改造 @minmetals-ui/packages/biz-components",
+                  "taskSpeechTitle": "改造 biz-components 的 org-user-group-picker 组件"
+                },
+                "schemaVersion": 1
+              },
+              {
+                "eventId": "evt_a0a4bec9c68792576a1893f5cc43571a8bc8ecf8c38e9c72a6067d3d3f5d598e",
+                "sessionId": "codex:fixture-project:fixture-session:turn:one",
+                "toolId": "codex",
+                "eventType": "task.completed",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "改造 @minmetals-ui/packages/biz-components",
+                  "taskSpeechTitle": "改造 biz-components 的 org-user-group-picker 组件"
+                },
+                "schemaVersion": 1
+              },
+              {
+                "eventId": "evt_472ac76bd10e251a2ededd03fc3ae7bb3d2146217134a07345d9179b16b0d119",
+                "sessionId": "codex:fixture-project:fixture-session:turn:two",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "第二轮真实用户请求"
+                },
+                "schemaVersion": 1
+              },
+              {
+                "eventId": "evt_f57f91fc94b0e9664bad6e48d3e312294c14f0b1207894c7a0d67b94a3cfb07f",
+                "sessionId": "codex:fixture-project:fixture-session:turn:two",
+                "toolId": "codex",
+                "eventType": "task.failed",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "第二轮真实用户请求"
+                },
+                "schemaVersion": 1
+              },
+              {
+                "eventId": "evt_6840f48f2cb7115c57f9952c36fca79b60d9ace8455b727e0e40a2010cc37fe5",
+                "sessionId": "codex:fixture-project:fixture-session:turn:three",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {},
+                "schemaVersion": 1
+              },
+              {
+                "eventId": "evt_fa59ae877cf29e54fe27e71fa8614529918278df140076daf78386e083845f99",
+                "sessionId": "codex:fixture-project:fixture-session:turn:three",
+                "toolId": "codex",
+                "eventType": "task.cancelled",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {},
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "taskId": "three",
+              "title": null,
+              "closed": true
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:one",
+                "title": "改造 @minmetals-ui/packages/biz-components"
+              },
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:two",
+                "title": "第二轮真实用户请求"
+              },
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:three",
+                "title": null
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "source-{\"internal\":\"maintenance\"}",
+      "manifest": {
+        "id": "codex",
+        "name": "CodeX CLI",
+        "detect": {
+          "configPaths": [
+            {
+              "mac": "~/.codex",
+              "win": "%USERPROFILE%/.codex",
+              "linux": "~/.codex",
+              "envOverride": [
+                "CODEX_HOME"
+              ]
+            }
+          ],
+          "processNames": [
+            "codex"
+          ],
+          "apis": []
+        },
+        "sessionSource": {
+          "type": "jsonl",
+          "pathPattern": "~/.codex/sessions/**/*.jsonl",
+          "identityMode": "turn"
+        },
+        "eventMapping": {
+          "started": {
+            "match": "task_started"
+          },
+          "completed": {
+            "match": "task_complete",
+            "ok": true
+          },
+          "failed": {
+            "match": "task_complete",
+            "ok": false
+          },
+          "cancelled": {
+            "match": "turn_aborted"
+          }
+        },
+        "heartbeat": {
+          "intervalSec": 30,
+          "probe": "file_mtime"
+        },
+        "mcp": {
+          "clientConfigFormat": "codex"
+        }
+      },
+      "ctx": {
+        "toolId": "codex",
+        "project": "fixture-project",
+        "sessionKey": "fixture-session",
+        "sourcePath": "/synthetic/codex/fixture.jsonl"
+      },
+      "batches": [
+        {
+          "rows": [
+            {
+              "type": "session_meta",
+              "payload": {
+                "source": {
+                  "internal": "maintenance"
+                }
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "titles": [],
+            "context": {
+              "excluded": true
+            }
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_started",
+                "turn_id": "one"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "titles": [],
+            "context": {
+              "excluded": true
+            }
+          }
+        },
+        {
+          "rows": [
+            {
+              "type": "event_msg",
+              "payload": {
+                "type": "user_message",
+                "message": "改造 @minmetals-ui/packages/biz-components 的 org-user-group-picker 组件"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "titles": [],
+            "context": {
+              "excluded": true
+            }
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_complete",
+                "turn_id": "one"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "titles": [],
+            "context": {
+              "excluded": true
+            }
+          }
+        },
+        {
+          "rows": [
+            {
+              "type": "event_msg",
+              "payload": {
+                "type": "user_message",
+                "message": "第二轮真实用户请求"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "titles": [],
+            "context": {
+              "excluded": true
+            }
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_started",
+                "turn_id": "two"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "titles": [],
+            "context": {
+              "excluded": true
+            }
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_complete",
+                "turn_id": "two",
+                "error": "failure"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "titles": [],
+            "context": {
+              "excluded": true
+            }
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_started",
+                "turn_id": "three"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "titles": [],
+            "context": {
+              "excluded": true
+            }
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_aborted",
+                "turn_id": "three"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "titles": [],
+            "context": {
+              "excluded": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "source-{\"subagent\":\"review\"}",
+      "manifest": {
+        "id": "codex",
+        "name": "CodeX CLI",
+        "detect": {
+          "configPaths": [
+            {
+              "mac": "~/.codex",
+              "win": "%USERPROFILE%/.codex",
+              "linux": "~/.codex",
+              "envOverride": [
+                "CODEX_HOME"
+              ]
+            }
+          ],
+          "processNames": [
+            "codex"
+          ],
+          "apis": []
+        },
+        "sessionSource": {
+          "type": "jsonl",
+          "pathPattern": "~/.codex/sessions/**/*.jsonl",
+          "identityMode": "turn"
+        },
+        "eventMapping": {
+          "started": {
+            "match": "task_started"
+          },
+          "completed": {
+            "match": "task_complete",
+            "ok": true
+          },
+          "failed": {
+            "match": "task_complete",
+            "ok": false
+          },
+          "cancelled": {
+            "match": "turn_aborted"
+          }
+        },
+        "heartbeat": {
+          "intervalSec": 30,
+          "probe": "file_mtime"
+        },
+        "mcp": {
+          "clientConfigFormat": "codex"
+        }
+      },
+      "ctx": {
+        "toolId": "codex",
+        "project": "fixture-project",
+        "sessionKey": "fixture-session",
+        "sourcePath": "/synthetic/codex/fixture.jsonl"
+      },
+      "batches": [
+        {
+          "rows": [
+            {
+              "type": "session_meta",
+              "payload": {
+                "source": {
+                  "subagent": "review"
+                }
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "titles": [],
+            "context": {
+              "excluded": true
+            }
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_started",
+                "turn_id": "one"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "titles": [],
+            "context": {
+              "excluded": true
+            }
+          }
+        },
+        {
+          "rows": [
+            {
+              "type": "event_msg",
+              "payload": {
+                "type": "user_message",
+                "message": "改造 @minmetals-ui/packages/biz-components 的 org-user-group-picker 组件"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "titles": [],
+            "context": {
+              "excluded": true
+            }
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_complete",
+                "turn_id": "one"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "titles": [],
+            "context": {
+              "excluded": true
+            }
+          }
+        },
+        {
+          "rows": [
+            {
+              "type": "event_msg",
+              "payload": {
+                "type": "user_message",
+                "message": "第二轮真实用户请求"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "titles": [],
+            "context": {
+              "excluded": true
+            }
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_started",
+                "turn_id": "two"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "titles": [],
+            "context": {
+              "excluded": true
+            }
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_complete",
+                "turn_id": "two",
+                "error": "failure"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "titles": [],
+            "context": {
+              "excluded": true
+            }
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_started",
+                "turn_id": "three"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "titles": [],
+            "context": {
+              "excluded": true
+            }
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_aborted",
+                "turn_id": "three"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "titles": [],
+            "context": {
+              "excluded": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "source-{\"subagent\":{\"thread_spawn\":{\"parent_thread_id\":\"fixture\",\"depth\":1}}}",
+      "manifest": {
+        "id": "codex",
+        "name": "CodeX CLI",
+        "detect": {
+          "configPaths": [
+            {
+              "mac": "~/.codex",
+              "win": "%USERPROFILE%/.codex",
+              "linux": "~/.codex",
+              "envOverride": [
+                "CODEX_HOME"
+              ]
+            }
+          ],
+          "processNames": [
+            "codex"
+          ],
+          "apis": []
+        },
+        "sessionSource": {
+          "type": "jsonl",
+          "pathPattern": "~/.codex/sessions/**/*.jsonl",
+          "identityMode": "turn"
+        },
+        "eventMapping": {
+          "started": {
+            "match": "task_started"
+          },
+          "completed": {
+            "match": "task_complete",
+            "ok": true
+          },
+          "failed": {
+            "match": "task_complete",
+            "ok": false
+          },
+          "cancelled": {
+            "match": "turn_aborted"
+          }
+        },
+        "heartbeat": {
+          "intervalSec": 30,
+          "probe": "file_mtime"
+        },
+        "mcp": {
+          "clientConfigFormat": "codex"
+        }
+      },
+      "ctx": {
+        "toolId": "codex",
+        "project": "fixture-project",
+        "sessionKey": "fixture-session",
+        "sourcePath": "/synthetic/codex/fixture.jsonl"
+      },
+      "batches": [
+        {
+          "rows": [
+            {
+              "type": "session_meta",
+              "payload": {
+                "source": {
+                  "subagent": {
+                    "thread_spawn": {
+                      "parent_thread_id": "fixture",
+                      "depth": 1
+                    }
+                  }
+                }
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "titles": [],
+            "context": {
+              "excluded": true
+            }
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_started",
+                "turn_id": "one"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "titles": [],
+            "context": {
+              "excluded": true
+            }
+          }
+        },
+        {
+          "rows": [
+            {
+              "type": "event_msg",
+              "payload": {
+                "type": "user_message",
+                "message": "改造 @minmetals-ui/packages/biz-components 的 org-user-group-picker 组件"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "titles": [],
+            "context": {
+              "excluded": true
+            }
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_complete",
+                "turn_id": "one"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "titles": [],
+            "context": {
+              "excluded": true
+            }
+          }
+        },
+        {
+          "rows": [
+            {
+              "type": "event_msg",
+              "payload": {
+                "type": "user_message",
+                "message": "第二轮真实用户请求"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "titles": [],
+            "context": {
+              "excluded": true
+            }
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_started",
+                "turn_id": "two"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "titles": [],
+            "context": {
+              "excluded": true
+            }
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_complete",
+                "turn_id": "two",
+                "error": "failure"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "titles": [],
+            "context": {
+              "excluded": true
+            }
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_started",
+                "turn_id": "three"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "titles": [],
+            "context": {
+              "excluded": true
+            }
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_aborted",
+                "turn_id": "three"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "titles": [],
+            "context": {
+              "excluded": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "source-{\"subagent\":{\"other\":\"fixture\"}}",
+      "manifest": {
+        "id": "codex",
+        "name": "CodeX CLI",
+        "detect": {
+          "configPaths": [
+            {
+              "mac": "~/.codex",
+              "win": "%USERPROFILE%/.codex",
+              "linux": "~/.codex",
+              "envOverride": [
+                "CODEX_HOME"
+              ]
+            }
+          ],
+          "processNames": [
+            "codex"
+          ],
+          "apis": []
+        },
+        "sessionSource": {
+          "type": "jsonl",
+          "pathPattern": "~/.codex/sessions/**/*.jsonl",
+          "identityMode": "turn"
+        },
+        "eventMapping": {
+          "started": {
+            "match": "task_started"
+          },
+          "completed": {
+            "match": "task_complete",
+            "ok": true
+          },
+          "failed": {
+            "match": "task_complete",
+            "ok": false
+          },
+          "cancelled": {
+            "match": "turn_aborted"
+          }
+        },
+        "heartbeat": {
+          "intervalSec": 30,
+          "probe": "file_mtime"
+        },
+        "mcp": {
+          "clientConfigFormat": "codex"
+        }
+      },
+      "ctx": {
+        "toolId": "codex",
+        "project": "fixture-project",
+        "sessionKey": "fixture-session",
+        "sourcePath": "/synthetic/codex/fixture.jsonl"
+      },
+      "batches": [
+        {
+          "rows": [
+            {
+              "type": "session_meta",
+              "payload": {
+                "source": {
+                  "subagent": {
+                    "other": "fixture"
+                  }
+                }
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "titles": [],
+            "context": {
+              "excluded": true
+            }
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_started",
+                "turn_id": "one"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "titles": [],
+            "context": {
+              "excluded": true
+            }
+          }
+        },
+        {
+          "rows": [
+            {
+              "type": "event_msg",
+              "payload": {
+                "type": "user_message",
+                "message": "改造 @minmetals-ui/packages/biz-components 的 org-user-group-picker 组件"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "titles": [],
+            "context": {
+              "excluded": true
+            }
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_complete",
+                "turn_id": "one"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "titles": [],
+            "context": {
+              "excluded": true
+            }
+          }
+        },
+        {
+          "rows": [
+            {
+              "type": "event_msg",
+              "payload": {
+                "type": "user_message",
+                "message": "第二轮真实用户请求"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "titles": [],
+            "context": {
+              "excluded": true
+            }
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_started",
+                "turn_id": "two"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "titles": [],
+            "context": {
+              "excluded": true
+            }
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_complete",
+                "turn_id": "two",
+                "error": "failure"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "titles": [],
+            "context": {
+              "excluded": true
+            }
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_started",
+                "turn_id": "three"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "titles": [],
+            "context": {
+              "excluded": true
+            }
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_aborted",
+                "turn_id": "three"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "titles": [],
+            "context": {
+              "excluded": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "source-{\"subagent\":{\"review\":{}}}",
+      "manifest": {
+        "id": "codex",
+        "name": "CodeX CLI",
+        "detect": {
+          "configPaths": [
+            {
+              "mac": "~/.codex",
+              "win": "%USERPROFILE%/.codex",
+              "linux": "~/.codex",
+              "envOverride": [
+                "CODEX_HOME"
+              ]
+            }
+          ],
+          "processNames": [
+            "codex"
+          ],
+          "apis": []
+        },
+        "sessionSource": {
+          "type": "jsonl",
+          "pathPattern": "~/.codex/sessions/**/*.jsonl",
+          "identityMode": "turn"
+        },
+        "eventMapping": {
+          "started": {
+            "match": "task_started"
+          },
+          "completed": {
+            "match": "task_complete",
+            "ok": true
+          },
+          "failed": {
+            "match": "task_complete",
+            "ok": false
+          },
+          "cancelled": {
+            "match": "turn_aborted"
+          }
+        },
+        "heartbeat": {
+          "intervalSec": 30,
+          "probe": "file_mtime"
+        },
+        "mcp": {
+          "clientConfigFormat": "codex"
+        }
+      },
+      "ctx": {
+        "toolId": "codex",
+        "project": "fixture-project",
+        "sessionKey": "fixture-session",
+        "sourcePath": "/synthetic/codex/fixture.jsonl"
+      },
+      "batches": [
+        {
+          "rows": [
+            {
+              "type": "session_meta",
+              "payload": {
+                "source": {
+                  "subagent": {
+                    "review": {}
+                  }
+                }
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "context": {
+              "excluded": false
+            },
+            "titles": []
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_started",
+                "turn_id": "one"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_48284b771302ec6c34b4276b6aa2cb12af5e16afe99bbcf0bd6e4c7867956aa6",
+                "sessionId": "codex:fixture-project:fixture-session:turn:one",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {},
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "excluded": false,
+              "taskId": "one",
+              "title": null,
+              "closed": false
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:one",
+                "title": null
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "type": "event_msg",
+              "payload": {
+                "type": "user_message",
+                "message": "改造 @minmetals-ui/packages/biz-components 的 org-user-group-picker 组件"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "context": {
+              "excluded": false,
+              "taskId": "one",
+              "title": "改造 @minmetals-ui/packages/biz-components",
+              "closed": false,
+              "speechTitle": "改造 biz-components 的 org-user-group-picker 组件"
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:one",
+                "title": "改造 @minmetals-ui/packages/biz-components"
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_complete",
+                "turn_id": "one"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_a0a4bec9c68792576a1893f5cc43571a8bc8ecf8c38e9c72a6067d3d3f5d598e",
+                "sessionId": "codex:fixture-project:fixture-session:turn:one",
+                "toolId": "codex",
+                "eventType": "task.completed",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "改造 @minmetals-ui/packages/biz-components",
+                  "taskSpeechTitle": "改造 biz-components 的 org-user-group-picker 组件"
+                },
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "excluded": false,
+              "taskId": "one",
+              "title": "改造 @minmetals-ui/packages/biz-components",
+              "closed": true,
+              "speechTitle": "改造 biz-components 的 org-user-group-picker 组件"
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:one",
+                "title": "改造 @minmetals-ui/packages/biz-components"
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "type": "event_msg",
+              "payload": {
+                "type": "user_message",
+                "message": "第二轮真实用户请求"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "context": {
+              "excluded": false,
+              "taskId": "one",
+              "title": "改造 @minmetals-ui/packages/biz-components",
+              "closed": true,
+              "speechTitle": "改造 biz-components 的 org-user-group-picker 组件",
+              "pendingTitle": "第二轮真实用户请求"
+            },
+            "titles": []
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_started",
+                "turn_id": "two"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_472ac76bd10e251a2ededd03fc3ae7bb3d2146217134a07345d9179b16b0d119",
+                "sessionId": "codex:fixture-project:fixture-session:turn:two",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "第二轮真实用户请求"
+                },
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "excluded": false,
+              "taskId": "two",
+              "title": "第二轮真实用户请求",
+              "closed": false
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:two",
+                "title": "第二轮真实用户请求"
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_complete",
+                "turn_id": "two",
+                "error": "failure"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_f57f91fc94b0e9664bad6e48d3e312294c14f0b1207894c7a0d67b94a3cfb07f",
+                "sessionId": "codex:fixture-project:fixture-session:turn:two",
+                "toolId": "codex",
+                "eventType": "task.failed",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "第二轮真实用户请求"
+                },
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "excluded": false,
+              "taskId": "two",
+              "title": "第二轮真实用户请求",
+              "closed": true
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:two",
+                "title": "第二轮真实用户请求"
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_started",
+                "turn_id": "three"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_6840f48f2cb7115c57f9952c36fca79b60d9ace8455b727e0e40a2010cc37fe5",
+                "sessionId": "codex:fixture-project:fixture-session:turn:three",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {},
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "excluded": false,
+              "taskId": "three",
+              "title": null,
+              "closed": false
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:three",
+                "title": null
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_aborted",
+                "turn_id": "three"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_fa59ae877cf29e54fe27e71fa8614529918278df140076daf78386e083845f99",
+                "sessionId": "codex:fixture-project:fixture-session:turn:three",
+                "toolId": "codex",
+                "eventType": "task.cancelled",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {},
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "excluded": false,
+              "taskId": "three",
+              "title": null,
+              "closed": true
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:three",
+                "title": null
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "source-\"cli\"",
+      "manifest": {
+        "id": "codex",
+        "name": "CodeX CLI",
+        "detect": {
+          "configPaths": [
+            {
+              "mac": "~/.codex",
+              "win": "%USERPROFILE%/.codex",
+              "linux": "~/.codex",
+              "envOverride": [
+                "CODEX_HOME"
+              ]
+            }
+          ],
+          "processNames": [
+            "codex"
+          ],
+          "apis": []
+        },
+        "sessionSource": {
+          "type": "jsonl",
+          "pathPattern": "~/.codex/sessions/**/*.jsonl",
+          "identityMode": "turn"
+        },
+        "eventMapping": {
+          "started": {
+            "match": "task_started"
+          },
+          "completed": {
+            "match": "task_complete",
+            "ok": true
+          },
+          "failed": {
+            "match": "task_complete",
+            "ok": false
+          },
+          "cancelled": {
+            "match": "turn_aborted"
+          }
+        },
+        "heartbeat": {
+          "intervalSec": 30,
+          "probe": "file_mtime"
+        },
+        "mcp": {
+          "clientConfigFormat": "codex"
+        }
+      },
+      "ctx": {
+        "toolId": "codex",
+        "project": "fixture-project",
+        "sessionKey": "fixture-session",
+        "sourcePath": "/synthetic/codex/fixture.jsonl"
+      },
+      "batches": [
+        {
+          "rows": [
+            {
+              "type": "session_meta",
+              "payload": {
+                "source": "cli"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "context": {
+              "excluded": false
+            },
+            "titles": []
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_started",
+                "turn_id": "one"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_48284b771302ec6c34b4276b6aa2cb12af5e16afe99bbcf0bd6e4c7867956aa6",
+                "sessionId": "codex:fixture-project:fixture-session:turn:one",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {},
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "excluded": false,
+              "taskId": "one",
+              "title": null,
+              "closed": false
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:one",
+                "title": null
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "type": "event_msg",
+              "payload": {
+                "type": "user_message",
+                "message": "改造 @minmetals-ui/packages/biz-components 的 org-user-group-picker 组件"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "context": {
+              "excluded": false,
+              "taskId": "one",
+              "title": "改造 @minmetals-ui/packages/biz-components",
+              "closed": false,
+              "speechTitle": "改造 biz-components 的 org-user-group-picker 组件"
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:one",
+                "title": "改造 @minmetals-ui/packages/biz-components"
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_complete",
+                "turn_id": "one"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_a0a4bec9c68792576a1893f5cc43571a8bc8ecf8c38e9c72a6067d3d3f5d598e",
+                "sessionId": "codex:fixture-project:fixture-session:turn:one",
+                "toolId": "codex",
+                "eventType": "task.completed",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "改造 @minmetals-ui/packages/biz-components",
+                  "taskSpeechTitle": "改造 biz-components 的 org-user-group-picker 组件"
+                },
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "excluded": false,
+              "taskId": "one",
+              "title": "改造 @minmetals-ui/packages/biz-components",
+              "closed": true,
+              "speechTitle": "改造 biz-components 的 org-user-group-picker 组件"
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:one",
+                "title": "改造 @minmetals-ui/packages/biz-components"
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "type": "event_msg",
+              "payload": {
+                "type": "user_message",
+                "message": "第二轮真实用户请求"
+              }
+            }
+          ],
+          "expected": {
+            "events": [],
+            "context": {
+              "excluded": false,
+              "taskId": "one",
+              "title": "改造 @minmetals-ui/packages/biz-components",
+              "closed": true,
+              "speechTitle": "改造 biz-components 的 org-user-group-picker 组件",
+              "pendingTitle": "第二轮真实用户请求"
+            },
+            "titles": []
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_started",
+                "turn_id": "two"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_472ac76bd10e251a2ededd03fc3ae7bb3d2146217134a07345d9179b16b0d119",
+                "sessionId": "codex:fixture-project:fixture-session:turn:two",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "第二轮真实用户请求"
+                },
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "excluded": false,
+              "taskId": "two",
+              "title": "第二轮真实用户请求",
+              "closed": false
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:two",
+                "title": "第二轮真实用户请求"
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_complete",
+                "turn_id": "two",
+                "error": "failure"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_f57f91fc94b0e9664bad6e48d3e312294c14f0b1207894c7a0d67b94a3cfb07f",
+                "sessionId": "codex:fixture-project:fixture-session:turn:two",
+                "toolId": "codex",
+                "eventType": "task.failed",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "第二轮真实用户请求"
+                },
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "excluded": false,
+              "taskId": "two",
+              "title": "第二轮真实用户请求",
+              "closed": true
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:two",
+                "title": "第二轮真实用户请求"
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_started",
+                "turn_id": "three"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_6840f48f2cb7115c57f9952c36fca79b60d9ace8455b727e0e40a2010cc37fe5",
+                "sessionId": "codex:fixture-project:fixture-session:turn:three",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {},
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "excluded": false,
+              "taskId": "three",
+              "title": null,
+              "closed": false
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:three",
+                "title": null
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "turn_aborted",
+                "turn_id": "three"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_fa59ae877cf29e54fe27e71fa8614529918278df140076daf78386e083845f99",
+                "sessionId": "codex:fixture-project:fixture-session:turn:three",
+                "toolId": "codex",
+                "eventType": "task.cancelled",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {},
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "excluded": false,
+              "taskId": "three",
+              "title": null,
+              "closed": true
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:three",
+                "title": null
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "legacy-file-identity",
+      "manifest": {
+        "id": "codex",
+        "name": "CodeX CLI",
+        "detect": {
+          "configPaths": [
+            {
+              "mac": "~/.codex",
+              "win": "%USERPROFILE%/.codex",
+              "linux": "~/.codex",
+              "envOverride": [
+                "CODEX_HOME"
+              ]
+            }
+          ],
+          "processNames": [
+            "codex"
+          ],
+          "apis": []
+        },
+        "sessionSource": {
+          "type": "jsonl",
+          "pathPattern": "~/.codex/sessions/**/*.jsonl",
+          "identityMode": "turn"
+        },
+        "eventMapping": {
+          "started": {
+            "match": "task_started"
+          },
+          "completed": {
+            "match": "task_complete",
+            "ok": true
+          },
+          "failed": {
+            "match": "task_complete",
+            "ok": false
+          },
+          "cancelled": {
+            "match": "turn_aborted"
+          }
+        },
+        "heartbeat": {
+          "intervalSec": 30,
+          "probe": "file_mtime"
+        },
+        "mcp": {
+          "clientConfigFormat": "codex"
+        }
+      },
+      "ctx": {
+        "toolId": "codex",
+        "project": "fixture-project",
+        "sessionKey": "fixture-session",
+        "sourcePath": "/synthetic/codex/fixture.jsonl",
+        "title": "旧版真实标题",
+        "context": {
+          "taskId": "known",
+          "title": "当前轮标题"
+        }
+      },
+      "batches": [
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_started"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_e54d71d73d85e5b72f67e3781f36e8c3fc1d0f30454ca82c704903410e86a248",
+                "sessionId": "codex:fixture-project:fixture-session",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "旧版真实标题"
+                },
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "taskId": "known",
+              "title": "当前轮标题"
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session",
+                "title": "旧版真实标题"
+              }
+            ]
+          }
+        },
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_complete"
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_4c617b7829b830c84474ecbaafdc4d72e214d61acd1d13456beb198e6506a2e8",
+                "sessionId": "codex:fixture-project:fixture-session",
+                "toolId": "codex",
+                "eventType": "task.completed",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {
+                  "taskTitle": "旧版真实标题"
+                },
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "taskId": "known",
+              "title": "当前轮标题"
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session",
+                "title": "旧版真实标题"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "stable-js-numeric-hash",
+      "manifest": {
+        "id": "codex",
+        "name": "CodeX CLI",
+        "detect": {
+          "configPaths": [
+            {
+              "mac": "~/.codex",
+              "win": "%USERPROFILE%/.codex",
+              "linux": "~/.codex",
+              "envOverride": [
+                "CODEX_HOME"
+              ]
+            }
+          ],
+          "processNames": [
+            "codex"
+          ],
+          "apis": []
+        },
+        "sessionSource": {
+          "type": "jsonl",
+          "pathPattern": "~/.codex/sessions/**/*.jsonl",
+          "identityMode": "turn"
+        },
+        "eventMapping": {
+          "started": {
+            "match": "task_started"
+          },
+          "completed": {
+            "match": "task_complete",
+            "ok": true
+          },
+          "failed": {
+            "match": "task_complete",
+            "ok": false
+          },
+          "cancelled": {
+            "match": "turn_aborted"
+          }
+        },
+        "heartbeat": {
+          "intervalSec": 30,
+          "probe": "file_mtime"
+        },
+        "mcp": {
+          "clientConfigFormat": "codex"
+        }
+      },
+      "ctx": {
+        "toolId": "codex",
+        "project": "fixture-project",
+        "sessionKey": "fixture-session",
+        "sourcePath": "/synthetic/codex/fixture.jsonl"
+      },
+      "batches": [
+        {
+          "rows": [
+            {
+              "timestamp": "2026-11-08T00:00:00.000Z",
+              "type": "event_msg",
+              "payload": {
+                "type": "task_started",
+                "turn_id": "numeric",
+                "integer": 1,
+                "fraction": 1e-7,
+                "large": 100000000000000000000,
+                "huge": 1e+21,
+                "negativeZero": 0,
+                "extra": {
+                  "1": "first",
+                  "2": "second",
+                  "normal": true
+                }
+              }
+            }
+          ],
+          "expected": {
+            "events": [
+              {
+                "eventId": "evt_947af2d011219de76092defe09967fe60ae4b9f5f9674001548f55e1455c4187",
+                "sessionId": "codex:fixture-project:fixture-session:turn:numeric",
+                "toolId": "codex",
+                "eventType": "task.started",
+                "occurredAt": "2026-11-08T00:00:00.000Z",
+                "actor": "tool",
+                "payload": {},
+                "schemaVersion": 1
+              }
+            ],
+            "context": {
+              "taskId": "numeric",
+              "title": null,
+              "closed": false
+            },
+            "titles": [
+              {
+                "sessionId": "codex:fixture-project:fixture-session:turn:numeric",
+                "title": null
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "titles": [
+    {
+      "row": {
+        "type": "user",
+        "message": {
+          "content": "修复登录流程"
+        }
+      },
+      "expected": {
+        "title": "修复登录流程"
+      }
+    },
+    {
+      "row": {
+        "type": "event_msg",
+        "payload": {
+          "type": "user_message",
+          "message": "修复登录流程"
+        }
+      },
+      "expected": {
+        "title": "修复登录流程"
+      }
+    },
+    {
+      "row": {
+        "type": "response_item",
+        "payload": {
+          "type": "message",
+          "role": "user",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "修复登录流程"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "title": "修复登录流程"
+      }
+    },
+    {
+      "row": {
+        "type": "user",
+        "message": {
+          "content": "# AGENTS.md instructions\n<INSTRUCTIONS>内部规则</INSTRUCTIONS>"
+        }
+      },
+      "expected": null
+    },
+    {
+      "row": {
+        "type": "event_msg",
+        "payload": {
+          "type": "user_message",
+          "message": "# AGENTS.md instructions\n<INSTRUCTIONS>内部规则</INSTRUCTIONS>"
+        }
+      },
+      "expected": null
+    },
+    {
+      "row": {
+        "type": "response_item",
+        "payload": {
+          "type": "message",
+          "role": "user",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "# AGENTS.md instructions\n<INSTRUCTIONS>内部规则</INSTRUCTIONS>"
+            }
+          ]
+        }
+      },
+      "expected": null
+    },
+    {
+      "row": {
+        "type": "user",
+        "message": {
+          "content": "<environment_context>环境</environment_context>"
+        }
+      },
+      "expected": null
+    },
+    {
+      "row": {
+        "type": "event_msg",
+        "payload": {
+          "type": "user_message",
+          "message": "<environment_context>环境</environment_context>"
+        }
+      },
+      "expected": null
+    },
+    {
+      "row": {
+        "type": "response_item",
+        "payload": {
+          "type": "message",
+          "role": "user",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "<environment_context>环境</environment_context>"
+            }
+          ]
+        }
+      },
+      "expected": null
+    },
+    {
+      "row": {
+        "type": "user",
+        "message": {
+          "content": "<permissions instructions>只读</permissions instructions>"
+        }
+      },
+      "expected": null
+    },
+    {
+      "row": {
+        "type": "event_msg",
+        "payload": {
+          "type": "user_message",
+          "message": "<permissions instructions>只读</permissions instructions>"
+        }
+      },
+      "expected": null
+    },
+    {
+      "row": {
+        "type": "response_item",
+        "payload": {
+          "type": "message",
+          "role": "user",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "<permissions instructions>只读</permissions instructions>"
+            }
+          ]
+        }
+      },
+      "expected": null
+    },
+    {
+      "row": {
+        "type": "user",
+        "message": {
+          "content": "<collaboration_mode>Default</collaboration_mode>"
+        }
+      },
+      "expected": null
+    },
+    {
+      "row": {
+        "type": "event_msg",
+        "payload": {
+          "type": "user_message",
+          "message": "<collaboration_mode>Default</collaboration_mode>"
+        }
+      },
+      "expected": null
+    },
+    {
+      "row": {
+        "type": "response_item",
+        "payload": {
+          "type": "message",
+          "role": "user",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "<collaboration_mode>Default</collaboration_mode>"
+            }
+          ]
+        }
+      },
+      "expected": null
+    },
+    {
+      "row": {
+        "type": "user",
+        "message": {
+          "content": "<user_instructions>内部规则</user_instructions>"
+        }
+      },
+      "expected": null
+    },
+    {
+      "row": {
+        "type": "event_msg",
+        "payload": {
+          "type": "user_message",
+          "message": "<user_instructions>内部规则</user_instructions>"
+        }
+      },
+      "expected": null
+    },
+    {
+      "row": {
+        "type": "response_item",
+        "payload": {
+          "type": "message",
+          "role": "user",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "<user_instructions>内部规则</user_instructions>"
+            }
+          ]
+        }
+      },
+      "expected": null
+    },
+    {
+      "row": {
+        "type": "user",
+        "message": {
+          "content": "# AGENTS.md instructions\n<INSTRUCTIONS>规则</INSTRUCTIONS>\n## My request:\n修复事件漏报"
+        }
+      },
+      "expected": {
+        "title": "修复事件漏报"
+      }
+    },
+    {
+      "row": {
+        "type": "event_msg",
+        "payload": {
+          "type": "user_message",
+          "message": "# AGENTS.md instructions\n<INSTRUCTIONS>规则</INSTRUCTIONS>\n## My request:\n修复事件漏报"
+        }
+      },
+      "expected": {
+        "title": "修复事件漏报"
+      }
+    },
+    {
+      "row": {
+        "type": "response_item",
+        "payload": {
+          "type": "message",
+          "role": "user",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "# AGENTS.md instructions\n<INSTRUCTIONS>规则</INSTRUCTIONS>\n## My request:\n修复事件漏报"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "title": "修复事件漏报"
+      }
+    },
+    {
+      "row": {
+        "type": "user",
+        "message": {
+          "content": "<environment_context>环境İ</environment_context>\n补全任务看板"
+        }
+      },
+      "expected": {
+        "title": "补全任务看板"
+      }
+    },
+    {
+      "row": {
+        "type": "event_msg",
+        "payload": {
+          "type": "user_message",
+          "message": "<environment_context>环境İ</environment_context>\n补全任务看板"
+        }
+      },
+      "expected": {
+        "title": "补全任务看板"
+      }
+    },
+    {
+      "row": {
+        "type": "response_item",
+        "payload": {
+          "type": "message",
+          "role": "user",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "<environment_context>环境İ</environment_context>\n补全任务看板"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "title": "补全任务看板"
+      }
+    },
+    {
+      "row": {
+        "type": "user",
+        "message": {
+          "content": "<environment_context>环境</environment_context>\n## My request for Codex: 修复设置保存"
+        }
+      },
+      "expected": {
+        "title": "修复设置保存"
+      }
+    },
+    {
+      "row": {
+        "type": "event_msg",
+        "payload": {
+          "type": "user_message",
+          "message": "<environment_context>环境</environment_context>\n## My request for Codex: 修复设置保存"
+        }
+      },
+      "expected": {
+        "title": "修复设置保存"
+      }
+    },
+    {
+      "row": {
+        "type": "response_item",
+        "payload": {
+          "type": "message",
+          "role": "user",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "<environment_context>环境</environment_context>\n## My request for Codex: 修复设置保存"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "title": "修复设置保存"
+      }
+    },
+    {
+      "row": {
+        "type": "user",
+        "message": {
+          "content": "{\"risk_level\":\"low\",\"value\":1}"
+        }
+      },
+      "expected": {
+        "title": "{\"risk_level\":\"low\",\"value\":1}"
+      }
+    },
+    {
+      "row": {
+        "type": "event_msg",
+        "payload": {
+          "type": "user_message",
+          "message": "{\"risk_level\":\"low\",\"value\":1}"
+        }
+      },
+      "expected": {
+        "title": "{\"risk_level\":\"low\",\"value\":1}"
+      }
+    },
+    {
+      "row": {
+        "type": "response_item",
+        "payload": {
+          "type": "message",
+          "role": "user",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "{\"risk_level\":\"low\",\"value\":1}"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "title": "{\"risk_level\":\"low\",\"value\":1}"
+      }
+    },
+    {
+      "row": {
+        "type": "user",
+        "message": {
+          "content": "```md\n## My request:\n这是代码样本\n```"
+        }
+      },
+      "expected": {
+        "title": "```md ## My request: 这是代码样本 ```"
+      }
+    },
+    {
+      "row": {
+        "type": "event_msg",
+        "payload": {
+          "type": "user_message",
+          "message": "```md\n## My request:\n这是代码样本\n```"
+        }
+      },
+      "expected": {
+        "title": "```md ## My request: 这是代码样本 ```"
+      }
+    },
+    {
+      "row": {
+        "type": "response_item",
+        "payload": {
+          "type": "message",
+          "role": "user",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "```md\n## My request:\n这是代码样本\n```"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "title": "```md ## My request: 这是代码样本 ```"
+      }
+    },
+    {
+      "row": {
+        "type": "user",
+        "message": {
+          "content": "const prompt = `\n## My request:\nhello\n`;"
+        }
+      },
+      "expected": {
+        "title": "const prompt = ` ## My request: hello `;"
+      }
+    },
+    {
+      "row": {
+        "type": "event_msg",
+        "payload": {
+          "type": "user_message",
+          "message": "const prompt = `\n## My request:\nhello\n`;"
+        }
+      },
+      "expected": {
+        "title": "const prompt = ` ## My request: hello `;"
+      }
+    },
+    {
+      "row": {
+        "type": "response_item",
+        "payload": {
+          "type": "message",
+          "role": "user",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "const prompt = `\n## My request:\nhello\n`;"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "title": "const prompt = ` ## My request: hello `;"
+      }
+    },
+    {
+      "row": {
+        "type": "user",
+        "message": {
+          "content": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+        }
+      },
+      "expected": {
+        "title": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+      }
+    },
+    {
+      "row": {
+        "type": "event_msg",
+        "payload": {
+          "type": "user_message",
+          "message": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+        }
+      },
+      "expected": {
+        "title": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+      }
+    },
+    {
+      "row": {
+        "type": "response_item",
+        "payload": {
+          "type": "message",
+          "role": "user",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "title": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+      }
+    },
+    {
+      "row": {
+        "type": "user",
+        "message": {
+          "content": "改造 @minmetals-ui/packages/biz-components 的 org-user-group-picker 组件"
+        }
+      },
+      "expected": {
+        "title": "改造 @minmetals-ui/packages/biz-components",
+        "speechTitle": "改造 biz-components 的 org-user-group-picker 组件"
+      }
+    },
+    {
+      "row": {
+        "type": "event_msg",
+        "payload": {
+          "type": "user_message",
+          "message": "改造 @minmetals-ui/packages/biz-components 的 org-user-group-picker 组件"
+        }
+      },
+      "expected": {
+        "title": "改造 @minmetals-ui/packages/biz-components",
+        "speechTitle": "改造 biz-components 的 org-user-group-picker 组件"
+      }
+    },
+    {
+      "row": {
+        "type": "response_item",
+        "payload": {
+          "type": "message",
+          "role": "user",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "改造 @minmetals-ui/packages/biz-components 的 org-user-group-picker 组件"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "title": "改造 @minmetals-ui/packages/biz-components",
+        "speechTitle": "改造 biz-components 的 org-user-group-picker 组件"
+      }
+    },
+    {
+      "row": {
+        "type": "assistant",
+        "message": {
+          "content": "不应出现的助手文本"
+        }
+      },
+      "expected": null
+    },
+    {
+      "row": {
+        "type": "permission_request",
+        "message": {
+          "content": "{\"risk_level\":\"low\"}"
+        }
+      },
+      "expected": null
+    }
+  ],
+  "references": [
+    {
+      "input": "@/Users/example/Data/Code/wukuang/ 审查这个项目",
+      "expected": "wukuang 审查这个项目"
+    },
+    {
+      "input": "改造 @minmetals-ui/packages/biz-components 的 org-user-group-picker 组件",
+      "expected": "改造 biz-components 的 org-user-group-picker 组件"
+    },
+    {
+      "input": "查看 @\"/tmp/带 空格/文件.ts\" 和 @C:\\work\\a\\b.ts",
+      "expected": "查看 文件.ts 和 b.ts"
+    },
+    {
+      "input": "**@/a/b/**，继续",
+      "expected": "**b**，继续"
+    },
+    {
+      "input": "联系 name@example.com，打开 https://example.com/a，检查 api/v1 和 @someone",
+      "expected": "联系 name@example.com，打开 https://example.com/a，检查 api/v1 和 @someone"
+    }
+  ]
+}

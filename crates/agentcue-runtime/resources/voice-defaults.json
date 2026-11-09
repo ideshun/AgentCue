@@ -1,0 +1,127 @@
+{
+  "revision": 3,
+  "rules": [
+    {
+      "scopeEvent": "task.waiting_human",
+      "action": "speak",
+      "template": "{tool} 有个任务等你确认，{title}。",
+      "priority": "high"
+    },
+    {
+      "scopeEvent": "task.failed",
+      "action": "notify",
+      "template": "{tool} 的任务失败了，{title}，请查看。",
+      "priority": "high"
+    },
+    {
+      "scopeEvent": "task.timeout",
+      "action": "notify",
+      "template": "{tool} 的确认等待超时了，{title}。",
+      "priority": "mid"
+    },
+    {
+      "scopeEvent": "task.completed",
+      "action": "speak",
+      "template": "{tool} 的任务已经完成，{title}。",
+      "priority": "low"
+    },
+    {
+      "scopeEvent": "task.started",
+      "action": "speak",
+      "template": "{tool} 开始处理，{title}。",
+      "priority": "low"
+    },
+    {
+      "scopeEvent": "*",
+      "action": "notify",
+      "template": "{tool}：{title}，{event}。",
+      "priority": "low"
+    }
+  ],
+  "legacy": [
+    {
+      "scopeEvent": "task.waiting_human",
+      "action": "speak",
+      "template": "「{title}」等你拍板",
+      "priority": "high"
+    },
+    {
+      "scopeEvent": "task.failed",
+      "action": "speak",
+      "template": "{tool} 任务失败：{title}",
+      "priority": "high"
+    },
+    {
+      "scopeEvent": "task.timeout",
+      "action": "speak",
+      "template": "{tool} 等待超时：{title}",
+      "priority": "mid"
+    },
+    {
+      "scopeEvent": "task.completed",
+      "action": "notify",
+      "template": "{tool} 任务完成：{title}",
+      "priority": "low"
+    },
+    {
+      "scopeEvent": "task.started",
+      "action": "mute",
+      "template": "",
+      "priority": "low"
+    },
+    {
+      "scopeEvent": "*",
+      "action": "notify",
+      "template": "{tool}：{event}",
+      "priority": "low"
+    },
+    {
+      "scopeEvent": "task.failed",
+      "action": "speak",
+      "template": "{tool}：「{title}」处理失败，请查看。",
+      "priority": "high"
+    },
+    {
+      "scopeEvent": "task.timeout",
+      "action": "speak",
+      "template": "{tool}：「{title}」等待确认已超时。",
+      "priority": "mid"
+    },
+    {
+      "scopeEvent": "task.waiting_human",
+      "action": "speak",
+      "template": "{tool}：「{title}」需要你确认。",
+      "priority": "high"
+    },
+    {
+      "scopeEvent": "task.failed",
+      "action": "notify",
+      "template": "{tool}：「{title}」处理失败，请查看。",
+      "priority": "high"
+    },
+    {
+      "scopeEvent": "task.timeout",
+      "action": "notify",
+      "template": "{tool}：「{title}」等待确认已超时。",
+      "priority": "mid"
+    },
+    {
+      "scopeEvent": "task.completed",
+      "action": "speak",
+      "template": "{tool}：「{title}」已完成。",
+      "priority": "low"
+    },
+    {
+      "scopeEvent": "task.started",
+      "action": "speak",
+      "template": "{tool}：开始处理「{title}」。",
+      "priority": "low"
+    },
+    {
+      "scopeEvent": "*",
+      "action": "notify",
+      "template": "{tool}：「{title}」{event}",
+      "priority": "low"
+    }
+  ]
+}

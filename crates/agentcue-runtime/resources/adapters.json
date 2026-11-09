@@ -1,0 +1,235 @@
+[
+  {
+    "id": "claude-code",
+    "name": "Claude Code",
+    "detect": {
+      "configPaths": [
+        {
+          "mac": "~/.claude/settings.json",
+          "win": "%USERPROFILE%/.claude/settings.json",
+          "envOverride": [
+            "CLAUDE_CONFIG_DIR"
+          ]
+        }
+      ],
+      "processNames": [
+        "claude"
+      ],
+      "apis": []
+    },
+    "sessionSource": {
+      "type": "jsonl",
+      "pathPattern": "~/.claude/projects/**/*.jsonl"
+    },
+    "eventMapping": {
+      "waiting_human": {
+        "match": "permission_request",
+        "reason": "tool_approval"
+      },
+      "completed": {
+        "match": "result",
+        "ok": true
+      },
+      "failed": {
+        "match": "result",
+        "ok": false
+      }
+    },
+    "heartbeat": {
+      "intervalSec": 30,
+      "probe": "file_mtime"
+    },
+    "mcp": {
+      "clientConfigFormat": "claude-code"
+    },
+    "hookConfig": {
+      "name": "Claude Code",
+      "mode": "turn",
+      "reopenOnStart": true
+    }
+  },
+  {
+    "id": "cline",
+    "name": "Cline",
+    "sessionCapability": "metadata",
+    "capabilityReason": "只读历史索引；未证实的任务状态显示为未知，不参与活跃任务与超时判断。",
+    "detect": {
+      "configPaths": [],
+      "processNames": [],
+      "apis": [],
+      "extensions": [
+        {
+          "id": "saoudrizwan.claude-dev",
+          "host": "Cursor",
+          "roots": [
+            {
+              "mac": "~/.cursor/extensions",
+              "win": "%USERPROFILE%/.cursor/extensions",
+              "linux": "~/.cursor/extensions"
+            }
+          ]
+        }
+      ]
+    },
+    "sessionSource": {
+      "type": "json-index",
+      "indexes": [
+        {
+          "format": "cline-history-v1",
+          "paths": [
+            {
+              "mac": "~/.cline/data/state/taskHistory.json",
+              "win": "%USERPROFILE%/.cline/data/state/taskHistory.json",
+              "linux": "~/.cline/data/state/taskHistory.json"
+            },
+            {
+              "mac": "~/.cline/data/tasks/taskHistory.json",
+              "win": "%USERPROFILE%/.cline/data/tasks/taskHistory.json",
+              "linux": "~/.cline/data/tasks/taskHistory.json"
+            },
+            {
+              "mac": "~/Library/Application Support/Cursor/User/globalStorage/saoudrizwan.claude-dev/state/taskHistory.json",
+              "win": "%APPDATA%/Cursor/User/globalStorage/saoudrizwan.claude-dev/state/taskHistory.json",
+              "linux": "~/.config/Cursor/User/globalStorage/saoudrizwan.claude-dev/state/taskHistory.json"
+            }
+          ]
+        },
+        {
+          "format": "cline-sessions-v1",
+          "paths": [
+            {
+              "mac": "~/.cline/data/sessions/sessions.index.json",
+              "win": "%USERPROFILE%/.cline/data/sessions/sessions.index.json",
+              "linux": "~/.cline/data/sessions/sessions.index.json"
+            }
+          ]
+        }
+      ]
+    },
+    "eventMapping": {},
+    "heartbeat": {
+      "intervalSec": 60,
+      "probe": "file_mtime"
+    },
+    "hookConfig": {
+      "name": "Cline",
+      "mode": "session"
+    }
+  },
+  {
+    "id": "codebuddy",
+    "name": "CodeBuddy",
+    "sessionCapability": "detect-only",
+    "capabilityReason": "可识别 Cursor 扩展；尚无经过验证的本地会话契约。",
+    "detect": {
+      "configPaths": [],
+      "processNames": [],
+      "apis": [],
+      "extensions": [
+        {
+          "id": "Tencent-Cloud.coding-copilot",
+          "host": "Cursor",
+          "roots": [
+            {
+              "mac": "~/.cursor/extensions",
+              "win": "%USERPROFILE%/.cursor/extensions",
+              "linux": "~/.cursor/extensions"
+            }
+          ]
+        }
+      ]
+    },
+    "sessionSource": {
+      "type": "none"
+    },
+    "eventMapping": {},
+    "heartbeat": {
+      "intervalSec": 60,
+      "probe": "file_mtime"
+    },
+    "hookConfig": {
+      "name": "CodeBuddy",
+      "mode": "session"
+    }
+  },
+  {
+    "id": "codex",
+    "name": "CodeX CLI",
+    "detect": {
+      "configPaths": [
+        {
+          "mac": "~/.codex",
+          "win": "%USERPROFILE%/.codex",
+          "linux": "~/.codex",
+          "envOverride": [
+            "CODEX_HOME"
+          ]
+        }
+      ],
+      "processNames": [
+        "codex"
+      ],
+      "apis": []
+    },
+    "sessionSource": {
+      "type": "jsonl",
+      "pathPattern": "~/.codex/sessions/**/*.jsonl",
+      "identityMode": "turn"
+    },
+    "eventMapping": {
+      "started": {
+        "match": "task_started"
+      },
+      "completed": {
+        "match": "task_complete",
+        "ok": true
+      },
+      "failed": {
+        "match": "task_complete",
+        "ok": false
+      },
+      "cancelled": {
+        "match": "turn_aborted"
+      }
+    },
+    "heartbeat": {
+      "intervalSec": 30,
+      "probe": "file_mtime"
+    },
+    "mcp": {
+      "clientConfigFormat": "codex"
+    }
+  },
+  {
+    "id": "cursor",
+    "name": "Cursor",
+    "sessionCapability": "detect-only",
+    "capabilityReason": "已识别安装；内置对话存储尚无经过验证的公开契约。",
+    "detect": {
+      "configPaths": [
+        {
+          "mac": "~/Library/Application Support/Cursor",
+          "win": "%APPDATA%/Cursor",
+          "linux": "~/.config/Cursor"
+        }
+      ],
+      "processNames": [
+        "Cursor"
+      ],
+      "apis": []
+    },
+    "sessionSource": {
+      "type": "none",
+      "pathPattern": "~/Library/Application Support/Cursor/User/workspaceStorage/**/state.vscdb"
+    },
+    "eventMapping": {},
+    "heartbeat": {
+      "intervalSec": 60,
+      "probe": "file_mtime"
+    },
+    "hookConfig": {
+      "name": "Cursor",
+      "mode": "turn"
+    }
+  }
+]

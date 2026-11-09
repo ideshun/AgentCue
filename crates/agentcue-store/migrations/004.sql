@@ -1,0 +1,1 @@
+ALTER TABLE source_checkpoints ADD COLUMN context TEXT;
