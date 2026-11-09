@@ -30,7 +30,7 @@ impl Default for Options {
 }
 enum Transport {
     Stdio {
-        child: Child,
+        child: Box<Child>,
         group_id: u32,
         input: Option<ChildStdin>,
         output: BufReader<ChildStdout>,
@@ -105,7 +105,7 @@ impl Transport {
                 });
                 let group_id = child.id().ok_or("MCP 子进程不可用")?;
                 Ok(Self::Stdio {
-                    child,
+                    child: Box::new(child),
                     group_id,
                     input,
                     output,

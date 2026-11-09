@@ -10,12 +10,14 @@ use chrono::{DateTime, Utc};
 use rusqlite::{Connection, OptionalExtension};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
+#[cfg(unix)]
+use std::time::UNIX_EPOCH;
 use std::{
     collections::HashSet,
     io,
     path::Path,
     sync::{Arc, atomic::Ordering},
-    time::{SystemTime, UNIX_EPOCH},
+    time::SystemTime,
 };
 use tokio::{
     fs::{File, OpenOptions},
