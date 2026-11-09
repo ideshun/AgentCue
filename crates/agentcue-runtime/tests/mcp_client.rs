@@ -6,10 +6,9 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use serde_json::{Value, json};
-use std::{
-    sync::{Arc, Mutex},
-    time::Duration,
-};
+use std::sync::{Arc, Mutex};
+#[cfg(unix)]
+use std::time::Duration;
 use tokio::{net::TcpListener, sync::oneshot};
 #[derive(Clone)]
 struct HttpState {

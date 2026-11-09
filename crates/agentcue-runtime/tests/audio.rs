@@ -1,4 +1,6 @@
-use agentcue_runtime::voice::{Cancellation, audio, native};
+#[cfg(unix)]
+use agentcue_runtime::voice::Cancellation;
+use agentcue_runtime::voice::{audio, native};
 fn wave(format: u16, bits: u16, samples: &[u8]) -> Vec<u8> {
     let mut data = vec![];
     data.extend_from_slice(b"RIFF");
