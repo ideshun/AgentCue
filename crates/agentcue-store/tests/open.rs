@@ -3,18 +3,21 @@ use rusqlite::Connection;
 use std::{
     fs,
     path::PathBuf,
+    sync::atomic::{AtomicU64, Ordering},
     time::{SystemTime, UNIX_EPOCH},
 };
+static NEXT_TEMP_ID: AtomicU64 = AtomicU64::new(0);
 struct Temporary(PathBuf);
 impl Temporary {
     fn new() -> Self {
         let p = std::env::temp_dir().join(format!(
-            "agentcue-store-{}-{}",
+            "agentcue-store-{}-{}-{}",
             std::process::id(),
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
-                .as_nanos()
+                .as_nanos(),
+            NEXT_TEMP_ID.fetch_add(1, Ordering::Relaxed)
         ));
         fs::create_dir(&p).unwrap();
         Self(p)
