@@ -67,9 +67,18 @@ async fn heartbeats_observe_without_consuming_new_file_content() {
     f.append(&source, Fixture::event("task_started"));
     assert_eq!(f.monitor.capture().await.unwrap(), 1);
     assert_eq!(f.receiver.try_recv().unwrap().event_type, "task.started");
+    let source_path: String = {
+        let db = f.runtime.db.lock().unwrap();
+        db.query_row(
+            "SELECT source_path FROM source_checkpoints WHERE tool_id='codex'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap()
+    };
     let offset = {
         let db = f.runtime.db.lock().unwrap();
-        agentcue_runtime::capture::checkpoint(&db, source.to_str().unwrap())
+        agentcue_runtime::capture::checkpoint(&db, &source_path)
             .unwrap()
             .unwrap()
             .byte_offset
@@ -79,7 +88,7 @@ async fn heartbeats_observe_without_consuming_new_file_content() {
     {
         let db = f.runtime.db.lock().unwrap();
         assert_eq!(
-            agentcue_runtime::capture::checkpoint(&db, source.to_str().unwrap())
+            agentcue_runtime::capture::checkpoint(&db, &source_path)
                 .unwrap()
                 .unwrap()
                 .byte_offset,
