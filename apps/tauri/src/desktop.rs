@@ -437,14 +437,13 @@ pub fn run(data_dir: PathBuf, isolated: bool) -> Result<(), String> {
         .build(tauri::generate_context!())
         .map_err(|e| e.to_string())?;
     app.run(|app, event| match event {
-        RunEvent::ExitRequested { api, .. } => {
+        RunEvent::ExitRequested { api, .. }
             if app
                 .try_state::<Host>()
-                .is_some_and(|host| !host.quitting.load(Ordering::Acquire))
-            {
-                api.prevent_exit();
-                request_close(app, CloseReason::Quit);
-            }
+                .is_some_and(|host| !host.quitting.load(Ordering::Acquire)) =>
+        {
+            api.prevent_exit();
+            request_close(app, CloseReason::Quit);
         }
         #[cfg(target_os = "macos")]
         RunEvent::Reopen { .. } => show_window(app.clone()),
