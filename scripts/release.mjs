@@ -1,10 +1,38 @@
 import { createHash } from 'node:crypto';
-import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, renameSync, rmdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const [command, argument] = process.argv.slice(2);
+
+function flattenInstallerFiles(directory) {
+  const files = [];
+  const installerPattern = /\.(?:dmg|zip|exe|deb|AppImage)$/;
+
+  function visit(current) {
+    for (const entry of readdirSync(current, { withFileTypes: true })) {
+      const source = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        visit(source);
+        if (readdirSync(source).length) throw new Error(`安装包目录包含未处理文件：${source}`);
+        rmdirSync(source);
+        continue;
+      }
+      if (!entry.isFile() || !installerPattern.test(entry.name)) continue;
+
+      const destination = path.join(directory, entry.name);
+      if (source !== destination) {
+        if (existsSync(destination)) throw new Error(`安装包文件名重复：${entry.name}`);
+        renameSync(source, destination);
+      }
+      files.push(entry.name);
+    }
+  }
+
+  visit(directory);
+  return files.sort();
+}
 
 try {
   if (command === 'check') {
@@ -24,7 +52,7 @@ try {
   } else if (command === 'checksums') {
     if (!argument) throw new Error('请提供安装包目录');
     const directory = path.resolve(argument);
-    const files = readdirSync(directory).filter((file) => /\.(?:dmg|zip|exe|deb|AppImage)$/.test(file)).sort();
+    const files = flattenInstallerFiles(directory);
     if (!files.length) throw new Error('没有找到安装包，不生成空校验文件');
     const lines = files.map((file) => {
       const hash = createHash('sha256').update(readFileSync(path.join(directory, file))).digest('hex');
