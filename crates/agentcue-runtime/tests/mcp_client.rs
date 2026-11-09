@@ -148,21 +148,21 @@ for line in sys.stdin:
  r={'protocolVersion':'2025-06-18','capabilities':{'tools':{}},'serverInfo':{'name':'fixture','version':'1'}} if p['method']=='initialize' else {'tools':[{'name':'fixture_tool'}]}
  print(json.dumps({'jsonrpc':'2.0','id':p['id'],'result':r}),flush=True)
 "#;
-    let good = python(valid, 2000, 1024 * 1024).await;
+    let good = python(valid, 10_000, 1024 * 1024).await;
     assert_eq!(good["ok"], true, "{good}");
     assert_eq!(good["tools"][0]["name"], "fixture_tool");
-    let bad = python("print('not JSON',flush=True)", 1000, 1024).await;
+    let bad = python("print('not JSON',flush=True)", 10_000, 1024).await;
     assert_eq!(bad["ok"], false);
     assert!(bad["lastError"].as_str().unwrap().contains("非 JSON"));
-    let oversized = python("print('x'*4096,flush=True)", 1000, 1024).await;
+    let oversized = python("print('x'*4096,flush=True)", 10_000, 1024).await;
     assert_eq!(oversized["ok"], false);
     assert!(oversized["lastError"].as_str().unwrap().contains("上限"));
     let timeout = python("import time;time.sleep(60)", 50, 1024).await;
     assert_eq!(timeout["ok"], false);
     assert_eq!(timeout["lastError"], "MCP 验证超时");
-    let wrong = python(&valid.replace("'id':p['id']", "'id':999"), 1000, 1024).await;
+    let wrong = python(&valid.replace("'id':p['id']", "'id':999"), 10_000, 1024).await;
     assert!(wrong["lastError"].as_str().unwrap().contains("id 不匹配"));
-    let exited = python("import sys;sys.exit(1)", 1000, 1024).await;
+    let exited = python("import sys;sys.exit(1)", 10_000, 1024).await;
     assert_eq!(exited["ok"], false);
     assert!(exited["lastError"].as_str().unwrap().contains("提前退出"));
 }

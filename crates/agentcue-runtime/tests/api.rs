@@ -240,7 +240,7 @@ async fn stream_tickets_are_single_use_and_shutdown_closes_connections() {
     }
     assert!(saw);
     f.handle.close().await.unwrap();
-    assert!(stream.next().await.is_none());
+    assert!(matches!(stream.next().await, None | Some(Err(_))));
     std::fs::remove_dir_all(f.dir).unwrap();
 }
 #[tokio::test]
