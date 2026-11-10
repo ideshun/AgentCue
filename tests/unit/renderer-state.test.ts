@@ -68,14 +68,13 @@ const settings = {
 };
 
 describe('renderer settings', () => {
-  it('shows a saved volume slider and builds numeric volume patches', () => {
+  it('keeps volume out of settings and builds numeric volume patches', () => {
     const context = renderer();
     context.settingsFixture = structuredClone(settings);
     evaluate(context, 'state.settings = settingsFixture');
     const markup = evaluate<string>(context, 'renderSettings(state)');
-    expect(markup).toContain('data-setting="voice.volume"');
-    expect(markup).toContain('aria-valuetext="80%"');
-    expect(markup).toContain('id="volume-value"');
+    expect(markup).not.toContain('data-setting="voice.volume"');
+    expect(markup).not.toContain('id="volume-value"');
     expect(plain(evaluate(context, 'buildPatch("voice.volume", "0.35")'))).toEqual({
       voice: { volume: 0.35 },
     });
@@ -264,7 +263,7 @@ describe('renderer board', () => {
     expect(markup).not.toContain('data-session="history-1"');
     expect(markup).not.toContain('data-task-id="history-1"');
     expect(markup).toContain('状态未知');
-    expect(markup).toContain('我已处理');
+    expect(markup).toContain('标记已响应');
   });
 
   it('shows attention tasks from group queries even when the mixed session list omits them', () => {
@@ -481,9 +480,10 @@ describe('renderer hook integrations', () => {
     evaluate(context, 'state.hookIntegrations = [integrationFixture]');
     const waiting = evaluate<string>(context, 'renderIntegrations(state)');
     expect(waiting).toContain('还没收到过任务事件');
-    expect(waiting).toContain('收到过事件不代表工具一直在运行');
-    expect(waiting).toContain('之后出不出声，还看语音开关、免打扰和规则设置');
-    expect(waiting).toContain('把新内容合并进去');
+    expect(waiting).toContain('收到过事件只证明它曾经送达');
+    expect(waiting).toContain('之后是否播报，还看语音开关、免打扰和规则');
+    expect(waiting).toContain('请合并内容，不要整份覆盖');
+    expect(waiting).toContain('把调用合并进去');
     expect(waiting).toContain('chmod u+x');
     expect(waiting).not.toContain('data-action="speak-test"');
     expect(waiting).not.toMatch(/data-action="(?:test-hook|send-event|start-task|stop-task)"/);
@@ -666,17 +666,20 @@ describe('renderer task titles', () => {
     expect(displayed[0]).toMatch(/^Codex · 任务 [0-9A-F]{8}$/);
   });
 
-  it('preserves legitimate JSON and code titles and escapes fallback tool names', () => {
+  it('summarizes permission payload titles, preserves code and escapes fallback tool names', () => {
     const context = renderer();
     const titles = [
-      '{"risk_level":"low","user_authorization":"explicit"}',
-      '{"name":"demo","retry":3}',
-      'const result = values.map(value => value + 1);',
-      '<button>修复按钮</button>',
+      ['{"risk_level":"low","user_authorization":"explicit"}', '用户授权确认 · 低风险'],
+      ['{"name":"demo","retry":3}', '{"name":"demo","retry":3}'],
+      [
+        'const result = values.map(value => value + 1);',
+        'const result = values.map(value => value + 1);',
+      ],
+      ['<button>修复按钮</button>', '<button>修复按钮</button>'],
     ];
-    for (const title of titles) {
+    for (const [title, expected] of titles) {
       context.taskFixture = { sessionId: 'demo:task', toolId: 'demo', title: ` ${title} ` };
-      expect(evaluate<string>(context, 'displayTaskTitle(taskFixture)')).toBe(title);
+      expect(evaluate<string>(context, 'displayTaskTitle(taskFixture)')).toBe(expected);
     }
     context.taskFixture = {
       kind: 'session',
