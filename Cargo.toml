@@ -3,7 +3,7 @@ members = ["crates/agentcue-core", "crates/agentcue-store", "crates/agentcue-run
 resolver = "3"
 
 [workspace.package]
-version = "1.0.0-alpha.1"
+version = "1.0.0"
 edition = "2024"
 rust-version = "1.89"
 license = "MIT"

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0 · Stable
+
+- 以 Rust + Tauri 2 替换生产桌面宿主，复用现有界面、办公室插画与任务交互，不再把 Chromium / Node.js 运行环境打进应用。
+- 沿用历史数据目录、SQLite 结构与迁移、Hooks / MCP 启动参数，升级时保留本机任务、设置和模型。
+- 提供 macOS Apple 芯片 / Intel、Windows x64、Linux x64 安装包，并随 Release 发布 SHA-256 校验清单。
+- 改进 MiMo 中英混读指引，保留工具名原文；无标题任务不再把会话哈希作为播报标题。
+- 本地 TTS 模型仍需主动下载；云语音需显式启用。尚无正式代码签名、公证和自动更新，Windows Hooks 自动生成仍有边界。
+
 ## 0.2.0 · Stable
 
 - 更新浅色与深色界面，统一页面布局、表单、列表、办公室气泡及操作文案。

@@ -13,14 +13,14 @@ AgentCue 是一款本地优先的 AI 编码任务监控桌面应用。将多个�
 
 ## 下载与安装
 
-从 [Releases](https://github.com/ideshun/AgentCue/releases) 下载对应安装包。当前正式版为 **v0.2.0**。
+从 [Releases](https://github.com/ideshun/AgentCue/releases) 下载对应安装包。当前正式版为 **v1.0.0**，基于 Rust + Tauri 2。
 
 | 系统 | 安装包 |
 | --- | --- |
-| macOS · Apple 芯片 | `AgentCue-…-mac-arm64.dmg` |
-| macOS · Intel | `AgentCue-…-mac-x64.dmg` |
-| Windows · x64 | `AgentCue-…-win-x64.exe` |
-| Linux · x64 | `AgentCue-…-linux-x86_64.AppImage` |
+| macOS · Apple 芯片 | `AgentCue_1.0.0_aarch64.dmg` |
+| macOS · Intel | `AgentCue_1.0.0_x64.dmg` |
+| Windows · x64 | `AgentCue_1.0.0_x64-setup.exe` |
+| Linux · x64 | `AgentCue_1.0.0_amd64.deb` 或 `AgentCue_1.0.0_amd64.AppImage` |
 
 macOS 将应用拖入「应用程序」后启动；Windows 运行安装程序；Linux 给 AppImage 添加执行权限后运行。安装版自带运行环境，无需安装 Node.js、pnpm 或拉取源码。
 
@@ -58,13 +58,11 @@ macOS 将应用拖入「应用程序」后启动；Windows 运行安装程序；
 
 [完整接入说明](docs/integrations/task-hooks.md) · [隐私说明](docs/privacy.md)
 
-## 安装包为什么有几百 MB？
+## 安装包体积与语音模型
 
-AgentCue 使用 Electron，自带 Chromium 和 Node.js。macOS Apple 芯片版 `.app` 解压后约 **291 MiB**，其中 Electron Framework 约 239 MiB；下载的 DMG 约 119 MiB。安装占用和下载大小是两个口径，任务历史条数不会改变安装包大小。
+v1.0.0 使用 Rust + Tauri 2 和系统 WebView，不再把 Chromium 与 Node.js 打进安装包；各平台的实际下载大小见 Release 附件。安装包仍包含本地 TTS 推理运行库，Kokoro / ZipVoice 模型由用户在应用中主动下载，不随包分发。v0.2.0 的 Electron 安装包继续保留在旧版 Releases 中。
 
-v0.1.1 将 Chromium 的 220 份语言资源缩减为英语、简体中文和繁体中文；同一台 Mac 上重复构建测得 `.app` 从 336 MiB 降到 291 MiB，DMG 从 128.2 MiB 降到 119.0 MiB。安装包还包含 SQLite 和一份本地 TTS 推理运行库（约 33 MiB），以便下载模型后可使用 Kokoro / ZipVoice；**语音模型本身不包含在安装包中**，由用户主动下载。编译源码、中间文件和未使用的插画版本不进入应用包。
-
-全部插画原稿、历史版本和设计说明仍保留在仓库中，只是不进入应用包。剩余体积主要来自 Electron 框架；再明显缩小需要把 TTS 推理运行库改为按需下载，或更换桌面技术栈，会影响首次使用体验或增加迁移成本。
+全部插画原稿、历史版本和设计说明仍保留在仓库中，只是不进入应用包。编译源码、中间文件和未使用的插画版本也不会打进安装包。
 
 ## 更新与已有数据
 
@@ -95,7 +93,7 @@ pnpm dev
 
 `better-sqlite3` 需匹配 Electron ABI。项目测试脚本会探测可用运行时，不会为跑测试重编译共享模块或读取生产数据库。`pnpm dev` 会先对齐桌面原生依赖；跨平台打包应在对应系统与架构运行。
 
-**1.0 原生预览版**使用 Rust + Tauri 2，复用原有页面及办公室。安装 rustup 后，运行 `pnpm rust:verify` 验证核心，运行 `pnpm tauri:bundle` 构建当前平台的安装包。预览版构建、隔离运行及 Hooks / MCP 升级说明见 [原生版交付手册](docs/native-preview.md)。迁移决策见 [ADR-21](docs/adr/ADR-21-rust-tauri-migration.md)。
+**1.0 正式版**使用 Rust + Tauri 2，复用 TypeScript / CSS 页面及办公室。安装 rustup 后，运行 `pnpm rust:verify` 验证核心，运行 `pnpm tauri:bundle` 构建当前平台的安装包。构建、隔离运行及 Hooks / MCP 升级说明见 [原生版交付手册](docs/native-preview.md)。迁移决策见 [ADR-21](docs/adr/ADR-21-rust-tauri-migration.md)。
 
 - [开发与架构说明](docs/development.md)
 - [版本发布与安装包验证](docs/releasing.md)

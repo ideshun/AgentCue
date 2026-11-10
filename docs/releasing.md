@@ -1,23 +1,31 @@
 # AgentCue 安装与发布
 
-## 当前流程
+仓库：[ideshun/AgentCue](https://github.com/ideshun/AgentCue)。当前主版本为 **v1.0.0**，桌面宿主为 Rust + Tauri 2。旧版 v0.x Electron 安装包继续保留在 Releases 中。
 
-GitHub 仓库：[ideshun/AgentCue](https://github.com/ideshun/AgentCue)。
+## v1.x 原生版发布
 
-- `.github/workflows/l1.yml` 在 `main`、PR 与手动触发时运行完整检查并存档日志。
-- `.github/workflows/release.yml` 接受版本标签或手动指定现有标签，检查全部包版本，运行完整 L1，然后在原生 runner 构建 macOS arm64 / x64、Windows x64、Linux x64。
-- 每个平台构建后自检 Electron 包中的 SQLite 内存访问、系统架构 TTS 运行库、英文/中文 Electron 语言资源、当前工位插画、许可和 6 个 MCP 工具。自检不打开窗口或播放音频。
-- 成功后生成 SHA-256 校验文件，创建 **草稿预览版**。检查附件和校验值后再通过 GitHub UI 发布；发布正式版时取消「预发布」并设为 Latest。工作流不会覆盖已经发布的版本。
-- 正式 Code Signing、公证和自动更新暂未配置。
+`.github/workflows/native-release.yml` 在推送 `v1.*` 标签后运行：校验 Cargo 与 Tauri 版本及 Release notes，运行 Rust 验证、Clippy、TTS 测试和桌面自检，并在 macOS Apple 芯片 / Intel、Windows x64、Linux x64 原生 runner 上分别构建安装包。最后汇总安装包并生成 `SHA256SUMS.txt`。
 
-发布工作流需要仓库开启 GitHub Actions。首次使用时为 `main` 增加 tag push 权限提示，日志会说明失败步骤。
+- 标签含 `-`（例如 `v1.0.1-rc.1`）时，创建预发布草稿，保留人工检查流程。
+- 稳定标签（例如 `v1.0.0`）时，所有构建和自检成功后自动发布为正式版，并标记为 Latest。
+- 已发布版本不可覆盖；修复发布问题应提升版本号并创建新标签。
+- 当前没有 Developer ID 正式签名、macOS 公证或自动更新。CI 自检不替代目标系统上的人工交互和真实音频验收。
 
-## 发布新版本
+### 发布步骤
 
-1. 更新根 `package.json` 版本号、各 workspace 包版本号和 `pnpm-lock.yaml`，保持一致。
-2. 在 `CHANGELOG.md` 中记录版本说明，并新建 `docs/releases/vX.Y.Z.md` 作为这版 Release notes。
-3. 本地运行 `pnpm release:check vX.Y.Z` 与 `sh scripts/l1-verify.sh`。
-4. 建立已检查的版本提交后，推送标签：
+1. 同步更新根 `Cargo.toml` 的 workspace 版本、`apps/tauri/tauri.conf.json`、`Cargo.lock`、`CHANGELOG.md`、`README.md`，并新增 `docs/releases/vX.Y.Z.md`。
+2. 本地验证核心并构建当前平台：
+
+   ```sh
+   pnpm install --frozen-lockfile --ignore-scripts
+   pnpm rust:verify
+   cargo clippy -p agentcue-desktop -p agentcue-tts --all-targets --features agentcue-desktop/custom-protocol --locked -- -D warnings
+   cargo test -p agentcue-tts --locked
+   pnpm tauri:bundle app
+   ```
+
+   交叉平台安装包必须由对应系统和架构的 CI runner 生成，不可用单机产物代替。
+3. 将已验证的版本提交推送到 `main`，再创建并推送带注释的标签：
 
    ```sh
    git tag -a vX.Y.Z -m "AgentCue vX.Y.Z"
@@ -25,68 +33,21 @@ GitHub 仓库：[ideshun/AgentCue](https://github.com/ideshun/AgentCue)。
    git push origin vX.Y.Z
    ```
 
-5. GitHub Actions 等待 quality 和四个平台构建及自检通过后，生成草稿预览版与 SHA-256 清单。审查附件；正式版取消「预发布」并设为 Latest，预览版保留「预发布」后发布。
+4. 在 Actions 确认 `Native release` 的四个平台构建与最后的发布步骤均成功。稳定版发布后，核对附件和 `SHA256SUMS.txt`；预览版则检查草稿后再手动发布。
 
-手动补跑已存在的标签可在 Actions → Release → Run workflow 输入 `vX.Y.Z`。标签版本必须和各包完全相同；同一标签重新运行仅更新仍为草稿的 Release，已发布版本必须使用新标签。
+本地 Tauri 构建产物位于 `target/release/bundle/`。可用 `pnpm tauri:bundle app`、`pnpm tauri:bundle dmg` 等只构建指定包。运行打包版 `AgentCue --self-test` 可检查隔离存储、原生入口、MCP stdio 和 TTS 进程启动。
 
-本地建包：
+## v0.x Electron 维护发布
 
-```sh
-pnpm install --frozen-lockfile
-pnpm build
-pnpm release:verify apps/desktop/release/mac-arm64/AgentCue.app
-pnpm --filter @awm/desktop exec electron-builder --mac --arm64 --publish never
-pnpm release:checksums apps/desktop/release
-```
+`.github/workflows/release.yml` 与 `pnpm release:check` 专用于旧版 v0.x。该流程校验根 `package.json` 和 npm workspace 版本，运行 Electron 自检并构建历史安装包。新版本不应再用此工作流发布 1.0 原生应用。
 
-CI 在其各自的原生系统与架构上构建；不能将单机 Mac arm64 构建冒充 Intel、Windows 或 Linux 安装包。
+## 安装、数据与工具接入
 
-## 首次安装会占用多少空间
+1. 完全退出旧版本，再安装新版本；红色关窗按钮只会隐藏窗口。
+2. AgentCue 沿用 `AI Workflow Monitor` 数据目录，升级不会主动清除任务、设置或模型；不要手动删除该目录。
+3. 如果仍安装在 `/Applications/AgentCue.app`，macOS 上原 Hooks / MCP 命令路径与参数保持兼容。移动应用、改名或从开发目录迁移时，在「播报接入」复制新配置并替换旧条目。
+4. Windows 和 Linux 的命令路径随安装位置变化；迁移后应重新复制接入配置。Windows Hooks 自动生成尚未就绪，具体能力以界面状态为准。
 
-安装后的 `.app` 带有 Electron Framework（Chromium 与 Node.js）。v0.1.1 macOS arm64 实测 Electron Framework 约 **239 MiB**，完整 `.app` 约 **291 MiB**，DMG 下载文件约 **119 MiB**。同一台 Mac、相同架构的 v0.1.0 对比构建分别约 286 MiB、336 MiB 和 128.2 MiB。应用解压后的占用仍是数百 MB，这部分主要来自桌面运行环境，和任务记录无关。
+Kokoro / ZipVoice 模型需在应用内主动下载，不包含在安装包中。云语音需显式开启，播报文字会发送给所配置的服务商。测试原生版时可使用 `--isolated` 和独立数据目录，避免读取或修改生产数据。
 
-v0.1.0 的打包优化去掉了重复 sherpa TTS 运行库与 SQLite 编译源码/中间文件；v0.1.1 再把 Chromium 语言资源限制为英语、简体中文和繁体中文，减少约 45 MiB 的已安装占用。TTS 原生库仅放在 `Resources/sherpa-tts`，当前引用的工位图才复制到应用包。**所有**插画源码、未使用版本和设计素材仍留在仓库。Kokoro / ZipVoice 语音模型需用户主动下载，均不包含在安装包内。
-
-继续显著缩小安装体积需要把约 33 MiB 的 TTS 原生运行库改成按需下载，或迁移出 Electron；前者会让首次使用本地 Kokoro 多一步下载，后者属于桌面技术栈重写。本版保留运行库，保证下载语音模型后无需再安装本机依赖。
-
-Finder 的「显示简介」/ 容量、下载压缩包大小和逻辑文件大小是不同口径。Release 会列出每个实际安装包的字节数及 SHA-256；以新包自检构建结果为准，不根据旧安装包估计优化后的大小。
-
-## 安装和接入迁移
-
-## 本机安装
-
-1. 先在托盘菜单选择「退出」，或使用 Cmd+Q 完全退出旧实例；红色关窗按钮只会隐藏窗口。
-2. 将已构建的 `AgentCue.app` 放进 `/Applications`。
-3. 从 `/Applications` 启动，以后保持这个固定安装位置。
-4. 打开「播报接入」，从已安装的应用复制新的 Hooks / MCP 配置。
-5. 重新加载对应工具窗口或新建会话，发送一条新任务，核对最近接入时间。
-
-应用展示名为 **AgentCue**（`APP_DISPLAY_NAME`），历史数据目录名继续使用 `AI Workflow Monitor`（`APP_NAME`）。主进程在请求单实例锁前显式设置 `userData = defaultDataDir()`；macOS 仍沿用 `~/Library/Application Support/AI Workflow Monitor/`，Hooks 与 MCP 也从这里读取握手信息。更名不迁移或清空设置、任务记录和模型。
-
-本地构建：
-
-```sh
-pnpm install --frozen-lockfile
-pnpm build
-pnpm --filter @awm/desktop exec electron-builder --mac --arm64 --publish never
-```
-
-`pnpm build` 构建全部 workspace 包，打包使用各包的 `dist`。需保证运行目标的原生模块与 Electron 版本、操作系统、CPU 架构匹配。当前项目的本地语音运行时在 `after-pack.cjs` 中按目标架构复制。
-
-## Hooks 和 MCP 是否需要重接
-
-| 迁移情况 | 处理 |
-| --- | --- |
-| 开发版迁到安装版 | 重新复制一次接入配置，将开发目录里的可执行文件路径换成安装版路径 |
-| 同一安装路径下更新版本 | 接口兼容时通常沿用现有配置；更新后发送新任务验证 |
-| 移动、改名应用，或删除原来引用的开发目录 | 重新生成并合并接入配置 |
-| CodeX 文件采集 | 当前不依赖 Hooks；读取会话文件，需保持来源读取开启 |
-| MCP 客户端 | 与 Hooks 一样使用绝对启动路径；从开发版迁到安装版时重新复制一次 |
-
-`desktopMcpLaunch()` 根据当前可执行文件和是否打包生成命令；`toolHookCommand()` 复用这个绝对路径替换子进程入口。因此应先完成安装，再复制配置。迁移时替换旧的 AgentCue（原 AWM）启动命令，保留其他工具已有的 Hooks；每个事件保留一条对应的 AgentCue 调用，避免重复追加。MCP 同样更新原 `ai-workflow-monitor` Server 配置。
-
-从旧的 `AI Workflow Monitor.app` 换成 `AgentCue.app` 时，可执行文件的绝对路径会变化。安装后从「播报接入」更新原 Hooks / MCP 条目一次；MCP Server 键仍为 `ai-workflow-monitor`，CLI 仍为 `awm-mcp`，不要新增第二份配置。
-
-当前自动生成的 Hooks 命令采用 POSIX shell 引号，Windows 的就绪状态仍被标为不可用。发布 Windows 接入能力前需要补充 Windows 启动器并做平台验收。
-
-预览版不应上传用户数据库、会话、`runtime.json`、settings、语音模型或 API Key。仓库忽略本机模型和数据库；发版前仍要审查新增文件与构建范围。
+发版前不得提交用户数据库、会话、`runtime.json`、设置文件、语音模型或 API Key。插画原稿和设计素材保留在仓库，但未使用素材不进入安装包。

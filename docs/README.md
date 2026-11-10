@@ -17,7 +17,7 @@
 
 ## ADR 存放
 
-v0.x 安装、资源和发布见 [Electron 发版手册](./releasing.md)。1.0 构建、隔离验证和工具接入见[原生版交付手册](./native-preview.md)。
+v0.x Electron 安装包仍保留在旧版 Releases 中；当前 v1.x 发布流程见 [发版手册](./releasing.md)。原生版构建、隔离验证和工具接入见[原生版交付手册](./native-preview.md)。
 
 历史决策见详细设计第 1.3 章（ADR-01~10）。实现期新增决策见
 [adr/ADR-11-implementation-decisions.md](./adr/ADR-11-implementation-decisions.md)（ADR-11~16）、

@@ -3,7 +3,7 @@
   "productName": "AgentCue",
   "mainBinaryName": "AgentCue",
   "identifier": "com.awm.app",
-  "version": "1.0.0-alpha.1",
+  "version": "1.0.0",
   "build": { "frontendDist": "./dist" },
   "app": {
     "windows": [],
