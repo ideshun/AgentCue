@@ -717,7 +717,7 @@ function renderCloudSettings(settings: Settings): string {
     ${settingRow(
       'voice.cloudVoice',
       '云音色',
-      '默认自动选。中文有 冰糖 / 茉莉 / 苏打 / 白桦，英文有 Mia / Chloe / Milo / Dean。',
+      '无需安装。中文音色适合整句中文；Mia / Chloe / Milo / Dean 是英文音色，可试听工具名读音，但中文部分可能不够自然。',
       `<select id="__ID__" class="control-select" data-setting="voice.cloudVoice">${cloudVoiceOptions}${customCloudVoice}</select>`,
     )}
     <p class="cloud-disclosure">云服务要联网，播报的文字会发给服务商。失败了会直接告诉你原因，不会偷偷换别的声音。MiMo 目前限免，以后收费了你再决定用不用。</p>`;

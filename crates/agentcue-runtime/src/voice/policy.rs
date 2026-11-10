@@ -7,6 +7,8 @@ use std::{
     sync::LazyLock,
     time::{Duration, Instant},
 };
+const UNTITLED_SPEECH: &str = "未命名任务";
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Signal {
@@ -32,11 +34,7 @@ pub fn task_title(signal: &Signal, max: usize) -> String {
     if let Some(title) = signal.title.as_deref().filter(|s| !s.trim().is_empty()) {
         return truncate(title, max);
     }
-    let mut hash = 2166136261_u32;
-    for code in signal.session_id.encode_utf16() {
-        hash = (hash ^ (code as u32)).wrapping_mul(16777619);
-    }
-    format!("任务 {hash:08X}")
+    truncate(UNTITLED_SPEECH, max)
 }
 pub fn spoken_title(signal: &Signal, max: usize) -> String {
     static RULES: LazyLock<Vec<(Regex, &str)>> = LazyLock::new(|| {
@@ -66,13 +64,7 @@ pub fn spoken_title(signal: &Signal, max: usize) -> String {
         .trim()
         .to_owned();
     if label.is_empty() {
-        return task_title(
-            &Signal {
-                title: None,
-                ..signal.clone()
-            },
-            40,
-        );
+        return UNTITLED_SPEECH.into();
     }
     if clause.chars().count() > max {
         format!("{label}…")
@@ -177,7 +169,11 @@ pub fn render(template: &str, signal: &Signal, title_limit: usize) -> String {
     truncate(&rendered, 200)
 }
 pub fn announcement(signal: &Signal, config: &Value, rule: Option<&Value>) -> String {
-    let title = signal.speech_title.as_ref().or(signal.title.as_ref());
+    let title = signal
+        .speech_title
+        .as_ref()
+        .filter(|title| !title.trim().is_empty())
+        .or(signal.title.as_ref());
     let compact = title.map(|s| compact_references(s));
     let has_reference = signal.speech_title.is_some() || compact.as_ref() != title;
     let mut speech = Signal {
@@ -187,6 +183,12 @@ pub fn announcement(signal: &Signal, config: &Value, rule: Option<&Value>) -> St
     let max = if has_reference { 60 } else { 40 };
     if config["voice"]["content"] != "prompt" {
         speech.title = Some(spoken_title(&speech, if has_reference { 60 } else { 24 }));
+    } else if speech
+        .title
+        .as_deref()
+        .is_none_or(|title| title.trim().is_empty())
+    {
+        speech.title = Some(UNTITLED_SPEECH.into());
     }
     let text = rule
         .and_then(|r| r["template"].as_str())

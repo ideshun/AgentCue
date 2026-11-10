@@ -13,6 +13,9 @@ use tokio::{
     process::{Child, ChildStdin, ChildStdout, Command},
     sync::Mutex,
 };
+
+const MIMO_TTS_INSTRUCTION: &str = "请用平稳、清晰、自然流畅的普通话播报中文，语速适中。保留中英混合内容中的英文原词，并使用开发者熟悉的英文读法：Git 读作英文单词 git（短元音，类似 sit，不要逐字母读）；GitHub、GitLab 按英文名称读；git status、commit、push、branch、merge、pull request 等命令和术语按英文读。CodeX 读作 code ex；CLI、API、MCP 按英文字母逐个读；Node.js 读作 node dot J S。其他产品名、编程语言、协议、命令和缩写也按通行的技术英语读法处理。路径、文件名、代码和参数中的标点或数字不要逐符号展开，只读其中有意义的名称。不要把英文术语改成中文谐音，也不要添加原文没有的数字或内容。";
+
 struct Worker {
     child: Child,
     input: ChildStdin,
@@ -247,7 +250,7 @@ pub async fn synthesize_cloud(config: &Value, text: &str) -> Result<Vec<u8>, Str
         .timeout(Duration::from_secs(30))
         .build()
         .map_err(|_| "云 TTS 请求通道不可用")?;
-    let mut response=client.post(endpoint).bearer_auth(key).json(&json!({"model":model,"messages":[{"role":"user","content":"用平稳清晰的播报语气，语速适中，不要加入额外内容。"},{"role":"assistant","content":text}],"audio":{"format":"wav","voice":profile},"stream":false})).send().await.map_err(|_|"云 TTS 请求失败或超时（30 秒）")?;
+    let mut response=client.post(endpoint).bearer_auth(key).json(&json!({"model":model,"messages":[{"role":"user","content":MIMO_TTS_INSTRUCTION},{"role":"assistant","content":text}],"audio":{"format":"wav","voice":profile},"stream":false})).send().await.map_err(|_|"云 TTS 请求失败或超时（30 秒）")?;
     if !response.status().is_success() {
         return Err(format!(
             "云 TTS 请求失败：HTTP {}{}",

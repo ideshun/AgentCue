@@ -37,6 +37,17 @@ fn custom_templates_keep_tool_and_task_identity_and_do_not_speak_paths() {
     assert!(text.chars().count() <= 200);
 }
 #[test]
+fn speech_uses_a_plain_label_for_untitled_tasks() {
+    let mut s = signal();
+    s.title = None;
+    s.speech_title = None;
+    for content in ["title", "prompt"] {
+        let text = policy::announcement(&s, &json!({"voice":{"content":content}}), None);
+        assert_eq!(text, "合成工具 的任务已经完成，未命名任务。");
+    }
+    assert_eq!(policy::task_title(&s, 40), "未命名任务");
+}
+#[test]
 fn mute_precedes_waiting_override_and_only_three_milestones_can_speak() {
     let defaults = settings::defaults();
     let scope = defaults["voice"]["scope"].as_str().unwrap();

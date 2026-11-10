@@ -39,12 +39,40 @@ async fn cloud_requires_selection_opt_in_and_key_before_sending_text() {
     assert!(synthesize_cloud(&config, "合成测试").await.is_err());
     assert!(seen.lock().unwrap().is_empty());
     config["voice"]["cloudEnabled"] = json!(true);
-    let audio = synthesize_cloud(&config, "合成测试").await.unwrap();
+    let audio = synthesize_cloud(
+        &config,
+        "CodeX CLI 开始处理。执行 git status，稍后 git commit 并 push；检查 Claude Code、Cursor、Cline、CodeBuddy 和 package.json。",
+    )
+    .await
+    .unwrap();
     assert_eq!(&audio[..4], b"RIFF");
     let requests = seen.lock().unwrap();
     assert_eq!(requests.len(), 1);
     assert_eq!(requests[0]["model"], "mimo-v2.5-tts");
-    assert_eq!(requests[0]["messages"][1]["content"], "合成测试");
+    assert_eq!(
+        requests[0]["messages"][1]["content"],
+        "CodeX CLI 开始处理。执行 git status，稍后 git commit 并 push；检查 Claude Code、Cursor、Cline、CodeBuddy 和 package.json。"
+    );
+    assert!(
+        requests[0]["messages"][0]["content"]
+            .as_str()
+            .unwrap()
+            .contains("不要把英文术语改成中文谐音")
+    );
+    for term in [
+        "Git 读作英文单词 git",
+        "git status",
+        "commit",
+        "pull request",
+        "Node.js",
+    ] {
+        assert!(
+            requests[0]["messages"][0]["content"]
+                .as_str()
+                .unwrap()
+                .contains(term)
+        );
+    }
     drop(requests);
     server.abort();
 }
