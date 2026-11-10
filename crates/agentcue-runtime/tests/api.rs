@@ -240,7 +240,14 @@ async fn stream_tickets_are_single_use_and_shutdown_closes_connections() {
     }
     assert!(saw);
     f.handle.close().await.unwrap();
-    assert!(matches!(stream.next().await, None | Some(Err(_))));
+    let closed = tokio::time::timeout(Duration::from_secs(1), async {
+        while let Some(Ok(_)) = stream.next().await {}
+    })
+    .await;
+    assert!(
+        closed.is_ok(),
+        "server shutdown did not close the SSE stream"
+    );
     std::fs::remove_dir_all(f.dir).unwrap();
 }
 #[tokio::test]

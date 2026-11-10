@@ -264,6 +264,7 @@ fn event_stream(state: &ApiState) -> Response {
                 return None;
             }
             let event = tokio::select! {
+                biased;
                 _=stop.changed()=>return None,
                 _=heartbeat.tick()=>SseEvent::default().event("heartbeat").data(json!({"ts":queries::now()}).to_string()),
                 next=events.recv()=>match next {
