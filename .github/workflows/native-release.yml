@@ -114,7 +114,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
           # One-time v1.0.0 repair: require the exact pre-repair annotated tag object.
-          ALLOW_V1_REPUBLISH: ${{ github.event_name == 'push' && github.event.forced == true && github.ref_name == 'v1.0.0' && github.event.before == '802586babd055b3cfc8a297a2940ba46b613e4e6' }}
+          ALLOW_V1_REPUBLISH: ${{ github.event_name == 'push' && github.event.forced == true && github.ref_name == 'v1.0.0' && github.event.before == '20e5f28bd648764a55ffa69354d84603b5ba9a92' }}
         run: |
           set -euo pipefail
           if gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft > /tmp/native-release-is-draft; then

@@ -3,10 +3,20 @@ use agentcue_runtime::{
     paths,
 };
 use serde_json::{Value, json};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tokio::io::{AsyncReadExt, AsyncWriteExt, BufReader};
 fn init() -> Value {
     json!({"jsonrpc":"2.0","id":"init","method":"initialize","params":{"protocolVersion":mcp::PROTOCOL,"capabilities":{},"clientInfo":{"name":"fixture","version":"1"}}})
+}
+fn absolute_fixture_path(path: &str) -> PathBuf {
+    #[cfg(windows)]
+    {
+        PathBuf::from(format!("C:\\{}", path.replace('/', "\\")))
+    }
+    #[cfg(not(windows))]
+    {
+        PathBuf::from(format!("/{path}"))
+    }
 }
 #[tokio::test]
 async fn lifecycle_schema_and_notifications_are_enforced() {
@@ -110,9 +120,9 @@ async fn stdio_framing_recovers_from_bad_json_and_limits_unterminated_input() {
 }
 #[test]
 fn app_paths_follow_each_platform_convention() {
-    let home = Path::new("/fixture");
+    let home = absolute_fixture_path("fixture");
     assert_eq!(
-        paths::app_paths("macos", home, None, None, None, None),
+        paths::app_paths("macos", &home, None, None, None, None),
         paths::AppPaths {
             data_dir: home.join("Library/Application Support/AgentCue"),
             config_dir: home.join("Library/Application Support/AgentCue"),
@@ -120,7 +130,7 @@ fn app_paths_follow_each_platform_convention() {
         }
     );
     assert_eq!(
-        paths::app_paths("windows", home, None, None, None, None),
+        paths::app_paths("windows", &home, None, None, None, None),
         paths::AppPaths {
             data_dir: home.join("AppData/Local/AgentCue"),
             config_dir: home.join("AppData/Local/AgentCue"),
@@ -130,37 +140,44 @@ fn app_paths_follow_each_platform_convention() {
     assert_eq!(
         paths::app_paths(
             "windows",
-            home,
-            Some(Path::new("/local")),
-            Some(Path::new("/roaming")),
+            &home,
+            Some(&absolute_fixture_path("local")),
+            Some(&absolute_fixture_path("roaming")),
             None,
             None,
         ),
         paths::AppPaths {
-            data_dir: Path::new("/local/AgentCue").to_path_buf(),
-            config_dir: Path::new("/local/AgentCue").to_path_buf(),
-            legacy_data_dir: Some(Path::new("/roaming/AI Workflow Monitor").to_path_buf()),
-        }
-    );
-    assert_eq!(
-        paths::app_paths("linux", home, None, None, None, Some(Path::new("/config"))),
-        paths::AppPaths {
-            data_dir: home.join(".local/share/agentcue"),
-            config_dir: Path::new("/config/agentcue").to_path_buf(),
-            legacy_data_dir: Some(Path::new("/config/AI Workflow Monitor").to_path_buf()),
+            data_dir: absolute_fixture_path("local/AgentCue"),
+            config_dir: absolute_fixture_path("local/AgentCue"),
+            legacy_data_dir: Some(absolute_fixture_path("roaming/AI Workflow Monitor")),
         }
     );
     assert_eq!(
         paths::app_paths(
             "linux",
-            home,
+            &home,
             None,
             None,
-            Some(Path::new("/data")),
+            None,
+            Some(&absolute_fixture_path("config")),
+        ),
+        paths::AppPaths {
+            data_dir: home.join(".local/share/agentcue"),
+            config_dir: absolute_fixture_path("config/agentcue"),
+            legacy_data_dir: Some(absolute_fixture_path("config/AI Workflow Monitor")),
+        }
+    );
+    assert_eq!(
+        paths::app_paths(
+            "linux",
+            &home,
+            None,
+            None,
+            Some(&absolute_fixture_path("data")),
             Some(Path::new("relative-config")),
         ),
         paths::AppPaths {
-            data_dir: Path::new("/data/agentcue").to_path_buf(),
+            data_dir: absolute_fixture_path("data/agentcue"),
             config_dir: home.join(".config/agentcue"),
             legacy_data_dir: Some(home.join(".config/AI Workflow Monitor")),
         }
