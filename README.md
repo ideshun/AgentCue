@@ -68,13 +68,15 @@ v1.0.0 使用 Rust + Tauri 2 和系统 WebView，不再把 Chromium 与 Node.js 
 
 完全退出旧版，再用新版替换应用。当前暂不提供自动更新。
 
-AgentCue 原名 AI Workflow Monitor。为兼容已有设置、历史记录、模型与握手文件，数据目录名继续保留：
+AgentCue 原名 AI Workflow Monitor。v1.0.0 初期修订会在首次启动时将旧目录迁移到新的平台路径，保留已有设置、历史记录、模型和握手文件：
 
 | 系统 | 默认数据目录 |
 | --- | --- |
-| macOS | `~/Library/Application Support/AI Workflow Monitor/` |
-| Windows | `%APPDATA%/AI Workflow Monitor/` |
-| Linux | `$XDG_CONFIG_HOME/AI Workflow Monitor/`，未设置时使用 `~/.config/AI Workflow Monitor/` |
+| macOS | `~/Library/Application Support/AgentCue/` |
+| Windows | `%LOCALAPPDATA%/AgentCue/` |
+| Linux | `$XDG_DATA_HOME/agentcue/`，未设置时使用 `~/.local/share/agentcue/` |
+
+Linux 设置单独保存在 `$XDG_CONFIG_HOME/agentcue/`，未设置时使用 `~/.config/agentcue/`。同盘迁移不重复复制大型模型；跨盘迁移会保留旧目录作为副本，不覆盖新版目录已有内容。
 
 从开发版迁到安装版、从旧名称更名或移动安装位置后，到「播报接入」更新原 Hooks / MCP 条目的启动路径一次；同一安装路径下更新通常不需要重配。MCP Server 键 `ai-workflow-monitor`、CLI `awm-mcp` 和包 scope `@awm/*` 保持兼容，避免重复添加。
 
@@ -93,7 +95,7 @@ pnpm dev
 
 `better-sqlite3` 需匹配 Electron ABI。项目测试脚本会探测可用运行时，不会为跑测试重编译共享模块或读取生产数据库。`pnpm dev` 会先对齐桌面原生依赖；跨平台打包应在对应系统与架构运行。
 
-**1.0 正式版**使用 Rust + Tauri 2，复用 TypeScript / CSS 页面及办公室。安装 rustup 后，运行 `pnpm rust:verify` 验证核心，运行 `pnpm tauri:bundle` 构建当前平台的安装包。构建、隔离运行及 Hooks / MCP 升级说明见 [原生版交付手册](docs/native-preview.md)。迁移决策见 [ADR-21](docs/adr/ADR-21-rust-tauri-migration.md)。
+**1.0 正式版**使用 Rust + Tauri 2，复用 TypeScript / CSS 页面及办公室。安装 rustup 后，运行 `pnpm rust:verify` 验证核心，运行 `pnpm tauri:bundle` 构建当前平台的安装包。构建、隔离运行及 Hooks / MCP 升级说明见 [原生版交付手册](docs/native-preview.md)；数据目录与旧版迁移规则见 [ADR-22](docs/adr/ADR-22-agentcue-data-directories.md)。
 
 - [开发与架构说明](docs/development.md)
 - [版本发布与安装包验证](docs/releasing.md)

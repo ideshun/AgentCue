@@ -26,7 +26,7 @@ ZipVoice 参考音频使用至少 16 kHz 的单声道 PCM WAV，并填写与音�
 
 ## 数据与工具接入
 
-正常启动沿用历史数据目录 `AI Workflow Monitor`。升级前退出旧应用；涉及 schema 变更时，新引擎先备份数据库。可运行 `--isolated` 模式检验，不连接真实工具来源，也不使用生产数据库或配置。
+正常启动使用 AgentCue 平台数据目录：macOS `~/Library/Application Support/AgentCue`、Windows `%LOCALAPPDATA%/AgentCue`、Linux `$XDG_DATA_HOME/agentcue`（默认 `~/.local/share/agentcue`）；Linux 设置位于 `$XDG_CONFIG_HOME/agentcue`（默认 `~/.config/agentcue`）。首次启动迁移旧 `AI Workflow Monitor` 数据，升级前请退出旧应用。迁移同盘移动大型模型，跨盘复制并保留旧目录；不会覆盖新版目录已有文件。涉及 schema 变更时，新引擎先备份数据库。可运行 `--isolated` 模式检验，不连接真实工具来源，也不使用生产数据库或配置。
 
 macOS 如继续使用 `/Applications/AgentCue.app`，已有 Hooks / MCP 的命令路径和 CLI 参数仍可用。Windows 安装目录、Linux AppImage 文件位置或应用名称变化时，在「播报接入」复制新命令，替换客户端原有的 AgentCue 条目。Windows 提供 MCP stdio；POSIX Hooks 模板适用于 macOS 和 Linux。
 

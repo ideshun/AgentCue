@@ -1,6 +1,7 @@
 use crate::services::Services;
 use agentcue_runtime::{
     mcp_client::{self, Config, Options},
+    paths::AppPaths,
     queries,
 };
 use serde_json::{Value, json};
@@ -10,7 +11,12 @@ use tokio::{io::AsyncWriteExt, process::Command};
 pub async fn run() -> Result<(), String> {
     let dir = std::env::temp_dir().join(format!("agentcue-self-test-{}", uuid::Uuid::new_v4()));
     let executable = std::env::current_exe().map_err(|e| e.to_string())?;
-    let services = Services::start(dir.clone(), executable.clone(), true).await?;
+    let services = Services::start(
+        AppPaths::for_data_dir(dir.clone()),
+        executable.clone(),
+        true,
+    )
+    .await?;
     let result = verify(&services, &executable).await;
     services.close().await;
     drop(services);

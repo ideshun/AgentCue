@@ -109,22 +109,60 @@ async fn stdio_framing_recovers_from_bad_json_and_limits_unterminated_input() {
     assert!(mcp::read_line(&mut read, 8).await.unwrap().is_none());
 }
 #[test]
-fn data_directory_keeps_the_shipping_identity_on_each_platform() {
+fn app_paths_follow_each_platform_convention() {
     let home = Path::new("/fixture");
     assert_eq!(
-        paths::data_dir("macos", home, None, None),
-        home.join("Library/Application Support/AI Workflow Monitor")
+        paths::app_paths("macos", home, None, None, None, None),
+        paths::AppPaths {
+            data_dir: home.join("Library/Application Support/AgentCue"),
+            config_dir: home.join("Library/Application Support/AgentCue"),
+            legacy_data_dir: Some(home.join("Library/Application Support/AI Workflow Monitor")),
+        }
     );
     assert_eq!(
-        paths::data_dir("windows", home, None, None),
-        home.join("AppData/Roaming/AI Workflow Monitor")
+        paths::app_paths("windows", home, None, None, None, None),
+        paths::AppPaths {
+            data_dir: home.join("AppData/Local/AgentCue"),
+            config_dir: home.join("AppData/Local/AgentCue"),
+            legacy_data_dir: Some(home.join("AppData/Roaming/AI Workflow Monitor")),
+        }
     );
     assert_eq!(
-        paths::data_dir("windows", home, Some(Path::new("/roaming")), None),
-        Path::new("/roaming/AI Workflow Monitor")
+        paths::app_paths(
+            "windows",
+            home,
+            Some(Path::new("/local")),
+            Some(Path::new("/roaming")),
+            None,
+            None,
+        ),
+        paths::AppPaths {
+            data_dir: Path::new("/local/AgentCue").to_path_buf(),
+            config_dir: Path::new("/local/AgentCue").to_path_buf(),
+            legacy_data_dir: Some(Path::new("/roaming/AI Workflow Monitor").to_path_buf()),
+        }
     );
     assert_eq!(
-        paths::data_dir("linux", home, None, Some(Path::new("/config"))),
-        Path::new("/config/AI Workflow Monitor")
+        paths::app_paths("linux", home, None, None, None, Some(Path::new("/config"))),
+        paths::AppPaths {
+            data_dir: home.join(".local/share/agentcue"),
+            config_dir: Path::new("/config/agentcue").to_path_buf(),
+            legacy_data_dir: Some(Path::new("/config/AI Workflow Monitor").to_path_buf()),
+        }
+    );
+    assert_eq!(
+        paths::app_paths(
+            "linux",
+            home,
+            None,
+            None,
+            Some(Path::new("/data")),
+            Some(Path::new("relative-config")),
+        ),
+        paths::AppPaths {
+            data_dir: Path::new("/data/agentcue").to_path_buf(),
+            config_dir: home.join(".config/agentcue"),
+            legacy_data_dir: Some(home.join(".config/AI Workflow Monitor")),
+        }
     );
 }

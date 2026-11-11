@@ -3,9 +3,9 @@
 本地优先的 AI 编码工具任务监控与语音提醒桌面软件。自动识别 Claude Code 等 AI 编码工具的任务状态，需要你拍板时语音喊你。
 
 - 设计文档：[docs/README.md](./README.md)
-- 当前版本：**v0.1.0（M0–M3 主路径已落地；M4 仅内测打包架，无真实签名账号）**
-- 产品名称：**AgentCue**（原 AI Workflow Monitor）；数据目录与接入标识保持兼容。
-- 标识符：仓库 `ai-workflow-monitor`、包 scope `@awm/*`、MCP 命令 `awm-mcp`、数据目录 `AI Workflow Monitor`
+- 当前版本：**v1.0.0（Rust + Tauri 2 原生桌面版；签名、公证与自动更新尚未配置）**
+- 产品名称：**AgentCue**（原 AI Workflow Monitor）；Hooks / MCP 标识保持兼容，数据目录自 v1.0.0 初期修订起按平台迁移。
+- 兼容标识符：仓库 `ai-workflow-monitor`、旧 TypeScript 包 scope `@awm/*`、MCP Server 命令 `awm-mcp`；原生数据目录为 macOS / Windows `AgentCue`，Linux `agentcue`。
 
 ---
 

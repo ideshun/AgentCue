@@ -4,7 +4,8 @@ AgentCue 默认本地运行。本页说明数据如何停留在本机，以及�
 
 ## 数据存在哪
 
-- 应用数据目录（macOS：`~/Library/Application Support/AI Workflow Monitor`）保存 SQLite、`settings.json`、`runtime.json`；更名后仍沿用历史目录。
+- 应用数据目录按平台放置：macOS `~/Library/Application Support/AgentCue`；Windows `%LOCALAPPDATA%/AgentCue`；Linux `$XDG_DATA_HOME/agentcue`，未设置时为 `~/.local/share/agentcue`。SQLite、`runtime.json`、模型与参考音频保存在此处。
+- 设置文件保存在 macOS / Windows 的应用目录 `settings.json`；Linux 使用 `$XDG_CONFIG_HOME/agentcue/settings.json`，未设置时为 `~/.config/agentcue/settings.json`。升级时会从旧的 `AI Workflow Monitor` 目录迁移数据；同盘移动模型，跨盘复制并保留旧目录副本。迁移不会覆盖新版目录中已有文件。
 - `runtime.json` 权限为 `0600`，含本机控制 API 的随机端口与 token。不要把它拷贝到仓库或发给他人。
 - 会话原文只从适配器声明的路径读取（例如 `~/.claude/projects/**/*.jsonl`、`~/.codex/sessions/**/*.jsonl`），不递归家目录。
 

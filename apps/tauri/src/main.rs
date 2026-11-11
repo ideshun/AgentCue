@@ -16,12 +16,12 @@ fn argument<'a>(args: &'a [OsString], flag: &str) -> Option<&'a OsString> {
 fn run() -> Result<(), String> {
     let args: Vec<_> = std::env::args_os().skip(1).collect();
     let has = |flag: &str| args.iter().any(|arg| arg == flag);
-    let data_dir = argument(&args, "--data-dir").map(PathBuf::from);
-    if has("--data-dir") && data_dir.as_ref().is_none_or(|p| !p.is_absolute()) {
+    let explicit_data_dir = argument(&args, "--data-dir").map(PathBuf::from);
+    if has("--data-dir") && explicit_data_dir.as_ref().is_none_or(|p| !p.is_absolute()) {
         return Err("--data-dir 必须是绝对路径".into());
     }
     let isolated = has("--isolated");
-    if isolated && data_dir.is_none() {
+    if isolated && explicit_data_dir.is_none() {
         return Err("--isolated 需要明确指定 --data-dir".into());
     }
 
@@ -34,7 +34,8 @@ fn run() -> Result<(), String> {
             if has("--self-test") {
                 return self_test::run().await;
             }
-            let dir = data_dir
+            let dir = explicit_data_dir
+                .clone()
                 .map(Ok)
                 .unwrap_or_else(paths::default_data_dir)
                 .map_err(|e| e.to_string())?;
@@ -55,11 +56,12 @@ fn run() -> Result<(), String> {
         return result;
     }
 
-    let dir = data_dir
+    let paths = explicit_data_dir
+        .map(paths::AppPaths::for_data_dir)
         .map(Ok)
-        .unwrap_or_else(paths::default_data_dir)
+        .unwrap_or_else(paths::default_app_paths)
         .map_err(|e| e.to_string())?;
-    desktop::run(dir, isolated)
+    desktop::run(paths, isolated)
 }
 
 fn main() {

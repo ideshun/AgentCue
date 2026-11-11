@@ -26,4 +26,5 @@ v0.x Electron 安装包仍保留在旧版 Releases 中；当前 v1.x 发布流�
 [adr/ADR-19-local-ai-tts.md](./adr/ADR-19-local-ai-tts.md)，
 [adr/ADR-20-tts-voice-quality.md](./adr/ADR-20-tts-voice-quality.md)，
 [adr/ADR-21-rust-tauri-migration.md](./adr/ADR-21-rust-tauri-migration.md)，
+[adr/ADR-22-agentcue-data-directories.md](./adr/ADR-22-agentcue-data-directories.md)，
 后续决策写入 `adr/ADR-XX-<主题>.md` 并在详细设计文档中登记。

@@ -1,12 +1,10 @@
 use crate::services::Services;
+use agentcue_runtime::paths::AppPaths;
 use agentcue_runtime::voice::SpeakResult;
 use serde_json::{Value, json};
-use std::{
-    path::PathBuf,
-    sync::{
-        Mutex,
-        atomic::{AtomicBool, AtomicU64, Ordering},
-    },
+use std::sync::{
+    Mutex,
+    atomic::{AtomicBool, AtomicU64, Ordering},
 };
 use tauri::{
     AppHandle, Emitter, Manager, RunEvent, State, WebviewUrl, WebviewWindowBuilder, WindowEvent,
@@ -338,7 +336,7 @@ fn forward_events(app: AppHandle, tray: Tray) {
     });
 }
 
-pub fn run(data_dir: PathBuf, isolated: bool) -> Result<(), String> {
+pub fn run(paths: AppPaths, isolated: bool) -> Result<(), String> {
     let executable = std::env::current_exe().map_err(|e| e.to_string())?;
     let builder = tauri::Builder::default();
     #[cfg(target_os = "macos")]
@@ -382,7 +380,7 @@ pub fn run(data_dir: PathBuf, isolated: bool) -> Result<(), String> {
         ])
         .setup(move |app| {
             let services = tauri::async_runtime::block_on(async {
-                let services = Services::start(data_dir, executable, isolated).await?;
+                let services = Services::start(paths, executable, isolated).await?;
                 services.start_monitor();
                 Ok::<_, String>(services)
             })

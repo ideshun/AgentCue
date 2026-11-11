@@ -113,10 +113,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
+          # One-time v1.0.0 repair: require the exact pre-repair annotated tag object.
+          ALLOW_V1_REPUBLISH: ${{ github.event_name == 'push' && github.event.forced == true && github.ref_name == 'v1.0.0' && github.event.before == '802586babd055b3cfc8a297a2940ba46b613e4e6' }}
         run: |
           set -euo pipefail
           if gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft > /tmp/native-release-is-draft; then
-            test "$(cat /tmp/native-release-is-draft)" = true || { echo 'Published releases are immutable; use a new version.' >&2; exit 1; }
+            if [[ "$(cat /tmp/native-release-is-draft)" != true ]]; then
+              test "$ALLOW_V1_REPUBLISH" = true || { echo 'Published releases are immutable; use a new version.' >&2; exit 1; }
+            fi
           else
             if [[ "$RELEASE_TAG" == *-* ]]; then
               gh release create "$RELEASE_TAG" --verify-tag --draft --prerelease \
@@ -128,5 +132,6 @@ jobs:
           fi
           gh release upload "$RELEASE_TAG" release-assets/* --clobber
           if [[ "$RELEASE_TAG" != *-* ]]; then
-            gh release edit "$RELEASE_TAG" --draft=false --prerelease=false --latest --title "AgentCue $RELEASE_TAG"
+            gh release edit "$RELEASE_TAG" --draft=false --prerelease=false --latest \
+              --title "AgentCue $RELEASE_TAG" --notes-file "docs/releases/$RELEASE_TAG.md"
           fi

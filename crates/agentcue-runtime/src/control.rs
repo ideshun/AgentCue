@@ -322,7 +322,7 @@ impl Runtime {
         }
         let next = crate::settings::merge(&current, &json!({"scan":{"ignoredToolIds":ids}}))
             .map_err(|e| ControlError::invalid(e.to_string()))?;
-        crate::settings::write_atomic(&self.data_dir.join("settings.json"), &next)
+        crate::settings::write_atomic(&self.config_dir.join("settings.json"), &next)
             .map_err(|_| ControlError::unavailable())?;
         *current = next;
         self.generation

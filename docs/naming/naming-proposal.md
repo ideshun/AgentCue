@@ -19,14 +19,14 @@
 | 应用、窗口、侧栏、托盘、安装包 | **AgentCue** |
 | 描述 | 本地优先的 AI 编码任务监控与语音提醒 |
 | 内部应用 ID | `com.awm.app`，保持原身份 |
-| 数据目录名 | `AI Workflow Monitor`，沿用现有数据、模型与握手路径 |
+| 数据目录名 | macOS `~/Library/Application Support/AgentCue`；Windows `%LOCALAPPDATA%/AgentCue`；Linux `$XDG_DATA_HOME/agentcue`（默认 `~/.local/share/agentcue`），迁移规则见 [ADR-22](../adr/ADR-22-agentcue-data-directories.md) |
 | 仓库、包 scope、CLI | `ai-workflow-monitor`、`@awm/*`、`awm-mcp`，保持兼容 |
 | MCP Server 键 | `ai-workflow-monitor`，更新原条目的启动路径，避免重复添加 |
 | 应用图标 | 沿用「汇流」图标，无需为了更名重绘 |
 
 这是用户确定的产品名称；本轮没有进行 AgentCue 的商标、域名或商店占用核验，不表示这些名称已经注册或可注册。
 
-更名后桌面主进程显式固定历史 `userData`，与 Hooks / MCP 的 `defaultDataDir()` 一致。安装包改名会改变可执行文件绝对路径，安装后需从「播报接入」更新已有配置一次，见[安装与发版](../releasing.md)。
+原生 Tauri 版本使用上述数据目录，首次启动迁移历史目录；Linux 设置单独放在 `$XDG_CONFIG_HOME/agentcue`（默认 `~/.config/agentcue`）。Hooks / MCP 与桌面端使用相同默认数据根目录。安装包路径变化时，需从「播报接入」更新已有配置，见[安装与发版](../releasing.md)。
 
 ## 历史命名方案（2026-10-19，已由上述决定替代）
 

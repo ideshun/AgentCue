@@ -17,6 +17,7 @@ pub struct Runtime {
     pub db: Mutex<Connection>,
     pub settings: Mutex<Value>,
     pub data_dir: PathBuf,
+    pub config_dir: PathBuf,
     pub executable: PathBuf,
     pub manifests: Vec<Value>,
     pub history: Mutex<Vec<Value>>,
@@ -43,20 +44,34 @@ impl Runtime {
         data_dir: &Path,
         executable: PathBuf,
     ) -> Result<(Arc<Self>, mpsc::Receiver<Event>), Box<dyn std::error::Error + Send + Sync>> {
+        Self::new_with_config_dir(db, data_dir, data_dir, executable)
+    }
+
+    pub fn new_with_config_dir(
+        db: Connection,
+        data_dir: &Path,
+        config_dir: &Path,
+        executable: PathBuf,
+    ) -> Result<(Arc<Self>, mpsc::Receiver<Event>), Box<dyn std::error::Error + Send + Sync>> {
         fs::create_dir_all(data_dir)?;
+        fs::create_dir_all(config_dir)?;
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             fs::set_permissions(data_dir, fs::Permissions::from_mode(0o700))?;
+            if config_dir != data_dir {
+                fs::set_permissions(config_dir, fs::Permissions::from_mode(0o700))?;
+            }
         }
-        let mut config = settings::load(&data_dir.join("settings.json"))?;
+        let settings_path = config_dir.join("settings.json");
+        let mut config = settings::load(&settings_path)?;
         let definitions = manifests();
         let stamp = queries::now();
         for manifest in &definitions {
             db.execute("INSERT INTO tools(tool_id,name,adapter_id,detect_status,first_seen_at,last_seen_at) VALUES(?1,?2,?1,'unknown',?3,?3) ON CONFLICT(tool_id) DO UPDATE SET name=excluded.name",params![manifest["id"].as_str(),manifest["name"].as_str(),stamp])?;
         }
         seed_rules(&db, &mut config)?;
-        settings::write_atomic(&data_dir.join("settings.json"), &config)?;
+        settings::write_atomic(&settings_path, &config)?;
         let (events, _) = broadcast::channel(256);
         let (notices, receiver) = mpsc::channel(256);
         Ok((
@@ -64,6 +79,7 @@ impl Runtime {
                 db: Mutex::new(db),
                 settings: Mutex::new(config),
                 data_dir: data_dir.to_path_buf(),
+                config_dir: config_dir.to_path_buf(),
                 executable,
                 manifests: definitions,
                 history: Mutex::new(vec![]),
@@ -100,7 +116,7 @@ impl Runtime {
     pub fn update_settings(&self, patch: &Value) -> io::Result<Value> {
         let mut current = self.settings.lock().map_err(|_| db_error())?;
         let next = settings::merge(&current, patch)?;
-        settings::write_atomic(&self.data_dir.join("settings.json"), &next)?;
+        settings::write_atomic(&self.config_dir.join("settings.json"), &next)?;
         *current = next.clone();
         self.generation.fetch_add(1, Ordering::AcqRel);
         drop(current);

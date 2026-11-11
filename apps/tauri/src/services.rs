@@ -2,7 +2,7 @@ use agentcue_runtime::{
     api,
     discovery::Environment,
     monitor::{Handle as MonitorHandle, Monitor},
-    paths::{self, RuntimeInfo},
+    paths::{self, AppPaths, RuntimeInfo},
     queries,
     state::Runtime,
     voice::{
@@ -13,7 +13,7 @@ use agentcue_runtime::{
 };
 use std::{
     collections::HashMap,
-    fs::{self, File, OpenOptions},
+    fs::{self, File},
     path::PathBuf,
     sync::{Arc, Mutex},
     time::Duration,
@@ -32,39 +32,30 @@ pub struct Services {
 
 impl Services {
     pub async fn start(
-        data_dir: PathBuf,
+        paths: AppPaths,
         executable: PathBuf,
         isolated: bool,
     ) -> Result<Self, String> {
+        let data_dir = paths.data_dir.clone();
+        let config_dir = paths.config_dir.clone();
         fs::create_dir_all(&data_dir).map_err(|_| "无法创建 AgentCue 数据目录")?;
-        let mut options = OpenOptions::new();
-        options.read(true).write(true).create(true).truncate(false);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::OpenOptionsExt;
-            options.mode(0o600);
-        }
-        let lock = options
-            .open(data_dir.join("agentcue.lock"))
-            .map_err(|_| "无法锁定 AgentCue 数据目录")?;
+        fs::create_dir_all(&config_dir).map_err(|_| "无法创建 AgentCue 设置目录")?;
+        set_private_directory(&data_dir).map_err(|_| "无法保护 AgentCue 数据目录")?;
+        set_private_directory(&config_dir).map_err(|_| "无法保护 AgentCue 设置目录")?;
+        let lock = paths::open_lock(&data_dir).map_err(|_| "无法锁定 AgentCue 数据目录")?;
         lock.try_lock()
             .map_err(|_| "另一个 AgentCue 实例正在使用此数据目录")?;
-        if let Ok(info) = paths::read_runtime(&data_dir) {
-            let client = reqwest::Client::builder()
-                .no_proxy()
-                .timeout(Duration::from_secs(2))
-                .build()
-                .map_err(|_| "本机连接不可用")?;
-            let url = format!("http://127.0.0.1:{}/api/v1/health", info.api_port);
-            if client
-                .get(url)
-                .bearer_auth(info.token)
-                .send()
-                .await
-                .is_ok_and(|r| r.status().is_success())
-            {
-                return Err("此数据目录已由运行中的 AgentCue 使用，请先退出旧版应用".into());
+        if runtime_is_healthy(&data_dir).await? {
+            return Err("此数据目录已由运行中的 AgentCue 使用，请先退出旧版应用".into());
+        }
+        if let Some(legacy_dir) = paths.legacy_data_dir.as_deref() {
+            if runtime_is_healthy(legacy_dir).await? {
+                return Err("旧版 AgentCue 仍在使用原数据目录，请完全退出旧版后再启动新版".into());
             }
+            paths::migrate_legacy(&paths)
+                .map_err(|error| format!("无法安全迁移旧版 AgentCue 数据：{error}"))?;
+            set_private_directory(&data_dir).map_err(|_| "无法保护 AgentCue 数据目录")?;
+            set_private_directory(&config_dir).map_err(|_| "无法保护 AgentCue 设置目录")?;
         }
         let database = agentcue_store::open::open_database(&data_dir.join("awm.db"))
             .map_err(|e| format!("无法打开 AgentCue 数据库：{e}"))?;
@@ -76,8 +67,13 @@ impl Services {
         } else {
             executable.clone()
         };
-        let (runtime, notices) = Runtime::new(database.connection, &data_dir, integration_entry)
-            .map_err(|e| format!("无法载入 AgentCue：{e}"))?;
+        let (runtime, notices) = Runtime::new_with_config_dir(
+            database.connection,
+            &data_dir,
+            &config_dir,
+            integration_entry,
+        )
+        .map_err(|e| format!("无法载入 AgentCue：{e}"))?;
         let environment = if isolated {
             let home = data_dir.join("fixture-home");
             let vars = [
@@ -167,4 +163,33 @@ impl Services {
             let _ = fs::remove_file(path);
         }
     }
+}
+
+async fn runtime_is_healthy(data_dir: &std::path::Path) -> Result<bool, String> {
+    let Ok(info) = paths::read_runtime(data_dir) else {
+        return Ok(false);
+    };
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .timeout(Duration::from_secs(2))
+        .build()
+        .map_err(|_| "本机连接不可用".to_owned())?;
+    let url = format!("http://127.0.0.1:{}/api/v1/health", info.api_port);
+    Ok(client
+        .get(url)
+        .bearer_auth(info.token)
+        .send()
+        .await
+        .is_ok_and(|response| response.status().is_success()))
+}
+
+fn set_private_directory(path: &std::path::Path) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(path, fs::Permissions::from_mode(0o700))?;
+    }
+    #[cfg(not(unix))]
+    let _ = path;
+    Ok(())
 }

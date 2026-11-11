@@ -49,7 +49,7 @@ awm-mcp ──stdio──▶ HTTP Bearer ──▶ 同一套 FSM
 
 渲染层文件：`apps/desktop/src/renderer/{index.html,styles.css,api.ts,ui.ts,views.ts,app.ts}`；办公室视图与样式独立在 `office.ts` / `office.css`，仍用原生脚本顺序加载。路由：`overview` / `office` / `board` / `notifications` / `integrations` / `adapters` / `settings`。`office` 使用 `assets/office/` 的本地插画及真实工具图标展示工位；进行中和待确认消息常显，其余信息经悬浮/键盘焦点气泡显示，点击打开可关闭的任务浮窗；素材随桌面构建复制，运行时不出网。`GET /api/v1/office` 从 DAO 完整计数、按状态分组取限量预览，不把历史快照注入工作流或推导进度百分比。`integrations` 在侧栏显示为「播报接入」，按工具分组 Hooks 与 MCP 配置；未提供的方式明确标注。设置页保留语音、规则、隐私与外部 MCP Server 配置。
 
-应用展示名为 `AgentCue`（core 的 `APP_DISPLAY_NAME`），使用「汇流」图标。`APP_NAME` 保持历史数据目录名 `AI Workflow Monitor`，主进程在单实例锁前显式固定 `userData = defaultDataDir()`；Hooks / MCP 沿用同一目录和原有协议标识，避免更名后分叉数据。运行期 PNG 在 `apps/desktop/src/renderer/assets/brand/`，经既有资源脚本复制进 `dist`；主进程 `branding.ts` 为窗口、macOS Dock、通知与托盘提供本地路径，侧栏与 favicon 使用同一设计的尺寸资源。`apps/desktop/build/icon.icns` / `icon.ico` 与 Linux PNG 路径由 `electron-builder.yml` 显式配置，覆盖安装包图标。
+原生应用展示名为 `AgentCue`。数据目录遵循平台约定：macOS `~/Library/Application Support/AgentCue`、Windows `%LOCALAPPDATA%/AgentCue`、Linux `$XDG_DATA_HOME/agentcue`（默认 `~/.local/share/agentcue`）；Linux 设置单独位于 `$XDG_CONFIG_HOME/agentcue`（默认 `~/.config/agentcue`）。原生启动从旧 `AI Workflow Monitor` 目录迁移，旧版仍运行或持有锁时停止；同盘移动、跨盘复制、已有目标不覆盖。Hooks / MCP 使用相同默认数据根目录，协议标识保持兼容。规则见 [ADR-22](../../docs/adr/ADR-22-agentcue-data-directories.md)。
 
 命令：`pnpm install`、`pnpm dev`、`pnpm build`、`sh scripts/l1-verify.sh`。跨包类型检查依赖各包 `dist/*.d.ts`，`pnpm typecheck` 前会 `pretypecheck` 全量 build。
 

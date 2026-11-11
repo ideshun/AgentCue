@@ -296,16 +296,20 @@ const taskMachine = setup({
 ### 5.1 本地存储布局
 
 ```
-~/Library/Application Support/AIWorkflowMonitor/
-├─ awm.db              # SQLite 主库
-├─ settings.json         # 用户设置（原子写）
-├─ runtime.json          # 控制 API 端口 + token（0600 权限，启动时重建）
-├─ snapshots/            # 关键配置 JSON 快照（备份与 diff）
-├─ adapters/             # 用户导入的第三方适配器（M3）
-└─ logs/                 # 运行日志（不含会话内容）
+macOS: ~/Library/Application Support/AgentCue/
+Windows: %LOCALAPPDATA%/AgentCue/
+Linux data: $XDG_DATA_HOME/agentcue/ (default ~/.local/share/agentcue/)
+├─ awm.db                 # SQLite 主库
+├─ runtime.json           # 控制 API 端口与 token（0600，启动时重建）
+├─ agentcue.lock          # 单实例锁
+├─ models/                # 用户主动下载的本地语音模型
+└─ voice-references/      # 用户选择的 ZipVoice 参考音频
+
+Linux config: $XDG_CONFIG_HOME/agentcue/ (default ~/.config/agentcue/)
+└─ settings.json          # 用户设置（原子写，0600）
 ```
 
-Windows 对应 `%APPDATA%/AIWorkflowMonitor`，Linux 对应 `~/.local/share/ai-workflow-monitor`。
+macOS 和 Windows 的 `settings.json` 与数据保存在同一应用目录。迁移与旧目录保留规则见 [ADR-22](../adr/ADR-22-agentcue-data-directories.md)。
 
 ### 5.2 SQLite DDL
 
