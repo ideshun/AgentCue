@@ -82,6 +82,9 @@ if (process.argv[2] === 'cleanup') {
         identities.match(/"(Developer ID Application:[^"]+)"/)?.[1];
       if (!identity) throw new Error('A Developer ID Application identity is required.');
       env('APPLE_SIGNING_IDENTITY', identity);
+      env('APPLE_ID', process.env.APPLE_ID);
+      env('APPLE_PASSWORD', process.env.APPLE_PASSWORD);
+      env('APPLE_TEAM_ID', process.env.APPLE_TEAM_ID);
       rmSync(cert);
     }
     if (process.platform === 'win32' && process.env.WINDOWS_CERTIFICATE) {
