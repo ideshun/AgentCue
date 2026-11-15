@@ -250,7 +250,18 @@ pub async fn synthesize_cloud(config: &Value, text: &str) -> Result<Vec<u8>, Str
         .timeout(Duration::from_secs(30))
         .build()
         .map_err(|_| "云 TTS 请求通道不可用")?;
-    let mut response=client.post(endpoint).bearer_auth(key).json(&json!({"model":model,"messages":[{"role":"user","content":MIMO_TTS_INSTRUCTION},{"role":"assistant","content":text}],"audio":{"format":"wav","voice":profile},"stream":false})).send().await.map_err(|_|"云 TTS 请求失败或超时（30 秒）")?;
+    let instruction = if config["_pronunciations"]
+        .as_object()
+        .is_some_and(|m| !m.is_empty())
+    {
+        format!(
+            "{MIMO_TTS_INSTRUCTION} 用户的原词与读法表（保留原文，只参考发音）：{}",
+            config["_pronunciations"]
+        )
+    } else {
+        MIMO_TTS_INSTRUCTION.into()
+    };
+    let mut response=client.post(endpoint).bearer_auth(key).json(&json!({"model":model,"messages":[{"role":"user","content":instruction},{"role":"assistant","content":text}],"audio":{"format":"wav","voice":profile},"stream":false})).send().await.map_err(|_|"云 TTS 请求失败或超时（30 秒）")?;
     if !response.status().is_success() {
         return Err(format!(
             "云 TTS 请求失败：HTTP {}{}",

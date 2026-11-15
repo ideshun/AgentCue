@@ -56,14 +56,31 @@ jobs:
           test -s "docs/releases/$RELEASE_TAG.md"
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: sh scripts/rust-verify.sh
+      - name: Prepare optional signing certificates
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          WINDOWS_TIMESTAMP_URL: ${{ vars.WINDOWS_TIMESTAMP_URL }}
+        run: node scripts/native-signing.mjs
       - name: Build native installer
         env:
-          APPLE_SIGNING_IDENTITY: ${{ runner.os == 'macOS' && '-' || '' }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: pnpm tauri:bundle "${{ matrix.bundles }}"
+      - name: Remove temporary signing credentials
+        if: always()
+        run: node scripts/native-signing.mjs cleanup
       - name: Check native code and the inference worker
         run: |
           cargo clippy -p agentcue-desktop -p agentcue-tts --all-targets --features agentcue-desktop/custom-protocol --locked -- -D warnings
-          cargo test -p agentcue-tts --locked
+          cargo test -p agentcue-desktop -p agentcue-tts --locked
       - name: Verify packaged macOS executable and sidecar
         if: runner.os == 'macOS'
         run: |
@@ -113,13 +130,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
-          # One-time v1.0.0 repair: require the exact pre-repair annotated tag object.
-          ALLOW_V1_REPUBLISH: ${{ github.event_name == 'push' && github.event.forced == true && github.ref_name == 'v1.0.0' && github.event.before == '20e5f28bd648764a55ffa69354d84603b5ba9a92' }}
         run: |
           set -euo pipefail
           if gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft > /tmp/native-release-is-draft; then
             if [[ "$(cat /tmp/native-release-is-draft)" != true ]]; then
-              test "$ALLOW_V1_REPUBLISH" = true || { echo 'Published releases are immutable; use a new version.' >&2; exit 1; }
+              echo 'Published releases are immutable; use a new version.' >&2; exit 1
             fi
           else
             if [[ "$RELEASE_TAG" == *-* ]]; then

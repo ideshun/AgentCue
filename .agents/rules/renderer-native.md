@@ -18,4 +18,4 @@
 
 ## 验证边界
 
-`tsc -p apps/desktop/tsconfig.renderer.json`。渲染层无自动测试；复杂交互才进入 L3，且需用户明确要求。文案或样式微调不启动 `pnpm dev`。
+`tsc -p apps/desktop/tsconfig.renderer.json`。渲染层纯函数与状态回归由 `tests/unit/renderer-state.test.ts` 覆盖；复杂交互才进入 L3，且需用户明确要求。文案或样式微调不启动 `pnpm dev`。

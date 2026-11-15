@@ -7,7 +7,9 @@ import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const app = join(root, 'apps/tauri');
 const args = process.argv.slice(2);
-const allowed = { darwin: ['app', 'dmg'], win32: ['nsis'], linux: ['deb', 'appimage'] }[process.platform];
+const allowed = { darwin: ['app', 'dmg'], win32: ['nsis'], linux: ['deb', 'appimage'] }[
+  process.platform
+];
 const bundles = args[0]?.split(',') ?? allowed;
 if (args.length > 1 || !allowed || !bundles.every((bundle) => allowed.includes(bundle))) {
   throw new Error('Usage: pnpm tauri:bundle [app,dmg | nsis | deb,appimage]');
@@ -19,7 +21,12 @@ const env = {
   PATH: [process.env.PATH, join(homedir(), '.cargo/bin')].filter(Boolean).join(delimiter),
 };
 const run = (command, params, cwd = root, capture = false) =>
-  execFileSync(command, params, { cwd, env, encoding: 'utf8', stdio: capture ? 'pipe' : 'inherit' });
+  execFileSync(command, params, {
+    cwd,
+    env,
+    encoding: 'utf8',
+    stdio: capture ? 'pipe' : 'inherit',
+  });
 
 const triple = /^host: (.+)$/m.exec(run('rustc', ['-vV'], root, true))?.[1]?.trim();
 if (!triple) throw new Error('Could not identify the Rust host target');
@@ -38,7 +45,22 @@ copyFileSync(
   join(target, 'release', `agentcue-tts${ext}`),
   join(app, 'binaries', `agentcue-tts-${triple}${ext}`),
 );
-run(process.execPath, [
-  pnpm, '--package', '@tauri-apps/cli@2.11.1', 'dlx', 'tauri', 'build',
-  '--ci', '--config', 'bundle.conf.json', '--bundles', bundles.join(','), '--', '--locked',
-], app);
+run(
+  process.execPath,
+  [
+    pnpm,
+    '--package',
+    '@tauri-apps/cli@2.11.1',
+    'dlx',
+    'tauri',
+    'build',
+    '--ci',
+    '--config',
+    process.env.AGENTCUE_SIGNING_CONFIG || 'bundle.conf.json',
+    '--bundles',
+    bundles.join(','),
+    '--',
+    '--locked',
+  ],
+  app,
+);

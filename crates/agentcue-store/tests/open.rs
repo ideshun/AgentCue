@@ -1,4 +1,4 @@
-use agentcue_store::{MIGRATIONS, open::open_database};
+use agentcue_store::{MIGRATIONS, SCHEMA_VERSION, open::open_database};
 use rusqlite::Connection;
 use std::{
     fs,
@@ -56,7 +56,7 @@ fn backup_preserves_old_schema_and_wal_records_before_upgrade() {
             .connection
             .pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
             .unwrap(),
-        5
+        SCHEMA_VERSION
     );
     assert_eq!(
         upgraded

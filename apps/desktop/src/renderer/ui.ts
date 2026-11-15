@@ -153,10 +153,7 @@ let toastTimer: number | null = null;
  * 显示一条短暂的界面提示。
  * @param message 提示内容
  */
-function toast(
-  message: string,
-  action?: { label: string; run: () => void | Promise<void> },
-): void {
+function toast(message: string, action?: { label: string; run: () => void | Promise<void> }): void {
   const node = document.getElementById('toast');
   if (!node) {
     return;
@@ -184,10 +181,13 @@ function toast(
   if (toastTimer !== null) {
     window.clearTimeout(toastTimer);
   }
-  toastTimer = window.setTimeout(() => {
-    node.hidden = true;
-    toastTimer = null;
-  }, action ? 6000 : 2400);
+  toastTimer = window.setTimeout(
+    () => {
+      node.hidden = true;
+      toastTimer = null;
+    },
+    action ? 6000 : 2400,
+  );
 }
 
 /**
@@ -249,8 +249,10 @@ function openConfirm(options: {
     discard: options.discardLabel,
     cancel: options.cancelLabel,
   };
-  for (const button of modal.querySelectorAll<HTMLElement>('.modal-actions [data-confirm]'))
+  for (const button of modal.querySelectorAll<HTMLElement>('.modal-actions [data-confirm]')) {
     button.textContent = labels[button.dataset.confirm as ConfirmChoice] ?? '';
+    button.hidden = !button.textContent;
+  }
   qs<HTMLElement>('#confirm-title').textContent = options.title;
   qs<HTMLElement>('#confirm-body').textContent = options.body;
   confirmReturnFocus =
@@ -261,4 +263,74 @@ function openConfirm(options: {
   return new Promise<ConfirmChoice>((resolve) => {
     confirmResolver = resolve;
   });
+}
+
+/** @description: Store only local view choices; unavailable storage never blocks the interface. */
+function readUiPreferences(key: string): Record<string, unknown> {
+  try {
+    const value = JSON.parse(window.localStorage.getItem(`agentcue.ui.${key}`) ?? '{}');
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  } catch {
+    return {};
+  }
+}
+function saveUiPreferences(key: string, value: unknown): void {
+  try {
+    window.localStorage.setItem(`agentcue.ui.${key}`, JSON.stringify(value));
+  } catch {
+    /* Preferences are optional when local storage is unavailable. */
+  }
+}
+function readBoardFilters(): BoardFilters {
+  const saved = readUiPreferences('board');
+  const text = (key: string, max = 200) =>
+    typeof saved[key] === 'string' ? (saved[key] as string).slice(0, max) : '';
+  return {
+    q: text('q'),
+    toolId: text('toolId'),
+    from: calendarDate(text('from', 10)) ? text('from', 10) : '',
+    to: calendarDate(text('to', 10)) ? text('to', 10) : '',
+    order: saved.order === 'asc' ? 'asc' : 'desc',
+  };
+}
+
+/** @description: Match the engine's explicit milestone combinations. */
+function broadcastScopeAllows(scope: string, event: string): boolean {
+  const part = (
+    {
+      'task.started': 'started',
+      'task.waiting_human': 'attention',
+      'task.completed': 'completed',
+    } as Record<string, string>
+  )[event];
+  return !!part && (scope === 'all' || scope === 'milestones' || scope.split('_').includes(part));
+}
+
+type BoardDateField = 'from' | 'to';
+function calendarDate(value: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const date = new Date(`${value}T12:00:00`);
+  return Number.isFinite(date.getTime()) && calendarIso(date) === value ? date : null;
+}
+function calendarIso(date: Date): string {
+  return `${String(date.getFullYear()).padStart(4, '0')}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+/** @description: A local calendar with stable day identities, Monday-first weeks and full date labels. */
+function renderBoardDatePicker(field: BoardDateField, value: string, label: string): string {
+  const open = boardCalendar?.field === field;
+  let panel = '';
+  if (open && boardCalendar) {
+    const month = calendarDate(`${boardCalendar.month}-01`)!;
+    const start = new Date(month);
+    start.setDate(1 - ((month.getDay() + 6) % 7));
+    const today = calendarIso(new Date());
+    const days = Array.from({ length: 42 }, (_, i) => {
+      const day = new Date(start);
+      day.setDate(start.getDate() + i);
+      const iso = calendarIso(day);
+      return `<button type="button" class="calendar-day${day.getMonth() !== month.getMonth() ? ' is-outside' : ''}${iso === value ? ' is-selected' : ''}" data-calendar-day="${iso}" tabindex="${iso === boardCalendar?.focus ? 0 : -1}" aria-label="${day.getFullYear()}年${day.getMonth() + 1}月${day.getDate()}日" aria-pressed="${iso === value}"${iso === today ? ' aria-current="date"' : ''}>${day.getDate()}</button>`;
+    }).join('');
+    panel = `<div id="calendar-${field}" class="calendar-panel" role="dialog" aria-label="选择${label}"><div class="calendar-heading"><button type="button" id="calendar-prev" class="icon-btn" data-calendar-month="-1" aria-label="上个月"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m12 5-5 5 5 5"/></svg></button><strong aria-live="polite">${month.getFullYear()}年 ${month.getMonth() + 1}月</strong><button type="button" id="calendar-next" class="icon-btn" data-calendar-month="1" aria-label="下个月"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg></button></div><div class="calendar-weekdays" aria-hidden="true">${['一', '二', '三', '四', '五', '六', '日'].map((day) => `<span>${day}</span>`).join('')}</div><div class="calendar-days">${days}</div><div class="calendar-footer"><button type="button" class="btn btn-ghost btn-small" data-calendar-clear>清除日期</button><button type="button" class="btn btn-ghost btn-small" data-calendar-day="${today}">今天</button></div></div>`;
+  }
+  return `<div class="board-date-picker"><button id="board-${field}" type="button" class="board-date-trigger${value ? ' has-value' : ''}" data-date-open="${field}" aria-haspopup="dialog" aria-expanded="${open}"${open ? ` aria-controls="calendar-${field}"` : ''}><span>${label}</span><strong>${value ? esc(value.replace(/-/g, '/')) : '不限日期'}</strong><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="4.5" width="14" height="13" rx="2"/><path d="M6.5 2.5v4m7-4v4M3 9h14"/></svg></button>${panel}</div>`;
 }

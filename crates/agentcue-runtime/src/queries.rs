@@ -158,6 +158,19 @@ pub fn tools(
                 .as_array()
                 .is_some_and(|a| a.iter().any(|v| v == &id))
         );
+        // Only adapter-originated, visible lifecycle evidence belongs in connection diagnostics.
+        // Manual task marks and historical snapshots must never pass a live connection check.
+        item["milestones"] = if settings["privacy"]["sessionFileRead"] == true
+            && item["ignored"] != true
+        {
+            json!(rows(
+                db,
+                "SELECT e.event_type AS eventType,strftime('%Y-%m-%dT%H:%M:%fZ',max(julianday(e.ts))) AS ts FROM state_events e JOIN sessions s ON s.session_id=e.session_id WHERE e.tool_id=? AND s.visible=1 AND e.actor='tool' AND e.event_type IN ('task.started','task.waiting_human','task.completed') GROUP BY e.event_type",
+                vec![s(&id)],
+            )?)
+        } else {
+            json!([])
+        };
         item["hookSupported"] = json!(hook);
         item["hookLastEventAt"] = json!(time);
         let capability = if time.is_some() {
@@ -230,6 +243,25 @@ pub fn board(
     if !(1..=100).contains(&limit) {
         return Err("分页大小无效".into());
     }
+    let from = query.get("from").map(String::as_str).unwrap_or("");
+    let to = query.get("to").map(String::as_str).unwrap_or("");
+    let order = query.get("order").map(String::as_str).unwrap_or("desc");
+    if !["asc", "desc"].contains(&order) {
+        return Err("排序方式无效".into());
+    }
+    for value in [from, to] {
+        if !value.is_empty() && chrono::DateTime::parse_from_rfc3339(value).is_err() {
+            return Err("任务日期范围无效".into());
+        }
+    }
+    let instant = |value: &str| {
+        chrono::DateTime::parse_from_rfc3339(value)
+            .ok()
+            .map(|v| v.timestamp_millis())
+    };
+    if !from.is_empty() && !to.is_empty() && instant(from) > instant(to) {
+        return Err("开始日期不能晚于结束日期".into());
+    }
     let group = query.get("group").map(String::as_str);
     if group.is_some_and(|g| g != "history" && !GROUPS.iter().any(|v| v.0 == g)) {
         return Err("看板列无效".into());
@@ -246,6 +278,9 @@ pub fn board(
             || v["group"] != group.unwrap_or_default()
             || v["q"] != q
             || v["toolId"] != tool
+            || v["from"].as_str().unwrap_or("") != from
+            || v["to"].as_str().unwrap_or("") != to
+            || v["order"].as_str().unwrap_or("desc") != order
             || v["updatedAt"]
                 .as_str()
                 .is_none_or(|t| chrono::DateTime::parse_from_rfc3339(t).is_err())
@@ -274,7 +309,13 @@ pub fn board(
             let mut all: Vec<Value> = history
                 .iter()
                 .filter(|v| {
-                    (tool.is_empty() || v["toolId"] == tool)
+                    (from.is_empty()
+                        || instant(v["updatedAt"].as_str().unwrap_or_default())
+                            .is_some_and(|v| Some(v) >= instant(from)))
+                        && (to.is_empty()
+                            || instant(v["updatedAt"].as_str().unwrap_or_default())
+                                .is_some_and(|v| Some(v) <= instant(to)))
+                        && (tool.is_empty() || v["toolId"] == tool)
                         && (term.is_empty()
                             || format!(
                                 "{} {} {}",
@@ -288,8 +329,19 @@ pub fn board(
                 .cloned()
                 .collect();
             all.sort_by(|a, b| {
-                (b["updatedAt"].as_str(), b["sessionId"].as_str())
-                    .cmp(&(a["updatedAt"].as_str(), a["sessionId"].as_str()))
+                let result = (
+                    instant(a["updatedAt"].as_str().unwrap_or_default()),
+                    a["sessionId"].as_str(),
+                )
+                    .cmp(&(
+                        instant(b["updatedAt"].as_str().unwrap_or_default()),
+                        b["sessionId"].as_str(),
+                    ));
+                if order == "asc" {
+                    result
+                } else {
+                    result.reverse()
+                }
             });
             let total = all.len();
             let filtered = all
@@ -297,7 +349,12 @@ pub fn board(
                 .filter(|v| {
                     before.is_none_or(|(t, id)| {
                         let time = v["updatedAt"].as_str().unwrap_or_default();
-                        time < t || (time == t && v["sessionId"].as_str().unwrap_or_default() < id)
+                        let position = (instant(time), v["sessionId"].as_str().unwrap_or_default());
+                        if order == "asc" {
+                            position > (instant(t), id)
+                        } else {
+                            position < (instant(t), id)
+                        }
                     })
                 })
                 .take(limit + 1)
@@ -305,20 +362,64 @@ pub fn board(
             (filtered, total as i64)
         } else {
             let states = GROUPS.iter().find(|v| v.0 == id).unwrap().1;
-            let mut items = sessions(db, states, tool_filter, Some(q), before, limit + 1)
+            let (mut condition, mut values) = conditions(states, tool_filter, Some(q), None);
+            for (value, op) in [(from, ">="), (to, "<=")] {
+                if !value.is_empty() {
+                    condition.push_str(&format!(" AND julianday(updated_at){op}julianday(?)"));
+                    values.push(s(value));
+                }
+            }
+            let total: i64 = db
+                .query_row(
+                    &format!("SELECT count(*) FROM sessions WHERE {condition}"),
+                    params_from_iter(values.clone()),
+                    |r| r.get(0),
+                )
                 .map_err(|e| e.to_string())?;
+            // Read a bounded window per state so SQLite can use the chronological expression
+            // index without sorting every matching row for a multi-state board column.
+            let mut items = Vec::new();
+            for state in states {
+                let (mut condition, mut values) = conditions(&[state], tool_filter, Some(q), None);
+                for (value, op) in [(from, ">="), (to, "<=")] {
+                    if !value.is_empty() {
+                        condition.push_str(&format!(" AND julianday(updated_at){op}julianday(?)"));
+                        values.push(s(value));
+                    }
+                }
+                if let Some((time, id)) = before {
+                    let op = if order == "asc" { ">" } else { "<" };
+                    condition.push_str(&format!(" AND (julianday(updated_at){op}julianday(?) OR (julianday(updated_at)=julianday(?) AND session_id{op}?))"));
+                    values.extend([s(time), s(time), s(id)]);
+                }
+                values.push(Sql::Integer((limit + 1) as i64));
+                items.extend(rows(db, &format!("SELECT {SESSION},julianday(updated_at) AS sortTime FROM sessions WHERE {condition} ORDER BY julianday(updated_at) {order},session_id {order} LIMIT ?"), values).map_err(|e|e.to_string())?);
+            }
+            items.sort_by(|a, b| {
+                let position = a["sortTime"]
+                    .as_f64()
+                    .partial_cmp(&b["sortTime"].as_f64())
+                    .unwrap_or(std::cmp::Ordering::Equal)
+                    .then_with(|| a["sessionId"].as_str().cmp(&b["sessionId"].as_str()));
+                if order == "asc" {
+                    position
+                } else {
+                    position.reverse()
+                }
+            });
+            items.truncate(limit + 1);
+            for item in &mut items {
+                item.as_object_mut().unwrap().remove("sortTime");
+            }
             for v in &mut items {
                 v["kind"] = json!("session")
             }
-            (
-                items,
-                count(db, states, tool_filter, Some(q)).map_err(|e| e.to_string())?,
-            )
+            (items, total)
         };
         let more = items.len() > limit;
         items.truncate(limit);
         let next = if more {
-            items.last().map(|last|URL_SAFE_NO_PAD.encode(json!({"group":id,"q":q,"toolId":tool,"updatedAt":last["updatedAt"],"sessionId":last["sessionId"]}).to_string()))
+            items.last().map(|last|URL_SAFE_NO_PAD.encode(json!({"group":id,"q":q,"toolId":tool,"from":from,"to":to,"order":order,"updatedAt":last["updatedAt"],"sessionId":last["sessionId"]}).to_string()))
         } else {
             None
         };

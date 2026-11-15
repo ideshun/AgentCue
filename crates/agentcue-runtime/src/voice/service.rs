@@ -55,9 +55,11 @@ enum Command {
         reply: oneshot::Sender<SpeakResult>,
     },
     Reconfigure,
+    Cancel(oneshot::Sender<()>),
     Stop,
 }
 pub struct Voice {
+    status: Arc<Mutex<Value>>,
     commands: mpsc::UnboundedSender<Command>,
     generation: Arc<AtomicU64>,
     task: Mutex<Option<JoinHandle<()>>>,
@@ -70,7 +72,9 @@ impl Voice {
     ) -> Result<Arc<Self>, String> {
         let (commands, receiver) = mpsc::unbounded_channel();
         let generation = Arc::new(AtomicU64::new(0));
+        let status = Arc::new(Mutex::new(json!({"playing":false})));
         let actor = Actor {
+            status: status.clone(),
             runtime: runtime.clone(),
             speaker,
             commands: receiver,
@@ -84,6 +88,7 @@ impl Voice {
         };
         let task = tokio::spawn(actor.run());
         let service = Arc::new(Self {
+            status,
             commands,
             generation,
             task: Mutex::new(Some(task)),
@@ -112,6 +117,19 @@ impl Voice {
         receiver
             .await
             .unwrap_or_else(|_| SpeakResult::failed("播报服务已经退出"))
+    }
+    pub fn status(&self) -> Value {
+        self.status
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone()
+    }
+    pub async fn stop_playback(&self) {
+        self.generation.fetch_add(1, Ordering::AcqRel);
+        let (send, receive) = oneshot::channel();
+        if self.commands.send(Command::Cancel(send)).is_ok() {
+            let _ = receive.await;
+        }
     }
     pub fn reconfigure(&self) {
         self.generation.fetch_add(1, Ordering::AcqRel);
@@ -149,6 +167,7 @@ struct Playing {
     priority: u8,
 }
 struct Actor {
+    status: Arc<Mutex<Value>>,
     runtime: Arc<Runtime>,
     speaker: Arc<dyn Speaker>,
     commands: mpsc::UnboundedReceiver<Command>,
@@ -222,10 +241,18 @@ impl Actor {
                     let config = self.runtime.config();
                     self.play(config, text, Kind::Preview(reply), u8::MAX);
                 }
+                Wake::Command(Some(Command::Cancel(reply))) => {
+                    self.interrupt("user-stopped", false).await;
+                    self.queue.clear();
+                    self.speaker.release().await;
+                    self.set_status(json!({"playing":false}));
+                    let _ = reply.send(());
+                }
                 Wake::Command(Some(Command::Reconfigure)) => {
                     self.interrupt("settings-changed", true).await;
                     self.clear_queue("settings-changed");
                     self.speaker.release().await;
+                    self.set_status(json!({"playing":false}));
                 }
                 Wake::Command(Some(Command::Stop)) | Wake::Command(None) | Wake::Notice(None) => {
                     break;
@@ -237,6 +264,15 @@ impl Actor {
                     if let Some(playing) = self.playing.take() {
                         let result =
                             result.unwrap_or_else(|_| SpeakResult::failed("播报任务异常退出"));
+                        let mut status = self
+                            .status
+                            .lock()
+                            .unwrap_or_else(|p| p.into_inner())
+                            .clone();
+                        status["playing"] = json!(false);
+                        status["ok"] = json!(result.ok);
+                        status["errors"] = json!(result.errors.clone());
+                        self.set_status(status);
                         match playing.kind {
                             Kind::Preview(reply) => {
                                 let _ = reply.send(result);
@@ -411,7 +447,20 @@ impl Actor {
             self.notify(&item.signal, reason);
         }
     }
-    fn play(&mut self, config: Value, text: String, kind: Kind, priority: u8) {
+    fn set_status(&self, status: Value) {
+        *self.status.lock().unwrap_or_else(|p| p.into_inner()) = status.clone();
+        self.runtime.emit("voice.status", status);
+    }
+    fn play(&mut self, mut config: Value, text: String, kind: Kind, priority: u8) {
+        let original_text = text.clone();
+        let dictionary = crate::maintenance::pronunciation(&self.runtime.config_dir);
+        let text = if config["voice"]["backend"] == "cloud" {
+            config["_pronunciations"] = dictionary;
+            text
+        } else {
+            crate::maintenance::apply_pronunciation(&text, &dictionary)
+        };
+        self.set_status(json!({"playing":true,"text":original_text,"backend":config["voice"]["backend"],"queued":self.queue.len()}));
         let (cancel, receiver) = watch::channel(0);
         let speaker = self.speaker.clone();
         let task = tokio::spawn(async move {

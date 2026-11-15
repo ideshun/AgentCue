@@ -27,6 +27,7 @@ pub struct Services {
     pub info: RuntimeInfo,
     api: Mutex<Option<api::ApiHandle>>,
     timer: Mutex<Option<MonitorHandle>>,
+    housekeeping: Mutex<Option<tokio::task::JoinHandle<()>>>,
     _data_lock: File,
 }
 
@@ -57,6 +58,7 @@ impl Services {
             set_private_directory(&data_dir).map_err(|_| "无法保护 AgentCue 数据目录")?;
             set_private_directory(&config_dir).map_err(|_| "无法保护 AgentCue 设置目录")?;
         }
+        agentcue_runtime::maintenance::apply_pending(&data_dir, &config_dir)?;
         let database = agentcue_store::open::open_database(&data_dir.join("awm.db"))
             .map_err(|e| format!("无法打开 AgentCue 数据库：{e}"))?;
         let integration_entry = if cfg!(target_os = "linux") {
@@ -133,6 +135,7 @@ impl Services {
             info,
             api: Mutex::new(Some(api)),
             timer: Mutex::new(None),
+            housekeeping: Mutex::new(None),
             _data_lock: lock,
         })
     }
@@ -141,10 +144,37 @@ impl Services {
         let mut timer = self.timer.lock().unwrap_or_else(|p| p.into_inner());
         if timer.is_none() {
             *timer = Some(self.monitor.start());
+            let runtime = self.runtime.clone();
+            *self.housekeeping.lock().unwrap_or_else(|p| p.into_inner()) = Some(tokio::spawn(
+                async move {
+                    let mut interval = tokio::time::interval(Duration::from_secs(24 * 60 * 60));
+                    interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+                    loop {
+                        interval.tick().await;
+                        if runtime.data_dir.join("restore-request.json").exists() {
+                            continue;
+                        }
+                        let days=agentcue_runtime::maintenance::preferences(&runtime.data_dir)["retentionDays"].as_u64().unwrap_or(0);
+                        if days > 0
+                            && agentcue_runtime::maintenance::cleanup(&runtime, days, true).is_err()
+                        {
+                            runtime.emit("maintenance.error",serde_json::json!({"message":"自动清理未完成，请到应用与数据中重试"}));
+                        }
+                    }
+                },
+            ));
         }
     }
 
     pub async fn close(&self) {
+        if let Some(task) = self
+            .housekeeping
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .take()
+        {
+            task.abort();
+        }
         let timer = self.timer.lock().unwrap_or_else(|p| p.into_inner()).take();
         let api = self.api.lock().unwrap_or_else(|p| p.into_inner()).take();
         if let Some(timer) = timer {

@@ -294,12 +294,19 @@ async fn integration_paths_are_real_and_shell_quoted() {
         .json()
         .await
         .unwrap();
-    assert!(
-        hooks["data"][0]["files"][0]["content"]
-            .as_str()
-            .unwrap()
-            .contains("'\\''")
-    );
+    let content: Value =
+        serde_json::from_str(hooks["data"][0]["files"][0]["content"].as_str().unwrap()).unwrap();
+    // Assert decoded shell commands; JSON serialization escapes backslashes separately.
+    let command = content["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"]
+        .as_str()
+        .unwrap();
+    assert!(command.contains("'\\''"));
+    if cfg!(windows) {
+        assert_eq!(
+            content["hooks"]["UserPromptSubmit"][0]["hooks"][0]["shell"],
+            "bash"
+        );
+    }
     assert_eq!(
         f.post("/api/v1/tools/codex/ignored", json!({"ignored":true}))
             .await

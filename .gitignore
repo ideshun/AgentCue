@@ -16,6 +16,7 @@ apps/desktop/src/renderer/dist/
 
 # L1 验证日志（scripts/l1-verify.sh 产出）
 .verify/
+.impeccable/
 
 # 本机配置、凭证与会话数据
 .env*
@@ -38,3 +39,6 @@ voice-references/
 *.onnx
 .venv/
 __pycache__/
+
+# Ephemeral native signing configuration (generated only on CI runners)
+apps/tauri/.signing-bundle.conf.json

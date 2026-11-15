@@ -40,6 +40,125 @@ fn get_config(host: State<'_, Host>) -> Value {
     json!({"apiPort":host.services.info.api_port,"token":host.services.info.token})
 }
 
+fn task_targets(host: &Host, id: &str) -> Result<Value, String> {
+    let config = host.services.runtime.config();
+    if config["privacy"]["sessionFileRead"] != true {
+        return Err("任务读取已关闭".into());
+    }
+    let row = agentcue_runtime::maintenance::task_location(&host.services.runtime, id)
+        .map_err(|e| e.message)?;
+    if config["scan"]["ignoredToolIds"]
+        .as_array()
+        .is_some_and(|v| v.iter().any(|v| v == &row["toolId"]))
+    {
+        return Err("该工具已忽略".into());
+    }
+    let project = row["project"]
+        .as_str()
+        .map(std::path::PathBuf::from)
+        .filter(|p| p.is_absolute() && p.is_dir());
+    let executable = row["executable"]
+        .as_str()
+        .map(std::path::PathBuf::from)
+        .filter(|p| p.is_absolute() && p.is_file());
+    let tool = executable.and_then(|p| {
+        if cfg!(target_os = "macos") {
+            p.ancestors()
+                .find(|p| p.extension().is_some_and(|e| e == "app"))
+                .map(std::path::Path::to_path_buf)
+        } else if p.extension().is_some_and(|e| e == "exe") {
+            Some(p)
+        } else {
+            None
+        }
+    });
+    let tool = tool.or_else(|| {
+        if !cfg!(target_os = "macos") {
+            return None;
+        }
+        let home = std::env::var_os("HOME").map(std::path::PathBuf::from);
+        row["bundleNames"]
+            .as_array()?
+            .iter()
+            .filter_map(Value::as_str)
+            .flat_map(|name| {
+                let mut paths = vec![std::path::PathBuf::from("/Applications").join(name)];
+                if let Some(home) = &home {
+                    paths.push(home.join("Applications").join(name));
+                }
+                paths
+            })
+            .find(|p| p.is_dir())
+    });
+    Ok(json!({"tool":tool,"project":project}))
+}
+
+#[tauri::command]
+async fn desktop_feature(
+    app: AppHandle,
+    host: State<'_, Host>,
+    action: String,
+    body: Value,
+) -> Result<Value, String> {
+    let runtime = &host.services.runtime;
+    match action.as_str() {
+        "preferences" => Ok(crate::features::load(&runtime.config_dir)),
+        "save-preferences" => crate::features::save(
+            &runtime.config_dir,
+            &runtime.executable,
+            &body,
+            host.isolated,
+        ),
+        "check-update" => crate::features::check_update().await,
+        "import-model" => {
+            let kind = body["kind"]
+                .as_str()
+                .filter(|s| ["kokoro", "zipvoice"].contains(s))
+                .ok_or("模型类型无效")?;
+            let (send, receive) = oneshot::channel();
+            app.dialog()
+                .file()
+                .set_title("选择已解压的模型目录")
+                .pick_folder(move |path| {
+                    let _ = send.send(path);
+                });
+            let Some(source) = receive.await.map_err(|_| "目录选择器已关闭")? else {
+                return Ok(json!({"cancelled":true}));
+            };
+            let source = source.into_path().map_err(|_| "请选择本机目录")?;
+            host.services.voice.stop_playback().await;
+            host.services.models.import(kind, source).await?;
+            Ok(host.services.models.details(kind))
+        }
+        "open-data" => {
+            app.opener()
+                .open_path(runtime.data_dir.to_string_lossy(), None::<&str>)
+                .map_err(|e| e.to_string())?;
+            Ok(json!({"ok":true}))
+        }
+        "task-targets" => task_targets(&host, body["sessionId"].as_str().ok_or("缺少任务编号")?),
+        "open-task" => {
+            let targets = task_targets(&host, body["sessionId"].as_str().ok_or("缺少任务编号")?)?;
+            let key = body["target"]
+                .as_str()
+                .filter(|s| ["tool", "project"].contains(s))
+                .ok_or("目标无效")?;
+            let path = targets[key]
+                .as_str()
+                .ok_or("该任务没有可打开的目标；CLI 任务请回原终端处理")?;
+            app.opener()
+                .open_path(path, None::<&str>)
+                .map_err(|e| e.to_string())?;
+            Ok(json!({"ok":true}))
+        }
+        "restart" => {
+            host.services.close().await;
+            app.restart()
+        }
+        _ => Err("未知桌面操作".into()),
+    }
+}
+
 #[tauri::command]
 async fn scan_now(host: State<'_, Host>) -> Result<(), String> {
     host.services.monitor.scan().await.map(|_| ())
@@ -191,7 +310,10 @@ fn request_close(app: &AppHandle, reason: CloseReason) {
 }
 
 fn finish_close(app: AppHandle, reason: CloseReason) {
-    if reason == CloseReason::Window {
+    if reason == CloseReason::Window
+        && crate::features::load(&app.state::<Host>().services.runtime.config_dir)["closeToTray"]
+            != false
+    {
         if let Some(window) = app.get_webview_window("main") {
             let _ = window.hide();
         }
@@ -369,6 +491,7 @@ pub fn run(paths: AppPaths, isolated: bool) -> Result<(), String> {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             get_config,
+            desktop_feature,
             scan_now,
             set_muted,
             speak_test,
@@ -394,25 +517,33 @@ pub fn run(paths: AppPaths, isolated: bool) -> Result<(), String> {
                 isolated,
             });
             let builder =
-                WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
-                    .title("AgentCue")
-                    .inner_size(1180.0, 780.0)
-                    .min_inner_size(900.0, 620.0)
-                    .accept_first_mouse(true)
-                    .visible(false)
-                    .on_navigation(|url| {
-                        matches!(
-                            (url.scheme(), url.host_str()),
-                            ("tauri", Some("localhost"))
-                                | ("http" | "https", Some("tauri.localhost"))
-                        )
-                    })
-                    .on_page_load(|window, payload| {
-                        if payload.event() == tauri::webview::PageLoadEvent::Finished {
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                        }
-                    });
+                    WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
+                        .title("AgentCue")
+                        .inner_size(1180.0, 780.0)
+                        .min_inner_size(900.0, 620.0)
+                        .accept_first_mouse(true)
+                        .visible(false)
+                        .on_navigation(|url| {
+                            matches!(
+                                (url.scheme(), url.host_str()),
+                                ("tauri", Some("localhost"))
+                                    | ("http" | "https", Some("tauri.localhost"))
+                            )
+                        })
+                        .on_page_load(|window, payload| {
+                            if payload.event() == tauri::webview::PageLoadEvent::Finished {
+                                let host = window.state::<Host>();
+                                let hidden = crate::features::load(
+                                    &host.services.runtime.config_dir,
+                                )["startHidden"]
+                                    == true
+                                    || std::env::args().any(|s| s == "--background");
+                                if !hidden {
+                                    let _ = window.show();
+                                    let _ = window.set_focus();
+                                }
+                            }
+                        });
             #[cfg(target_os = "macos")]
             let builder = builder
                 .title_bar_style(tauri::TitleBarStyle::Overlay)

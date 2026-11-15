@@ -4,6 +4,7 @@ interface ApiConfig {
   token: string;
 }
 interface AwmBridge {
+  desktopFeature?(action: string, body?: Record<string, unknown>): Promise<unknown>;
   platform: string;
   getConfig(): Promise<ApiConfig>;
   scanNow(): Promise<void>;
@@ -13,7 +14,9 @@ interface AwmBridge {
   pickReferenceAudio(): Promise<string | null>;
   onRefresh(handler: () => void): () => void;
   /** 关闭窗口或退出前，主进程询问渲染层是否有未保存设置。 */
-  onConfirmClose(handler: (request: { requestId: number; reason: 'close' | 'quit' }) => void): () => void;
+  onConfirmClose(
+    handler: (request: { requestId: number; reason: 'close' | 'quit' }) => void,
+  ): () => void;
   /** 把用户选择交回主进程；true 表示可以继续关闭/退出。 */
   respondClose(requestId: number, proceed: boolean): void;
   /** 退出流程需要用户确认时，先把隐藏的窗口显示出来。 */
@@ -30,7 +33,45 @@ type TransitionRecord = import('@awm/core').TransitionRecord;
 type VoiceRule = import('@awm/core').VoiceRule;
 type NativeVoice = import('@awm/core').NativeVoice;
 type NativeVoiceList = import('@awm/core').NativeVoiceList;
-type ModelStatus = import('@awm/core').ModelStatus;
+type ModelStatus = import('@awm/core').ModelStatus & {
+  directoryName?: string;
+  sourceUrl?: string;
+  installedBytes?: number;
+};
+interface DesktopPreferences {
+  startHidden: boolean;
+  closeToTray: boolean;
+  autostart: boolean;
+}
+interface DataInfo {
+  dataDir: string;
+  configDir: string;
+  databaseBytes: number;
+  modelBytes: number;
+  backupBytes: number;
+  sessions: number;
+  restorePending: boolean;
+  restoreResult?: { ok: boolean; message: string };
+  preferences: { retentionDays: number };
+  backups: Array<{ id: string; createdAt: string; bytes: number }>;
+}
+interface PlaybackStatus {
+  playing: boolean;
+  text?: string;
+  backend?: string;
+  queued?: number;
+  ok?: boolean;
+  errors?: string[];
+}
+interface UpdateInfo {
+  current: string;
+  latest: string;
+  available: boolean;
+  checkedAt: string;
+  releaseUrl: string;
+  downloadUrl?: string;
+  notes: string;
+}
 type ModelKind = 'kokoro' | 'zipvoice';
 interface Envelope<T> {
   success: boolean;
@@ -39,6 +80,8 @@ interface Envelope<T> {
 }
 type CoreToolSummary = import('@awm/core').ToolSummary;
 interface ToolSummary extends CoreToolSummary {
+  /** Visible lifecycle events received from adapters; excludes manual marks and snapshots. */
+  milestones?: Array<{ eventType: string; ts: string }>;
   sessionCapability?: 'events' | 'metadata' | 'detect-only';
   capabilityReason?: string;
   host?: string;
@@ -59,6 +102,13 @@ interface HookIntegration {
   capabilityReason: string;
 }
 type BoardGroupId = import('@awm/schema').BoardGroupId;
+interface BoardFilters {
+  q: string;
+  toolId: string;
+  from?: string;
+  to?: string;
+  order?: 'asc' | 'desc';
+}
 type BoardItem = import('@awm/schema').BoardItem;
 type BoardPage = import('@awm/schema').BoardPage;
 type BoardResponse = import('@awm/schema').BoardResponse;
@@ -239,6 +289,8 @@ const Api = {
       'board.updated',
       'scan.completed',
       'model.progress',
+      'voice.status',
+      'maintenance.error',
     ]) {
       source.addEventListener(type, (event) => {
         try {

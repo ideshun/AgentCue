@@ -9,6 +9,8 @@
 | 任务播报接入 | [integrations/task-hooks.md](./integrations/task-hooks.md) | Claude Code、Cursor、Cline、CodeBuddy 官方 Hooks 配置与能力边界     |
 | 文档站入口   | [site/index.html](./site/index.html)                       | 静态文档首页                                                        |
 
+本机维护功能与接入验收见 [local-management.md](./local-management.md)。
+
 ## 阅读顺序
 
 1. 先读产品方案，理解「为什么做」与功能边界（FR 编号是后续所有追溯的锚点）。
@@ -27,4 +29,6 @@ v0.x Electron 安装包仍保留在旧版 Releases 中；当前 v1.x 发布流�
 [adr/ADR-20-tts-voice-quality.md](./adr/ADR-20-tts-voice-quality.md)，
 [adr/ADR-21-rust-tauri-migration.md](./adr/ADR-21-rust-tauri-migration.md)，
 [adr/ADR-22-agentcue-data-directories.md](./adr/ADR-22-agentcue-data-directories.md)，
+[adr/ADR-23-native-operations.md](./adr/ADR-23-native-operations.md)。
+
 后续决策写入 `adr/ADR-XX-<主题>.md` 并在详细设计文档中登记。

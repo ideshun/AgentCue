@@ -86,19 +86,20 @@ function withTaskIdentity(text: string, signal: TransitionSignal, titleLimit = 4
   return identity + truncateText(text, 200 - identity.length);
 }
 
-/** 播报范围：'all' 表示不筛事件，后续仍由 AUTOMATIC_SPEECH_EVENTS 决定能否出声。 */
-function inBroadcastScope(
-  scope: Settings['voice']['scope'],
-  eventType: EventType,
-): boolean {
-  if (scope === 'all') return true;
-  if (scope === 'milestones')
-    return (
-      eventType === 'task.waiting_human' ||
-      eventType === 'task.started' ||
-      eventType === 'task.completed'
-    );
-  return eventType === 'task.waiting_human';
+/** @description: 将保存的范围映射到允许自动播报的任务节点；all 兼容 milestones。 */
+function inBroadcastScope(scope: Settings['voice']['scope'], eventType: EventType): boolean {
+  const selectedEvents: Record<Settings['voice']['scope'], readonly EventType[]> = {
+    attention: ['task.waiting_human'],
+    milestones: ['task.started', 'task.waiting_human', 'task.completed'],
+    all: ['task.started', 'task.waiting_human', 'task.completed'],
+    none: [],
+    started: ['task.started'],
+    completed: ['task.completed'],
+    started_attention: ['task.started', 'task.waiting_human'],
+    started_completed: ['task.started', 'task.completed'],
+    attention_completed: ['task.waiting_human', 'task.completed'],
+  };
+  return selectedEvents[scope].includes(eventType);
 }
 
 /** 自动语音只覆盖用户关心的三种任务阶段，其他阶段保留通知。 */
@@ -137,7 +138,7 @@ export class VoiceService {
     const inScope = inBroadcastScope(scope, signal.eventType);
     // 超出播报范围的事件只进通知：用独立去抖器，避免同一轮的开始/完成反复弹通知，
     // 同时不占用播报去抖窗口——紧随其后的待确认必须仍能出声。
-    if (!inScope) {
+    if (!inScope && AUTOMATIC_SPEECH_EVENTS.has(signal.eventType)) {
       const decision = this.notifyDebouncer.decide(
         { ...signal, at: now.getTime() },
         { bypassCooldown: true },
@@ -172,9 +173,7 @@ export class VoiceService {
     return this.dispatchSpeak({
       priority: resolved.rule?.priority ?? priorityForEvent(signal.eventType),
       // 只在出声前归一化；通知与看板仍用原文。
-      text: normalizeForSpeech(
-        this.announcementText(signal, resolved.rule?.template),
-      ),
+      text: normalizeForSpeech(this.announcementText(signal, resolved.rule?.template)),
       signal,
       ...(delay > 0 ? { notBefore: Date.now() + delay } : {}),
     });
@@ -185,10 +184,7 @@ export class VoiceService {
    * 'title' 只播会话标题与工具名——用户输入正文可能又长又尴尬，且标题本身是输入的
    * 前 40 字，需要先清成可听的短语。路径引用摘要在截断前生成，仅用于播报。
    */
-  private announcementText(
-    signal: TransitionSignal,
-    template?: string | null,
-  ): string {
+  private announcementText(signal: TransitionSignal, template?: string | null): string {
     const title = signal.speechTitle ?? signal.title;
     const compact = title ? compactSpeechReferences(title) : title;
     const hasReference = !!signal.speechTitle || compact !== title;
@@ -336,10 +332,10 @@ export class VoiceService {
     const notificationOnly = !AUTOMATIC_SPEECH_EVENTS.has(item.signal.eventType);
     const inScope = inBroadcastScope(this.deps.getSettings().voice.scope, item.signal.eventType);
     if (resolved.action === 'notify' || blocked || notificationOnly || !inScope) {
-      const reason = !inScope
-        ? 'out-of-scope'
-        : notificationOnly
-          ? 'event-notification-only'
+      const reason = notificationOnly
+        ? 'event-notification-only'
+        : !inScope
+          ? 'out-of-scope'
           : (blocked ?? 'rule-notify');
       this.notify(item.signal, reason);
       this.playNext();
@@ -354,9 +350,7 @@ export class VoiceService {
     try {
       await this.playbackBarrier;
       if (generation !== this.generation) return { action: 'skipped', reason: 'interrupted' };
-      item.text = normalizeForSpeech(
-        this.announcementText(item.signal, resolved.rule?.template),
-      );
+      item.text = normalizeForSpeech(this.announcementText(item.signal, resolved.rule?.template));
       const playback = chain.speak({
         text: item.text,
         voiceProfile: settings.voice.voiceProfile,

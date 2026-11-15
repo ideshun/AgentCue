@@ -448,27 +448,47 @@ impl Monitor {
     }
     pub async fn tick(&self) -> Result<(), String> {
         let runtime = self.runtime.upgrade().ok_or("采集服务已经退出")?;
-        let generation = runtime.generation.load(Ordering::Acquire);
-        let config = runtime.config();
-        if config["privacy"]["sessionFileRead"] != true {
+        if runtime.config()["privacy"]["sessionFileRead"] != true {
             return Ok(());
         }
         let active = self.active(&runtime)?;
+        let processes = if self.environment.probe_system && !active.is_empty() {
+            discovery::process_snapshot().await.ok()
+        } else {
+            None
+        };
+        self.tick_tasks(&runtime, active, processes.as_deref())
+            .await
+    }
+    async fn tick_tasks(
+        &self,
+        runtime: &Runtime,
+        active: Vec<Value>,
+        processes: Option<&str>,
+    ) -> Result<(), String> {
+        let generation = runtime.generation.load(Ordering::Acquire);
         let mut due = vec![];
         for task in active {
             let id = task["sessionId"].as_str().unwrap_or_default();
             let tool = task["toolId"].as_str().unwrap_or_default();
-            if !self.current(&runtime, generation, tool) {
+            if !self.current(runtime, generation, tool) {
                 continue;
             }
             let Some(manifest) = runtime.manifests.iter().find(|m| m["id"] == tool) else {
                 continue;
             };
-            if manifest["sessionCapability"] == "metadata"
-                || manifest["sessionCapability"] == "detect-only"
+            // A detection-only adapter may still have live tasks from its verified Hooks.
+            // Historical indexes alone never create active tasks and remain excluded.
+            if (manifest["sessionCapability"] == "metadata"
+                || manifest["sessionCapability"] == "detect-only")
+                && !manifest["hookConfig"].is_object()
             {
                 continue;
             }
+            let age = task["updatedAt"]
+                .as_str()
+                .and_then(|value| DateTime::parse_from_rfc3339(value).ok())
+                .and_then(|value| Utc::now().signed_duration_since(value).to_std().ok());
             let file = {
                 let mut s = self.state.lock().map_err(|_| "monitor lock unavailable")?;
                 s.tracked
@@ -477,7 +497,9 @@ impl Monitor {
                         tool: tool.into(),
                         file: None,
                         observation: None,
-                        last_signal: Instant::now(),
+                        last_signal: age
+                            .and_then(|age| Instant::now().checked_sub(age))
+                            .unwrap_or_else(Instant::now),
                     })
                     .file
                     .clone()
@@ -486,7 +508,7 @@ impl Monitor {
                 && let Ok(stat) = tokio::fs::symlink_metadata(path).await
                 && stat.is_file()
                 && !stat.file_type().is_symlink()
-                && self.current(&runtime, generation, tool)
+                && self.current(runtime, generation, tool)
             {
                 let observation = Some((
                     stat.modified().unwrap_or(SystemTime::UNIX_EPOCH),
@@ -512,38 +534,36 @@ impl Monitor {
                 .tracked
                 .get(id)
                 .is_some_and(|t| {
-                    t.last_signal.elapsed()
-                        >= Duration::from_secs(
-                            manifest["heartbeat"]["intervalSec"].as_u64().unwrap_or(30) * 3,
-                        )
+                    let grace = Duration::from_secs(
+                        manifest["heartbeat"]["intervalSec"].as_u64().unwrap_or(30) * 3,
+                    );
+                    t.last_signal.elapsed() >= grace && age.is_some_and(|age| age >= grace)
                 });
             if timeout || lost {
                 due.push((task, timeout));
             }
         }
-        let processes = if self.environment.probe_system && due.iter().any(|(_, timeout)| !*timeout)
-        {
-            discovery::process_snapshot().await.ok()
-        } else {
-            None
-        };
         for (task, timeout) in due {
             let tool = task["toolId"].as_str().unwrap_or_default();
             let id = task["sessionId"].as_str().unwrap_or_default();
-            if !self.current(&runtime, generation, tool) {
+            if !self.current(runtime, generation, tool) {
                 continue;
             }
             if !timeout {
-                let Some(snapshot) = processes.as_ref() else {
+                let Some(snapshot) = processes else {
                     continue;
                 };
                 let manifest = runtime.manifests.iter().find(|m| m["id"] == tool).unwrap();
-                let names = manifest["detect"]["processNames"]
-                    .as_array()
-                    .map(Vec::as_slice)
-                    .unwrap_or_default();
-                if discovery::process_match(snapshot, names, self.environment.platform == "windows")
-                    .is_some()
+                let Some(names) = discovery::heartbeat_process_names(manifest, &runtime.manifests)
+                else {
+                    continue;
+                };
+                if discovery::process_match(
+                    snapshot,
+                    &names,
+                    self.environment.platform == "windows",
+                )
+                .is_some()
                 {
                     if let Some(t) = self
                         .state
@@ -572,4 +592,168 @@ fn ignored(config: &Value, id: &str) -> bool {
     config["scan"]["ignoredToolIds"]
         .as_array()
         .is_some_and(|a| a.iter().any(|v| v == id))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use agentcue_store::migrate;
+    use rusqlite::Connection;
+    use tokio::sync::mpsc;
+
+    struct Fixture {
+        root: PathBuf,
+        runtime: Arc<Runtime>,
+        monitor: Arc<Monitor>,
+        notices: mpsc::Receiver<Event>,
+    }
+    impl Fixture {
+        fn new() -> Self {
+            let root = std::env::temp_dir()
+                .join(format!("agentcue-hook-heartbeat-{}", uuid::Uuid::new_v4()));
+            let mut db = Connection::open_in_memory().unwrap();
+            migrate(&mut db).unwrap();
+            let (runtime, notices) =
+                Runtime::new(db, &root, root.join("synthetic-executable")).unwrap();
+            let monitor = Monitor::new(
+                &runtime,
+                Environment {
+                    platform: "macos".into(),
+                    home: root.clone(),
+                    vars: HashMap::new(),
+                    probe_system: false,
+                },
+            )
+            .unwrap();
+            Self {
+                root,
+                runtime,
+                monitor,
+                notices,
+            }
+        }
+        fn add(&self, tool: &str, state: &str, age: i64) {
+            let time = (Utc::now() - chrono::Duration::seconds(age)).to_rfc3339();
+            self.runtime.db.lock().unwrap().execute("INSERT INTO sessions(session_id,tool_id,current_state,updated_at) VALUES(?1,?1,?2,?3)", params![tool, state, time]).unwrap();
+        }
+        fn state(&self, tool: &str) -> String {
+            self.runtime
+                .db
+                .lock()
+                .unwrap()
+                .query_row(
+                    "SELECT current_state FROM sessions WHERE session_id=?1",
+                    [tool],
+                    |row| row.get(0),
+                )
+                .unwrap()
+        }
+        async fn tick(&self, snapshot: Option<&str>) {
+            self.monitor
+                .tick_tasks(
+                    &self.runtime,
+                    self.monitor.active(&self.runtime).unwrap(),
+                    snapshot,
+                )
+                .await
+                .unwrap();
+        }
+        fn expire_observations(&self) {
+            for task in self.monitor.state.lock().unwrap().tracked.values_mut() {
+                task.last_signal = Instant::now() - Duration::from_secs(240);
+            }
+        }
+    }
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.root);
+        }
+    }
+
+    #[tokio::test]
+    async fn hooks_on_detection_only_and_metadata_adapters_close_after_the_host_exits() {
+        let mut f = Fixture::new();
+        for tool in ["cursor", "codebuddy", "cline"] {
+            f.add(tool, "running", 600);
+        }
+        f.tick(Some("123 /Applications/Cursor.app/Contents/MacOS/Cursor"))
+            .await;
+        for tool in ["cursor", "codebuddy", "cline"] {
+            assert_eq!(f.state(tool), "running");
+        }
+        f.expire_observations();
+        f.tick(Some("123 /Applications/Other.app/Contents/MacOS/Other"))
+            .await;
+        for tool in ["cursor", "codebuddy", "cline"] {
+            assert_eq!(f.state(tool), "timeout");
+            assert_eq!(f.notices.try_recv().unwrap().event_type, "heartbeat.lost");
+        }
+        f.tick(Some("")).await;
+        assert!(f.notices.try_recv().is_err());
+        let office = queries::office(
+            &f.runtime.db.lock().unwrap(),
+            &f.runtime.manifests,
+            &f.runtime.config(),
+        )
+        .unwrap();
+        for desk in office["workstations"].as_array().unwrap() {
+            assert_eq!(desk["counts"]["running"], 0);
+        }
+    }
+
+    #[tokio::test]
+    async fn old_persisted_hook_tasks_do_not_get_a_new_grace_period_at_startup() {
+        let f = Fixture::new();
+        f.add("cursor", "running", 600);
+        f.add("codebuddy", "waiting_human", 600);
+        f.tick(Some("")).await;
+        assert_eq!(f.state("cursor"), "timeout");
+        assert_eq!(f.state("codebuddy"), "timeout");
+    }
+
+    #[tokio::test]
+    async fn missing_process_evidence_and_recent_hook_signals_do_not_imply_exit() {
+        let f = Fixture::new();
+        f.add("cursor", "running", 600);
+        f.add("codebuddy", "running", 5);
+        f.tick(None).await;
+        assert_eq!(f.state("cursor"), "running");
+        f.expire_observations();
+        f.tick(Some("")).await;
+        assert_eq!(f.state("cursor"), "timeout");
+        assert_eq!(f.state("codebuddy"), "running");
+    }
+
+    #[tokio::test]
+    async fn newer_hook_activity_resets_the_effective_grace_and_privacy_is_respected() {
+        let f = Fixture::new();
+        f.add("cursor", "running", 600);
+        f.tick(Some("123 Cursor")).await;
+        f.expire_observations();
+        f.runtime
+            .db
+            .lock()
+            .unwrap()
+            .execute(
+                "UPDATE sessions SET updated_at=?1 WHERE session_id='cursor'",
+                [queries::now()],
+            )
+            .unwrap();
+        f.tick(Some("")).await;
+        assert_eq!(f.state("cursor"), "running");
+        f.runtime
+            .db
+            .lock()
+            .unwrap()
+            .execute(
+                "UPDATE sessions SET updated_at='2020-01-01T00:00:00Z' WHERE session_id='cursor'",
+                [],
+            )
+            .unwrap();
+        f.runtime
+            .update_settings(&json!({"privacy":{"sessionFileRead":false}}))
+            .unwrap();
+        f.tick(Some("")).await;
+        assert_eq!(f.state("cursor"), "running");
+    }
 }

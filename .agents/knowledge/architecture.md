@@ -14,7 +14,20 @@
 
 ## 当前实现
 
-pnpm workspace + TypeScript `strict`。包：
+当前安装版为 Rust + Tauri 2，复用原生 TypeScript/CSS 渲染层。原生工作区：
+
+| 路径 | 职责 |
+| --- | --- |
+| `apps/tauri/src` | 窗口、托盘、系统通知、文件选择、登录启动、手动更新检查 |
+| `crates/agentcue-core` | 无依赖状态机契约 |
+| `crates/agentcue-store` | SQLite 迁移、事件与来源检查点事务 |
+| `crates/agentcue-adapters` | 来源格式、Hooks 标准化与应用启动声明 |
+| `crates/agentcue-runtime` | 采集、控制 API、MCP、语音编排、本机维护 |
+| `crates/agentcue-tts` | 独立本地推理进程 |
+
+后台任务运行在宿主 Tokio runtime，语音推理使用独立工作进程；HTTP 与 SSE 保持兼容。当前运行路径以 Rust 源码为准，TS 状态表和导出夹具用于兼容验证，不代表安装包执行 Electron 引擎。
+
+以下 pnpm workspace 保留 v0.x 实现、共享渲染层、资源与契约夹具；`pnpm dev` 仍启动旧 Electron 开发入口：
 
 | 包 | 路径 | 职责 |
 | --- | --- | --- |
@@ -25,7 +38,7 @@ pnpm workspace + TypeScript `strict`。包：
 | `@awm/desktop` | `apps/desktop` | Electron 主进程、preload、渲染层、控制 API |
 | `@awm/mcp-stdio` | `apps/mcp-stdio` | `awm-mcp` stdio 桥接，不碰数据库 |
 
-进程：主进程（引擎 + HTTP 控制 API + 托盘 + 窗口）、渲染进程、由客户端拉起的 `awm-mcp`。扫描与心跳目前在主进程 `setInterval` 内，不是独立子进程。
+历史 Electron 进程：主进程、渲染进程及 `awm-mcp`。原生安装版使用 `AgentCue --mcp-stdio` / `--tool-hook` 共用同一控制服务。
 
 数据流：
 
@@ -37,11 +50,11 @@ pnpm workspace + TypeScript `strict`。包：
 awm-mcp ──stdio──▶ HTTP Bearer ──▶ 同一套 FSM
 ```
 
-状态机 7 态：`idle` / `running` / `waiting_human` / `failed` / `completed` / `cancelled` / `timeout`。迁移合法性唯一权威是 `packages/core/src/statemachine/transition-table.ts` 的 `TRANSITION_TABLE`。
+状态机 7 态：`idle` / `running` / `waiting_human` / `failed` / `completed` / `cancelled` / `timeout`。TS 兼容迁移表是 `packages/core/src/statemachine/transition-table.ts` 的 `TRANSITION_TABLE`。
 
 控制 API 绑定 `127.0.0.1`（`listen(0)` 随机端口），握手写 userData 下 `runtime.json`（0600）。实时推送是 SSE（`POST /api/v1/stream-ticket` 换一次性票据后连 `GET /api/v1/stream`），不是 WebSocket；限流 120 req/min，Hook 投递（`POST /api/v1/integrations/hooks`）与查询/控制分桶计数。
 
-内置适配器 YAML 在 `packages/adapters/resources/adapters/`：`claude-code` 与 `codex` 有 `eventMapping`（Codex 无 waiting_human，审批不落 JSONL），任务身份粒度由 `sessionSource.identityMode` 声明（codex 为 `turn`，其余默认 `session`），提取器按声明分派、不按工具 id 特判；`cursor` 探测可用但 `eventMapping` 为空。JSONL 普通批次读取 4MB，首条记录跨块时按需扩读，单条记录上限 32MB；半行与读取资格撤销均不推进检查点，完整记录随消费事务提交，避免大图片/工具输出记录阻塞后续任务状态。
+内置适配器 YAML 在 `packages/adapters/resources/adapters/`：`claude-code` 与 `codex` 有 `eventMapping`（CodeX JSONL 缺少可靠的人类待审批信号），任务身份粒度由 `sessionSource.identityMode` 声明（codex 为 `turn`，其余默认 `session`），提取器按声明分派、不按工具 id 特判；`cursor` 探测可用但 `eventMapping` 为空。JSONL 普通批次读取 4MB，首条记录跨块时按需扩读，单条记录上限 32MB；半行与读取资格撤销均不推进检查点，完整记录随消费事务提交，避免大图片/工具输出记录阻塞后续任务状态。
 
 用户消息标题仍以最多 40 个 Unicode 字符供界面与通知使用；含明确 `@` 路径引用时，适配器另生成最多 60 字的去路径播报摘要，按来源保存在事件 payload 和／或来源检查点中，供后续播报使用。相关实现见 `packages/adapters/src/user-title.ts`、`packages/schema/src/speech.ts` 与 `packages/store/src/dao/events.ts`。
 
@@ -53,11 +66,27 @@ awm-mcp ──stdio──▶ HTTP Bearer ──▶ 同一套 FSM
 
 命令：`pnpm install`、`pnpm dev`、`pnpm build`、`sh scripts/l1-verify.sh`。跨包类型检查依赖各包 `dist/*.d.ts`，`pnpm typecheck` 前会 `pretypecheck` 全量 build。
 
-Rust / Tauri 2 渐进迁移见 [ADR-21](../../docs/adr/ADR-21-rust-tauri-migration.md)。`crates/agentcue-core` 提供任务状态契约，`agentcue-store` 提供五版 SQLite 升级、显式文件备份与事件/检查点事务；`agentcue-adapters` 保留标题、JSONL、历史索引及原生 Hooks 的格式逻辑；`agentcue-runtime` 承载本机控制 API、定时采集、心跳、Hooks 与 MCP。兼容夹具由 TS 导出，并同时校验迁移 SQL、事件 ID、分批上下文、设置及接入模板。Tauri 宿主位于 `apps/tauri/`，使用 `bridge.js` 复用现有渲染层并接通窗口、托盘、通知和试听。原生语音由系统负责；`agentcue-tts` 独立合成 Kokoro / ZipVoice。预览使用隔离的合成数据，正式发布仍遵循[原生版交付手册](../../docs/native-preview.md)中的验收要求。
+Rust / Tauri 2 渐进迁移见 [ADR-21](../../docs/adr/ADR-21-rust-tauri-migration.md)。`crates/agentcue-core` 提供任务状态契约，`agentcue-store` 提供六版 SQLite 升级、显式文件备份与事件/检查点事务；`agentcue-adapters` 保留标题、JSONL、历史索引及原生 Hooks 的格式逻辑；`agentcue-runtime` 承载本机控制 API、定时采集、心跳、Hooks 与 MCP。兼容夹具由 TS 导出，并同时校验迁移 SQL、事件 ID、分批上下文、设置及接入模板。Tauri 宿主位于 `apps/tauri/`，使用 `bridge.js` 复用现有渲染层并接通窗口、托盘、通知和试听。原生语音由系统负责；`agentcue-tts` 独立合成 Kokoro / ZipVoice。预览使用隔离的合成数据，正式发布仍遵循[原生版交付手册](../../docs/native-preview.md)中的验收要求。
+
+原生心跳覆盖已有的 Hooks 活跃任务，不因适配器基础能力为 `detect-only` / `metadata` 而跳过。进程证据来自适配器声明的 `processNames`，或其 `extensions.host` 对应适配器的进程声明；无法解析宿主或进程探测失败时，不推断工具已退出。连续三个心跳周期无文件变化、无新任务事件，且进程或所有已声明宿主均已退出时，记录 `heartbeat.lost` 并转为超时。旧 Hooks 任务以持久化的最后事件时间计算宽限期，重启不会将已过期任务重新延后；历史索引本身不产生活跃任务。
+
+## 接入诊断
+
+原生 `/api/v1/tools` 返回 `milestones`：仅包含可见任务中 `actor=tool` 的开始、待确认与完成事件的各类最近时间，不含正文、手动标记或历史快照。关闭读取或忽略工具后返回空列表。播报接入页用它展示诊断与按工具验证；验证起点保存在窗口内存，只有起点之后的来源事件算收到，不将多任务汇总误称为同一任务的端到端验证。
+
+## 本机维护与原生偏好
+
+数据库 schema v6 增加可见任务的时间表达式索引与工具事件索引；看板按状态分别读取限量结果后合并，保持跨时区排序及分页。格式 1 的 schema v5 备份仍可恢复，并在启动时升级。
+
+`maintenance.rs` 提供在线 SQLite 备份、重启前恢复及回滚、终态保留期限、白名单诊断导出、自定义读音。备份仅包含数据库和主 settings，不含模型、参考录音、API Key、系统登录启动配置和独立读音词典。恢复保留当前完整云语音配置，发生损坏会记录结果并保留现有数据；回滚失败则停止启动。自动清理默认关闭，仅清理过期完成、取消和 idle 记录及关联事件/通知，保留未解决状态与来源检查点。
+
+数据管理 API 在 Tokio 阻塞工作线程执行；目录统计不持有共享数据库锁，备份的锁范围限于 SQLite 快照。
+
+`features.rs` 负责系统登录启动与显式 GitHub 更新检查；不在刷新或启动时联网。`desktop.json` 保存窗口启动/关闭偏好，`maintenance.json` 保存保留期限，`pronunciation.json` 保存读音。模型可验证本机 SHA-256、移除、重新下载或从用户选择的本机目录导入；首次建立哈希不是发布者认证。详见 [ADR-23](../../docs/adr/ADR-23-native-operations.md)。
 
 ## 待确认
 
-- 设计要求扫描子进程（RK-07）；实现仍在主进程。未测内存前不要拆。
+- 原生采集位于 Tokio 后台任务，尚无独立采集进程；先测内存再决定隔离。
 - 实时通道为 SSE，见 `docs/adr/ADR-17-sse-instead-of-websocket.md`。
 - Cursor `state.vscdb` 仍无公开契约，保持空 `eventMapping`。
 

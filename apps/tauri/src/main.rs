@@ -1,6 +1,7 @@
 #![cfg_attr(all(not(debug_assertions), windows), windows_subsystem = "windows")]
 
 mod desktop;
+mod features;
 mod self_test;
 mod services;
 

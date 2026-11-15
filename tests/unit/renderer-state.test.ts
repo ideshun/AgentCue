@@ -39,6 +39,67 @@ function renderer(): vm.Context {
 function evaluate<T>(context: vm.Context, expression: string): T {
   return vm.runInContext(expression, context) as T;
 }
+describe('integration evidence and guided verification', () => {
+  function setup() {
+    const context = renderer();
+    context.fixtureSettings = structuredClone(settings);
+    evaluate(
+      context,
+      `state.settings = fixtureSettings;
+      state.tools = [{toolId:'fixture',name:'Fixture',detectStatus:'installed',milestones:[{eventType:'task.started',ts:'2026-11-01T00:00:00Z'}]}];`,
+    );
+    return context;
+  }
+  const markup = `renderIntegrationDiagnostics(state, 'fixture', {commandReady:true})`;
+
+  it('does not let historical evidence pass a new verification window', () => {
+    const context = setup();
+    expect(evaluate<string>(context, markup)).toContain('已收到');
+    evaluate(
+      context,
+      `state.integrationVerification = {toolId:'fixture',since:'2026-11-12T00:00:00Z'}`,
+    );
+    expect(evaluate<string>(context, markup)).not.toContain('已收到');
+    evaluate(context, `state.tools[0].milestones[0].ts = '2026-11-12T00:01:00Z'`);
+    expect(evaluate<string>(context, markup)).toContain('已收到');
+    expect(evaluate<string>(context, markup)).toContain('各项可能来自不同任务');
+    evaluate(
+      context,
+      `state.integrationVerification.seen = {'task.started':'2026-11-12T00:01:00Z'}`,
+    );
+    expect(evaluate<string>(context, markup)).not.toContain('已收到');
+  });
+
+  it('hides evidence and disables verification when privacy is off or the tool is ignored', () => {
+    const context = setup();
+    evaluate(context, 'state.settings.privacy.sessionFileRead = false');
+    expect(evaluate<string>(context, markup)).not.toContain('已收到');
+    expect(evaluate<string>(context, markup)).toContain('采集暂停');
+    expect(evaluate<string>(context, markup)).toMatch(/data-verify-integration="fixture" disabled/);
+    evaluate(
+      context,
+      'state.settings.privacy.sessionFileRead = true; state.settings.scan.ignoredToolIds = ["fixture"]',
+    );
+    expect(evaluate<string>(context, markup)).toContain('此工具已忽略');
+    expect(evaluate<string>(context, markup)).not.toContain('已收到');
+  });
+
+  it('escapes scan errors and keeps an unavailable source from being verified', () => {
+    const context = setup();
+    evaluate(
+      context,
+      `state.overview = {lastScan:{degraded:[{toolId:'fixture',reason:'<img src=x onerror=alert(1)>'}]}}`,
+    );
+    const output = evaluate<string>(
+      context,
+      `renderIntegrationDiagnostics(state, 'fixture', {commandReady:false})`,
+    );
+    expect(output).toContain('&lt;img');
+    expect(output).not.toContain('<img');
+    expect(output).toMatch(/data-verify-integration="fixture" disabled/);
+  });
+});
+
 function plain<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
@@ -79,19 +140,21 @@ describe('renderer settings', () => {
       voice: { volume: 0.35 },
     });
   });
-  it('exposes broadcast scope and content selectors with the saved values selected', () => {
+  it('exposes broadcast event checkboxes and the saved content selector', () => {
     const context = renderer();
     context.settingsFixture = structuredClone(settings);
     evaluate(context, 'state.settings = settingsFixture');
     const markup = evaluate<string>(context, 'renderSettings(state)');
-    expect(markup).toContain('data-setting="voice.scope"');
-    expect(markup).toMatch(/value="attention" selected[^>]*>只播等你确认的/);
+    expect(markup).toMatch(/data-scope-event="attention" checked/);
+    expect(markup).not.toMatch(/data-scope-event="(?:started|completed)" checked/);
     expect(markup).toContain('data-setting="voice.content"');
     expect(markup).toMatch(/value="title" selected[^>]*>标题（精简）/);
     evaluate(context, 'state.settings.voice.scope = "milestones"');
-    expect(evaluate<string>(context, 'renderSettings(state)')).toMatch(
-      /value="milestones" selected[^>]*>开始、确认、完成都播/,
-    );
+    expect(
+      evaluate<string>(context, 'renderSettings(state)').match(
+        /data-scope-event="[a-z]+" checked/g,
+      ),
+    ).toHaveLength(3);
   });
 
   it('sends numeric rates and preserves other quiet ranges', () => {
@@ -131,7 +194,7 @@ describe('renderer settings', () => {
     context.settingsFixture = structuredClone(settings);
     evaluate(context, 'state.settings = settingsFixture; state.settings.voice.scope = "all"');
     const markup = evaluate<string>(context, 'renderSettings(state)');
-    expect(markup).toMatch(/value="milestones" selected[^>]*>开始、确认、完成都播/);
+    expect(markup.match(/data-scope-event="[a-z]+" checked/g)).toHaveLength(3);
     expect(markup).not.toContain('<option value="all"');
     expect(evaluate(context, 'state.settings.voice.scope')).toBe('all');
   });
@@ -480,9 +543,9 @@ describe('renderer hook integrations', () => {
     evaluate(context, 'state.hookIntegrations = [integrationFixture]');
     const waiting = evaluate<string>(context, 'renderIntegrations(state)');
     expect(waiting).toContain('还没收到过任务事件');
-    expect(waiting).toContain('收到过事件只证明它曾经送达');
-    expect(waiting).toContain('之后是否播报，还看语音开关、免打扰和规则');
-    expect(waiting).toContain('请合并内容，不要整份覆盖');
+    expect(waiting).toContain('收到过事件不代表当前仍连接');
+    expect(waiting).toContain('任务事件和播报要分别核对');
+    expect(waiting).toContain('复制配置并合并到原工具');
     expect(waiting).toContain('把调用合并进去');
     expect(waiting).toContain('chmod u+x');
     expect(waiting).not.toContain('data-action="speak-test"');
@@ -629,7 +692,7 @@ describe('renderer hook integrations', () => {
       'state.settings = settingsFixture; state.tools = toolsFixture; state.adapters = adaptersFixture',
     );
     const installed = evaluate<string>(context, 'renderAdapters(state)');
-    expect(installed).toContain('装好了还不等于任务事件已接入');
+    expect(installed).toContain('已识别');
     expect(installed).toContain('还没收到过任务事件');
     evaluate(
       context,
@@ -765,7 +828,10 @@ describe('renderer automatic voice policy', () => {
     context.settingsFixture = structuredClone(settings);
     context.rulesFixture = structuredClone(rules);
     context.nowFixture = new Date(2026, 9, 21, 23, 0);
-    evaluate(context, 'state.settings = settingsFixture; state.rules = rulesFixture');
+    evaluate(
+      context,
+      'state.settings = settingsFixture; state.settings.voice.scope = "milestones"; state.rules = rulesFixture',
+    );
     expect(
       plain(
         evaluate(
@@ -832,7 +898,7 @@ describe('renderer automatic voice policy', () => {
     ).toBe(true);
   });
 
-  it('shows saved generic rules, tool overrides, adapter prerequisites and the audition exception', () => {
+  it('shows the saved effective generic rules and reports tool overrides', () => {
     const context = renderer();
     context.settingsFixture = structuredClone(settings);
     context.rulesFixture = [
@@ -842,7 +908,10 @@ describe('renderer automatic voice policy', () => {
       { ruleId: 'tool', scopeTool: 'codex', scopeEvent: 'task.started', action: 'mute' },
     ];
     context.nowFixture = new Date(2026, 9, 21, 14, 0);
-    evaluate(context, 'state.settings = settingsFixture; state.rules = rulesFixture');
+    evaluate(
+      context,
+      'state.settings = settingsFixture; state.settings.voice.scope = "milestones"; state.rules = rulesFixture',
+    );
     const policy = plain(
       evaluate<{ hasToolOverrides: boolean; items: Array<{ action: string }> }>(
         context,
@@ -852,10 +921,8 @@ describe('renderer automatic voice policy', () => {
     expect(policy.hasToolOverrides).toBe(true);
     expect(policy.items.map((item) => item.action)).toEqual(['speak', 'mute', 'notify']);
     const markup = evaluate<string>(context, 'renderVoicePolicy(state, nowFixture)');
-    expect(markup).toContain('现在 14:00 · 免打扰时段外');
-    expect(markup).toContain('有针对个别工具的规则');
-    expect(markup).toContain('能不能收到提醒还取决于工具有没有接入任务事件');
-    expect(markup).toContain('试听按钮不受这些开关影响');
+    expect(markup).toContain('14:00 · 免打扰时段外');
+    expect(markup).toContain('aria-label="各事件的当前处理方式"');
     // 当前播报状态只在「播报规则」出现一次，语音区不再重复同一张卡。
     expect(
       evaluate<string>(context, 'renderSettings(state)').match(/aria-label="当前自动播报策略"/g),
@@ -878,7 +945,7 @@ describe('renderer automatic voice policy', () => {
     );
     const matrix = evaluate<string>(context, 'renderRuleMatrix(rulesFixture)');
     const started = matrix.match(/<select id="rule-task.started"[^>]*>([\s\S]*?)<\/select>/)?.[1];
-    expect(started).toContain('<option value="notify" selected>弹通知</option>');
+    expect(started).toContain('<option value="notify" selected>发通知</option>');
   });
 
   it('allows speak only for start, waiting-human and completion and explains old speak rules', () => {
@@ -893,7 +960,7 @@ describe('renderer automatic voice policy', () => {
       const options = matrix.match(
         new RegExp(`<select id="rule-${event}"[^>]*>([\\s\\S]*?)<\\/select>`),
       )?.[1];
-      expect(options).toContain('<option value="speak" selected>出声</option>');
+      expect(options).toContain('<option value="speak" selected>播报</option>');
     }
     for (const event of ['task.failed', 'task.timeout']) {
       const options = matrix.match(
@@ -901,8 +968,8 @@ describe('renderer automatic voice policy', () => {
       )?.[1];
       expect(options).not.toContain('value="speak"');
     }
-    expect(matrix).toContain('这类事件现在只能弹通知');
-    expect(matrix).toContain('<option value="notify" selected>弹通知</option>');
+    expect(matrix).toContain('这类事件不能语音播报，只能发通知');
+    expect(matrix).toContain('<option value="notify" selected>发通知</option>');
     expect(matrix).toContain('<option value="mute" selected>不提醒</option>');
     expect(JSON.stringify(context.rulesFixture)).toBe(before);
     for (const event of [
@@ -1985,5 +2052,144 @@ describe('renderer request order', () => {
     await first;
     expect(body.innerHTML).toBe('second-response');
     expect(evaluate(context, 'activeSessionId')).toBe('second');
+  });
+});
+
+describe('native feature setting drafts', () => {
+  it('does not turn unloaded native defaults into user drafts', () => {
+    const context = renderer();
+    evaluate(
+      context,
+      `window.awm.desktopFeature=async()=>({}); state.route='settings'; renderedRoute='settings';
+      const initial=new HTMLInputElement(); initial.id='app-autostart'; initial.type='checkbox'; initial.checked=false; initial.value='';
+      qs=()=>({querySelectorAll:()=>[initial]}); captureDrafts(); state.desktopPreferences={autostart:true,startHidden:false,closeToTray:true};`,
+    );
+    expect(evaluate(context, "routeDrafts('settings').has('app-autostart')")).toBe(false);
+    expect(evaluate(context, 'hasPendingChanges()')).toBe(false);
+  });
+
+  function setup() {
+    const context = renderer();
+    evaluate(
+      context,
+      `window.awm.desktopFeature = async () => ({}); state.route='settings';
+      state.desktopPreferences={autostart:false,startHidden:false,closeToTray:true};
+      state.dataInfo={preferences:{retentionDays:0}}; state.pronunciation={Git:'git'}; toast=()=>{};`,
+    );
+    return context;
+  }
+  it('includes native settings in leave confirmation and discards their drafts', () => {
+    const context = setup();
+    evaluate(
+      context,
+      `routeDrafts('settings').set('app-autostart',{value:'',checked:true,revision:1});
+      routeDrafts('settings').set('retention-days',{value:'30',checked:false,revision:2});
+      routeDrafts('settings').set('pronunciation-text',{value:'Git = git hub',checked:false,revision:3});`,
+    );
+    expect(evaluate(context, 'pendingChangeCount()')).toBe(3);
+    evaluate(context, 'discardPendingSettings()');
+    expect(evaluate(context, 'hasPendingChanges()')).toBe(false);
+    expect(evaluate(context, 'state.desktopPreferences.autostart')).toBe(false);
+  });
+  it('preserves newer edits while the previous snapshot is being saved', async () => {
+    const context = setup();
+    let resolve!: (value: unknown) => void;
+    const saved = new Promise((r) => {
+      resolve = r;
+    });
+    context.save = () => saved;
+    evaluate(
+      context,
+      `window.awm.desktopFeature=save; routeDrafts('settings').set('app-autostart',{value:'',checked:true,revision:1});`,
+    );
+    const operation = evaluate<Promise<boolean>>(context, `commitFeatureDrafts('desktop')`);
+    evaluate(
+      context,
+      `routeDrafts('settings').set('app-autostart',{value:'',checked:false,revision:2});`,
+    );
+    resolve({ autostart: true, startHidden: false, closeToTray: true });
+    expect(await operation).toBe(true);
+    expect(evaluate(context, `routeDrafts('settings').get('app-autostart').revision`)).toBe(2);
+    expect(evaluate(context, 'hasPendingChanges()')).toBe(true);
+  });
+  it('rejects malformed or duplicate pronunciation entries without saving', async () => {
+    const context = setup();
+    expect(() =>
+      evaluate(context, `parsePronunciation(${JSON.stringify('Git = git\nGit = jit')})`),
+    ).toThrow();
+    expect(() => evaluate(context, `parsePronunciation('Git')`)).toThrow();
+    evaluate(
+      context,
+      `routeDrafts('settings').set('retention-days',{value:'1',checked:false,revision:1});`,
+    );
+    await expect(
+      evaluate<Promise<boolean>>(context, `commitFeatureDrafts('retention')`),
+    ).rejects.toThrow('保留期限');
+    expect(evaluate(context, 'hasPendingChanges()')).toBe(true);
+  });
+});
+
+describe('native onboarding markup', () => {
+  it('keeps overview sections valid and explains missing tools', () => {
+    const context = renderer();
+    evaluate(context, 'window.awm.desktopFeature=async()=>({});');
+    const html = evaluate<string>(context, 'renderOverview(state)');
+    expect(html).toContain('<section class="overview-summary"');
+    expect(html).toContain('还没发现本机 AI 工具');
+    expect(html).not.toContain('data-feature="begin-setup"');
+  });
+});
+
+describe('asynchronously populated selectors', () => {
+  it('does not restore an empty draft over a valid loaded tool selection', () => {
+    const context = renderer();
+    evaluate(
+      context,
+      `const control=new HTMLSelectElement(); control.id='setup-tool'; control.value='fixture'; control.options=[{value:'fixture'}]; control.dataset={};
+      document.getElementById=()=>control; document.querySelector=()=>null;
+      routeDrafts('overview').set('setup-tool',{value:'',checked:false,revision:0}); restoreDrafts();`,
+    );
+    expect(evaluate(context, 'control.value')).toBe('fixture');
+  });
+});
+
+describe('broadcast scope and calendar regressions', () => {
+  it.each([
+    ['none', ['notify', 'notify', 'notify']],
+    ['attention', ['notify', 'speak', 'notify']],
+    ['started', ['speak', 'notify', 'notify']],
+    ['completed', ['notify', 'notify', 'speak']],
+    ['started_attention', ['speak', 'speak', 'notify']],
+    ['started_completed', ['speak', 'notify', 'speak']],
+    ['attention_completed', ['notify', 'speak', 'speak']],
+    ['milestones', ['speak', 'speak', 'speak']],
+    ['all', ['speak', 'speak', 'speak']],
+  ])('shows the actual effective actions for scope %s', (scope, actions) => {
+    const context = renderer();
+    context.fixture = structuredClone(settings);
+    context.scopeFixture = scope;
+    expect(
+      plain(
+        evaluate(
+          context,
+          `fixture.voice.scope=scopeFixture;
+      fixture.quiet.ranges=[]; deriveVoicePolicy(fixture,[]).items.map(item=>item.action)`,
+        ),
+      ),
+    ).toEqual(actions);
+  });
+  it('renders a Monday-first leap-month calendar with accessible selected dates', () => {
+    const context = renderer();
+    const html = evaluate<string>(
+      context,
+      `boardCalendar={field:'from',month:'2024-02',focus:'2024-02-29'};
+      renderBoardDatePicker('from','2024-02-29','开始日期')`,
+    );
+    expect(html).toContain('2024年 2月');
+    expect(html.match(/class="calendar-day/g)).toHaveLength(43); // days container plus 42 dates
+    expect(html).toMatch(/data-calendar-day="2024-02-29" tabindex="0"[^>]*aria-pressed="true"/);
+    expect(html).toContain('data-calendar-day="2024-01-29"');
+    expect(evaluate(context, `calendarDate('2025-02-29')`)).toBeNull();
+    expect(evaluate(context, `calendarDate('2024-13-01')`)).toBeNull();
   });
 });

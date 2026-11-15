@@ -289,6 +289,82 @@ async fn route(
     let config = runtime.config();
     let get = method == Method::GET;
     let post = method == Method::POST;
+    if path.starts_with("/api/v1/data/") {
+        let runtime = runtime.clone();
+        let method = method.clone();
+        let path = path.to_owned();
+        let body = body.clone();
+        let value = tokio::task::spawn_blocking(move || -> control::Result<Value> {
+            let runtime = &runtime;
+            let body = &body;
+            Ok(match (method.as_str(), path.as_str()) {
+                ("GET", "/api/v1/data/pronunciation") => {
+                    crate::maintenance::pronunciation(&runtime.config_dir)
+                }
+                ("PUT", "/api/v1/data/pronunciation") => {
+                    crate::maintenance::save_pronunciation(&runtime.config_dir, body)?
+                }
+                ("GET", "/api/v1/data/info") => crate::maintenance::info(runtime)?,
+                ("GET", "/api/v1/data/report") => crate::maintenance::report(runtime)?,
+                ("POST", "/api/v1/data/backup") => crate::maintenance::backup(runtime)?,
+                ("POST", "/api/v1/data/restore") => {
+                    crate::maintenance::request_restore(runtime, control::string(body, "id")?)?
+                }
+                ("POST", "/api/v1/data/cancel-restore") => {
+                    crate::maintenance::cancel_restore(&runtime.data_dir)?;
+                    json!({"ok":true})
+                }
+                ("PUT", "/api/v1/data/preferences") => {
+                    crate::maintenance::set_preferences(&runtime.data_dir, body)?
+                }
+                ("POST", "/api/v1/data/cleanup-preview") | ("POST", "/api/v1/data/cleanup") => {
+                    crate::maintenance::cleanup(
+                        runtime,
+                        body["days"]
+                            .as_u64()
+                            .ok_or_else(|| ControlError::invalid("保留天数无效"))?,
+                        path.ends_with("/cleanup"),
+                    )?
+                }
+                _ => return Err(ControlError::missing("未知数据管理入口")),
+            })
+        })
+        .await
+        .map_err(|_| ControlError::unavailable())??;
+        return Ok(success(value));
+    }
+    if [
+        "/api/v1/voice/status",
+        "/api/v1/voice/stop",
+        "/api/v1/voice/retry",
+    ]
+    .contains(&path)
+    {
+        let voice = runtime
+            .voice
+            .get()
+            .and_then(std::sync::Weak::upgrade)
+            .ok_or_else(ControlError::unavailable)?;
+        if path.ends_with("/status") && get {
+            return Ok(success(voice.status()));
+        }
+        if post && path.ends_with("/stop") {
+            voice.stop_playback().await;
+            return Ok(success(voice.status()));
+        }
+        if post && path.ends_with("/retry") {
+            let status = voice.status();
+            if status["ok"] != false || status["playing"] == true {
+                return Err(ControlError::invalid("没有可手动重试的失败播报"));
+            }
+            let text = status["text"]
+                .as_str()
+                .filter(|s| !s.trim().is_empty())
+                .ok_or_else(|| ControlError::invalid("失败播报内容已清除"))?;
+            return Ok(success(json!(voice.preview(text).await)));
+        }
+        return Err(ControlError::missing("未知播报入口"));
+    }
     if path == "/api/v1/health" && get {
         return Ok(json_response(
             200,
@@ -391,29 +467,48 @@ async fn route(
         ));
     }
     if (path == "/api/v1/voice/model" && get)
-        || (["/api/v1/voice/model/download", "/api/v1/voice/model/cancel"].contains(&path) && post)
+        || ([
+            "/api/v1/voice/model/download",
+            "/api/v1/voice/model/cancel",
+            "/api/v1/voice/model/remove",
+            "/api/v1/voice/model/verify",
+        ]
+        .contains(&path)
+            && post)
     {
         let models = runtime
             .models
             .get()
             .and_then(std::sync::Weak::upgrade)
             .ok_or_else(ControlError::unavailable)?;
-        let kind = if if get {
+        let requested = if get {
             q.get("kind").map(String::as_str)
         } else {
             body["kind"].as_str()
-        } == Some("zipvoice")
-        {
-            "zipvoice"
-        } else {
-            "kokoro"
+        };
+        let kind = match requested {
+            None | Some("kokoro") => "kokoro",
+            Some("zipvoice") => "zipvoice",
+            _ => return Err(ControlError::invalid("模型类型无效")),
         };
         if path.ends_with("/download") {
             models.start(kind).map_err(ControlError::invalid)?;
         } else if path.ends_with("/cancel") {
             models.cancel(kind);
+        } else if path.ends_with("/remove") {
+            if let Some(voice) = runtime.voice.get().and_then(std::sync::Weak::upgrade) {
+                voice.stop_playback().await;
+            }
+            models.remove(kind).await.map_err(ControlError::invalid)?;
+        } else if path.ends_with("/verify") {
+            let kind = kind.to_owned();
+            let result = tokio::task::spawn_blocking(move || models.verify(&kind))
+                .await
+                .map_err(|_| ControlError::unavailable())?
+                .map_err(ControlError::invalid)?;
+            return Ok(success(result));
         }
-        return Ok(success(models.status(kind)));
+        return Ok(success(models.details(kind)));
     }
     let segments: Vec<&str> = path.trim_start_matches('/').split('/').collect();
     if segments.len() == 5

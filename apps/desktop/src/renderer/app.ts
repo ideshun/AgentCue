@@ -1,11 +1,12 @@
 /** Native renderer orchestration. Task state remains authoritative in the main process. */
 const state: AppState = {
   route: 'overview',
+  setupDismissed: readUiPreferences('onboarding').dismissed === true,
   overview: null,
   office: null,
   sessions: [],
   board: null,
-  boardQuery: { q: '', toolId: '' },
+  boardQuery: readBoardFilters(),
   kokoroVoiceSearch: '',
   adapters: [],
   tools: [],
@@ -29,11 +30,16 @@ const state: AppState = {
   sectionErrors: {},
   error: null,
 };
+let boardCalendar: { field: BoardDateField; month: string; focus: string } | null = null;
 let stream: EventSource | null = null;
 let refreshTimer: number | null = null;
 let searchTimer: number | null = null;
 let loadSequence = 0;
 type RefreshKey =
+  | 'pronunciation'
+  | 'desktop'
+  | 'maintenance'
+  | 'playback'
   | 'board'
   | 'overview'
   | 'office'
@@ -46,6 +52,10 @@ type RefreshKey =
   | 'servers'
   | 'hooks';
 const refreshTtl: Record<RefreshKey, number> = {
+  pronunciation: 60_000,
+  desktop: 60_000,
+  maintenance: 60_000,
+  playback: 10_000,
   board: 30_000,
   overview: 30_000,
   office: 30_000,
@@ -92,12 +102,12 @@ interface ControlDraft {
 }
 const drafts = new Map<RouteName, Map<string, ControlDraft>>();
 const ROUTE_META: Record<RouteName, { title: string; subtitle: string }> = {
-  overview: { title: '总览', subtitle: '你的任务、工具和提醒都在这一页。' },
-  office: { title: '办公室', subtitle: '每个工位对应一个工具，一眼看到它在做什么。' },
+  overview: { title: '总览', subtitle: 'AI Agent 任务状态' },
+  office: { title: '办公室', subtitle: '一个工位对应一个工具，随时查看工作状态。' },
   board: { title: '任务看板', subtitle: '按状态查看所有任务。' },
-  notifications: { title: '通知中心', subtitle: '所有提醒的历史记录。' },
-  integrations: { title: '播报接入', subtitle: '把 AgentCue 接到你的 AI 工具里。' },
-  adapters: { title: '工具与扩展', subtitle: '本机装了哪些 AI 工具。' },
+  notifications: { title: '通知中心', subtitle: '展示所有提醒记录' },
+  integrations: { title: '播报接入', subtitle: '将 AgentCue 接入 AI 工具' },
+  adapters: { title: '工具与扩展', subtitle: '系统已安装的 AI 工具' },
   settings: { title: '设置', subtitle: '调整提醒方式、扫描频率和隐私选项。' },
 };
 
@@ -112,6 +122,284 @@ function currentRoute(): RouteName {
     ? raw
     : 'overview';
 }
+const featureDraftIds = {
+  desktop: ['app-autostart', 'app-start-hidden', 'app-close-tray'],
+  retention: ['retention-days'],
+  pronunciation: ['pronunciation-text'],
+} as const;
+type FeatureDraftGroup = keyof typeof featureDraftIds;
+function pronunciationText(entries: Record<string, string>): string {
+  return Object.entries(entries)
+    .map(([key, value]) => `${key} = ${value}`)
+    .join('\n');
+}
+function parsePronunciation(text: string): Record<string, string> {
+  const entries: Record<string, string> = {};
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue;
+    const pos = line.indexOf('=');
+    if (pos < 1 || !line.slice(pos + 1).trim()) throw new Error('每行格式须为：原词 = 读法');
+    const key = line.slice(0, pos).trim();
+    if (Object.hasOwn(entries, key)) throw new Error(`重复的原词：${key}`);
+    Object.defineProperty(entries, key, { value: line.slice(pos + 1).trim(), enumerable: true });
+  }
+  return entries;
+}
+function featureDirtyGroups(): FeatureDraftGroup[] {
+  if (!window.awm?.desktopFeature) return [];
+  const values = routeDrafts('settings'),
+    groups: FeatureDraftGroup[] = [];
+  if (
+    featureDraftIds.desktop.some(
+      (id, i) =>
+        values.has(id) &&
+        values.get(id)!.checked !==
+          (state.desktopPreferences?.[(['autostart', 'startHidden', 'closeToTray'] as const)[i]!] ??
+            i === 2),
+    )
+  )
+    groups.push('desktop');
+  if (
+    values.has('retention-days') &&
+    Number(values.get('retention-days')!.value) !== (state.dataInfo?.preferences.retentionDays ?? 0)
+  )
+    groups.push('retention');
+  if (
+    values.has('pronunciation-text') &&
+    values.get('pronunciation-text')!.value.trim() !==
+      pronunciationText(state.pronunciation ?? {}).trim()
+  )
+    groups.push('pronunciation');
+  return groups;
+}
+async function commitFeatureDrafts(only?: FeatureDraftGroup): Promise<boolean> {
+  const values = routeDrafts('settings');
+  const groups = only ? [only] : featureDirtyGroups();
+  for (const group of groups) {
+    const revisions = new Map(featureDraftIds[group].map((id) => [id, values.get(id)?.revision]));
+    if (group === 'desktop') {
+      const prefs = state.desktopPreferences ?? {
+        autostart: false,
+        startHidden: false,
+        closeToTray: true,
+      };
+      state.desktopPreferences = (await desktopFeature('save-preferences', {
+        autostart: values.get('app-autostart')?.checked ?? prefs.autostart,
+        startHidden: values.get('app-start-hidden')?.checked ?? prefs.startHidden,
+        closeToTray: values.get('app-close-tray')?.checked ?? prefs.closeToTray,
+      })) as DesktopPreferences;
+    } else if (group === 'retention') {
+      const days = Number(
+        values.get('retention-days')?.value ?? state.dataInfo?.preferences.retentionDays ?? 0,
+      );
+      if (!Number.isInteger(days) || (days !== 0 && (days < 7 || days > 3650)))
+        throw new Error('保留期限须为 0 或 7–3650 的整数天');
+      if (
+        days !== 0 &&
+        !(await confirmFeature(
+          '保存自动清理期限',
+          `每天删除超过 ${days} 天的完成、取消和归档任务。删除后需从备份恢复，其余任务状态保留。`,
+          '启用自动清理',
+        ))
+      )
+        return false;
+      await Api.put('/api/v1/data/preferences', { retentionDays: days });
+      state.dataInfo = await Api.get<DataInfo>('/api/v1/data/info');
+    } else {
+      const text =
+        values.get('pronunciation-text')?.value ?? pronunciationText(state.pronunciation ?? {});
+      state.pronunciation = await Api.put<Record<string, string>>(
+        '/api/v1/data/pronunciation',
+        parsePronunciation(text),
+      );
+    }
+    for (const [id, revision] of revisions)
+      if (values.get(id)?.revision === revision) values.delete(id);
+  }
+  return true;
+}
+
+async function desktopFeature(
+  action: string,
+  body: Record<string, unknown> = {},
+): Promise<unknown> {
+  if (!window.awm?.desktopFeature) throw new Error('此功能需要 Rust / Tauri 安装版');
+  return window.awm.desktopFeature(action, body);
+}
+async function confirmFeature(title: string, body: string, saveLabel = '确认'): Promise<boolean> {
+  return (
+    (await openConfirm({ title, body, saveLabel, discardLabel: '', cancelLabel: '取消' })) ===
+    'save'
+  );
+}
+function exportJson(value: unknown, name: string): void {
+  const url = URL.createObjectURL(
+    new Blob([JSON.stringify(value, null, 2)], { type: 'application/json' }),
+  );
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = name;
+  anchor.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+async function featureAction(button: HTMLElement): Promise<void> {
+  const action = button.dataset.feature;
+  const kind: ModelKind = button.dataset.modelKind === 'zipvoice' ? 'zipvoice' : 'kokoro';
+  if (action === 'begin-setup') {
+    state.setupToolId = inputValue('setup-tool');
+    disclosureStates.set(`verify-${state.setupToolId}`, true);
+    navigateTo('integrations');
+  } else if (action === 'skip-setup' || action === 'finish-setup') {
+    state.setupDismissed = true;
+    state.setupToolId = undefined;
+    saveUiPreferences('onboarding', { dismissed: true });
+  } else if (action === 'reopen-setup') {
+    state.setupDismissed = false;
+    saveUiPreferences('onboarding', { dismissed: false });
+    navigateTo('overview');
+  } else if (action === 'save-desktop') {
+    if (await commitFeatureDrafts('desktop')) toast('应用选项已保存；登录启动在下次登录生效');
+  } else if (action === 'open-data') await desktopFeature('open-data');
+  else if (action === 'check-update') {
+    state.updateInfo = (await desktopFeature('check-update')) as UpdateInfo;
+  } else if (action === 'refresh-data')
+    state.dataInfo = await Api.get<DataInfo>('/api/v1/data/info');
+  else if (action === 'backup-data') {
+    await Api.post('/api/v1/data/backup');
+    state.dataInfo = await Api.get<DataInfo>('/api/v1/data/info');
+    toast('已创建本机备份，模型和云 API Key 未包含');
+  } else if (action === 'restore-data') {
+    const id = inputValue('restore-backup');
+    if (
+      await confirmFeature(
+        '恢复确认',
+        '恢复会在下次启动时替换任务数据库和设置。将先创建当前数据的安全备份；已下载模型和当前云服务配置保留。',
+        '安排恢复',
+      )
+    ) {
+      await Api.post('/api/v1/data/restore', { id });
+      state.dataInfo = await Api.get<DataInfo>('/api/v1/data/info');
+      toast('已安排恢复；请重启应用');
+    }
+  } else if (action === 'cancel-restore') {
+    await Api.post('/api/v1/data/cancel-restore');
+    state.dataInfo = await Api.get<DataInfo>('/api/v1/data/info');
+  } else if (action === 'restart-app') {
+    if (hasPendingChanges()) throw new Error('请先保存或放弃设置页的待保存改动，再重启');
+    if (await confirmFeature('重启应用', '应用将停止采集与播报，然后重新启动。', '重启'))
+      await desktopFeature('restart');
+  } else if (action === 'save-retention' || action === 'cleanup-data') {
+    const days = Number(inputValue('retention-days'));
+    if (!Number.isInteger(days) || (days !== 0 && (days < 7 || days > 3650)))
+      throw new Error('保留期限须为 0 或 7–3650 的整数天');
+    if (action === 'save-retention') {
+      if (await commitFeatureDrafts('retention')) toast('保留期限已保存');
+    } else {
+      if (days === 0) throw new Error('请先填写 7–3650 天，才能预览清理');
+      const preview = await Api.post<{ count: number }>('/api/v1/data/cleanup-preview', { days });
+      if (!preview.count) {
+        toast('没有符合条件的过期任务');
+        return;
+      }
+      if (
+        await confirmFeature(
+          '清理确认',
+          `将删除约 ${preview.count} 条过期终态任务及对应事件和通知。进行中、等待确认、失败、超时任务保留；建议先创建备份。`,
+          '确认清理',
+        )
+      ) {
+        const result = await Api.post<{ count: number }>('/api/v1/data/cleanup', { days });
+        state.dataInfo = await Api.get<DataInfo>('/api/v1/data/info');
+        invalidateResources('board', 'overview', 'office', 'notifications');
+        toast(`已清理 ${result.count} 条任务`);
+      }
+    }
+  } else if (action === 'preview-report') {
+    state.diagnosticReport = await Api.get('/api/v1/data/report');
+  } else if (action === 'export-report') {
+    if (state.diagnosticReport) exportJson(state.diagnosticReport, 'AgentCue-diagnostics.json');
+  } else if (action === 'stop-voice') {
+    state.playback = await Api.post<PlaybackStatus>('/api/v1/voice/stop');
+  } else if (action === 'retry-voice') {
+    await Api.post('/api/v1/voice/retry');
+    state.playback = await Api.get<PlaybackStatus>('/api/v1/voice/status');
+  } else if (action === 'verify-model') {
+    const result = await Api.post<{ message: string }>('/api/v1/voice/model/verify', { kind });
+    toast(result.message);
+  } else if (action === 'redownload-model') {
+    if (
+      await confirmFeature(
+        '重新下载模型',
+        '将停止播放、移除当前模型，然后从官方来源下载。下载完成前该本地引擎不可用。',
+        '重新下载',
+      )
+    ) {
+      await Api.post('/api/v1/voice/model/remove', { kind });
+      await Api.post('/api/v1/voice/model/download', { kind });
+      await loadModelState(kind);
+    }
+  } else if (action === 'remove-model') {
+    if (
+      await confirmFeature(
+        '删除模型',
+        `删除本机 ${kind === 'kokoro' ? 'Kokoro' : 'ZipVoice'} 模型并停止当前播放。之后可重新下载或导入。`,
+        '删除模型',
+      )
+    ) {
+      await Api.post('/api/v1/voice/model/remove', { kind });
+      await loadModelState(kind);
+    }
+  } else if (action === 'import-model') {
+    const result = (await desktopFeature('import-model', { kind })) as { cancelled?: boolean };
+    if (!result.cancelled) {
+      await loadModelState(kind);
+      toast('模型导入完成');
+    }
+  } else if (action === 'open-task') {
+    await desktopFeature('open-task', {
+      sessionId: button.dataset.taskId,
+      target: button.dataset.target,
+    });
+  } else if (action === 'save-pronunciation') {
+    if (await commitFeatureDrafts('pronunciation')) toast('自定义读音已保存');
+  } else if (action === 'archive-ended') {
+    const tasks =
+      state.board?.groups
+        .find((g) => g.id === 'completed')
+        ?.items.filter((t) => t.kind === 'session' && t.currentState !== 'idle')
+        .slice(0, 100) ?? [];
+    if (!tasks.length) {
+      toast('已加载任务中没有可归档项');
+      return;
+    }
+    if (
+      await confirmFeature(
+        '批量归档',
+        `归档当前已加载的 ${tasks.length} 条已结束任务（只修改 AgentCue 记录）。`,
+        '归档',
+      )
+    ) {
+      let success = 0;
+      for (const task of tasks) {
+        try {
+          await Api.post(`/api/v1/tasks/${encodeURIComponent(task.sessionId)}/state`, {
+            event: 'task.archived',
+          });
+          success++;
+        } catch {
+          /* Refresh exposes tasks that changed during confirmation. */
+        }
+      }
+      state.board = null;
+      await refresh();
+      toast(
+        `已归档 ${success} 条${success < tasks.length ? '；其余任务状态已变化或操作失败，请检查列表' : ''}`,
+      );
+    }
+  }
+  render();
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -130,6 +418,11 @@ function rememberControl(
     checked: control instanceof HTMLInputElement && control.checked,
     revision,
   });
+  if (
+    state.route === 'settings' &&
+    Object.values(featureDraftIds).some((ids) => (ids as readonly string[]).includes(control.id))
+  )
+    renderChrome();
   return revision;
 }
 
@@ -140,6 +433,14 @@ function captureDrafts(): void {
   for (const control of qs<HTMLElement>('#view').querySelectorAll<
     HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
   >('[data-draft]')) {
+    // Native defaults can render before their asynchronous load. Only user edits are drafts.
+    if (
+      Object.values(featureDraftIds).some((ids) =>
+        (ids as readonly string[]).includes(control.id),
+      ) &&
+      !values.get(control.id)?.revision
+    )
+      continue;
     if (control.id)
       values.set(control.id, {
         value: control.value,
@@ -173,9 +474,6 @@ function restoreDrafts(): void {
       control.checked = draft.checked;
     else if (
       control instanceof HTMLSelectElement &&
-      (id === 'setting-voice-voiceProfile' ||
-        id === 'setting-voice-cloudVoice' ||
-        control.dataset.ruleEvent) &&
       !Array.from(control.options).some((option) => option.value === draft.value)
     )
       continue;
@@ -249,6 +547,8 @@ function render(force = false): void {
       // 动效开关等纯类名状态不一定改变内容，也需要同步。
       old.className = node.className;
       old.hidden = node.hidden;
+      // Navigation owns its live state in renderChrome; preserve its nodes and focus.
+      if (node.dataset.region === 'settings-nav') continue;
       if (old.innerHTML === node.innerHTML) continue;
       if (
         !force &&
@@ -289,7 +589,7 @@ function render(force = false): void {
 
 let settingsSectionId = '';
 
-/** @description: Keep the four settings tabs and panel visibility in sync. */
+/** @description: Keep settings tabs and panel visibility in sync. */
 function paintSettingsNav(): void {
   if (state.route !== 'settings') return;
   settingsSectionId ||= 'voice';
@@ -298,6 +598,7 @@ function paintSettingsNav(): void {
   )) {
     const active = button.dataset.settingsSection === settingsSectionId;
     button.setAttribute('aria-selected', String(active));
+    button.classList.toggle('is-active', active);
     button.tabIndex = active ? 0 : -1;
   }
   for (const panel of document.querySelectorAll<HTMLElement>('.settings-panel'))
@@ -309,6 +610,7 @@ function renderChrome(): void {
   qs<HTMLElement>('#page-title').textContent = meta.title;
   qs<HTMLElement>('#page-subtitle').textContent = meta.subtitle;
   for (const button of document.querySelectorAll<HTMLElement>('.nav-item')) {
+    button.classList.toggle('is-current', button.dataset.route === state.route);
     if (button.dataset.route === state.route) button.setAttribute('aria-current', 'page');
     else button.removeAttribute('aria-current');
   }
@@ -334,7 +636,10 @@ function renderChrome(): void {
   volumeSlider.style.setProperty('--range-progress', `${volume * 100}%`);
   volumeSlider.dataset.muted = String(muted);
   volumeSlider.title = muted ? '已静音，调整音量可恢复播报' : '语音播报音量';
-  volumeSlider.setAttribute('aria-label', muted ? '语音播报音量，已静音；调整音量可恢复播报' : '语音播报音量');
+  volumeSlider.setAttribute(
+    'aria-label',
+    muted ? '语音播报音量，已静音；调整音量可恢复播报' : '语音播报音量',
+  );
   const volumeText = `${Math.round(volume * 100)}%`;
   volumeSlider.setAttribute('aria-valuetext', volumeText);
   qs<HTMLOutputElement>('#rail-volume-value').value = volumeText;
@@ -342,17 +647,19 @@ function renderChrome(): void {
   const save = document.getElementById('settings-save-status');
   const saveButton = document.getElementById('settings-save') as HTMLButtonElement | null;
   const pending = pendingChangeCount();
-  if (save)
+  if (save) {
+    save.hidden = settingsSaveCount === 0 && pending === 0 && !state.sectionErrors.settings;
     save.textContent = settingsSaveCount
       ? '正在保存…'
       : pending > 0
-        ? `还有 ${String(pending)} 项没保存`
+        ? `有 ${String(pending)} 项修改没有保存`
         : state.sectionErrors.settings
           ? '没保存成功，改动还在'
-          : '都已保存';
+          : '';
+  }
   if (saveButton) {
     saveButton.disabled = settingsSaveCount > 0 || pending === 0;
-    saveButton.textContent = pending > 0 ? `保存（${String(pending)}）` : '保存';
+    saveButton.textContent = '保存';
   }
 }
 
@@ -438,6 +745,11 @@ function boardUrl(group?: BoardGroupId, cursor?: string, limit?: number): string
   if (state.route === 'board') {
     if (state.boardQuery.q) params.set('q', state.boardQuery.q);
     if (state.boardQuery.toolId) params.set('toolId', state.boardQuery.toolId);
+    if (state.boardQuery.from)
+      params.set('from', new Date(`${state.boardQuery.from}T00:00:00`).toISOString());
+    if (state.boardQuery.to)
+      params.set('to', new Date(`${state.boardQuery.to}T23:59:59.999`).toISOString());
+    if (state.boardQuery.order === 'asc') params.set('order', 'asc');
   }
   if (group) params.set('group', group);
   if (cursor) params.set('cursor', cursor);
@@ -539,6 +851,7 @@ async function refresh(background = false): Promise<void> {
     }> = [];
     const get = <T>(path: string): Promise<T> => {
       requestCount += 1;
+      if (path === 'desktop:preferences') return desktopFeature('preferences') as Promise<T>;
       return Api.get<T>(path);
     };
     const add = <T>(key: RefreshKey, path: string, commit: (value: T) => void): void => {
@@ -620,6 +933,20 @@ async function refresh(background = false): Promise<void> {
       if (!settingsSaveCount) rebasePendingSettings(value);
     });
     if (route === 'settings') {
+      if (window.awm?.desktopFeature) {
+        add<Record<string, string>>('pronunciation', '/api/v1/data/pronunciation', (value) => {
+          state.pronunciation = value;
+        });
+        add<DesktopPreferences>('desktop', 'desktop:preferences', (value) => {
+          state.desktopPreferences = value;
+        });
+        add<DataInfo>('maintenance', '/api/v1/data/info', (value) => {
+          state.dataInfo = value;
+        });
+        add<PlaybackStatus>('playback', '/api/v1/voice/status', (value) => {
+          state.playback = value;
+        });
+      }
       if (state.nativeVoices === null && !state.nativeVoicesLoading && !state.sectionErrors.voices)
         void loadNativeVoices();
       if (settingsNeedModel(state.settings)) {
@@ -635,6 +962,18 @@ async function refresh(background = false): Promise<void> {
       });
     }
     if (route === 'integrations') {
+      add<AdapterManifest[]>('adapters', '/api/v1/adapters', (value) => {
+        state.adapters = value;
+      });
+      add<ToolSummary[]>('tools', '/api/v1/tools', (value) => {
+        state.tools = value;
+      });
+      add<OverviewSummary>('overview', '/api/v1/overview', (value) => {
+        state.overview = value;
+      });
+      add<VoiceRule[]>('rules', '/api/v1/voice/rules', (value) => {
+        state.rules = value;
+      });
       add<McpSnippet[]>('snippets', '/api/v1/mcp/snippets', (value) => {
         state.mcpSnippets = value;
       });
@@ -689,6 +1028,13 @@ function normalizeModelStatus(value: unknown): ModelStatus | null {
     bytes: count(raw.bytes),
     totalBytes: count(raw.totalBytes),
     error: typeof raw.error === 'string' ? raw.error.slice(0, 400) : undefined,
+    ...(typeof raw.directoryName === 'string'
+      ? { directoryName: raw.directoryName.slice(0, 200) }
+      : {}),
+    ...(typeof raw.sourceUrl === 'string' ? { sourceUrl: raw.sourceUrl.slice(0, 1000) } : {}),
+    ...(count(raw.installedBytes) !== undefined
+      ? { installedBytes: count(raw.installedBytes) }
+      : {}),
   };
 }
 
@@ -810,6 +1156,22 @@ async function openTimeline(sessionId: string): Promise<void> {
     );
     if (sequence !== drawerSequence || activeSessionId !== sessionId || drawer.hidden) return;
     body.innerHTML = renderTimeline(records, session);
+    if (window.awm?.desktopFeature) {
+      void desktopFeature('task-targets', { sessionId })
+        .then((value) => {
+          if (sequence !== drawerSequence || activeSessionId !== sessionId || drawer.hidden) return;
+          const targets = value as { tool?: string; project?: string };
+          const actions = body.querySelector<HTMLElement>('.drawer-actions');
+          if (actions)
+            actions.insertAdjacentHTML(
+              'beforeend',
+              `${targets.tool ? `<button type="button" class="btn btn-ghost btn-small" data-feature="open-task" data-task-id="${esc(sessionId)}" data-target="tool">打开原工具</button>` : ''}${targets.project ? `<button type="button" class="btn btn-ghost btn-small" data-feature="open-task" data-task-id="${esc(sessionId)}" data-target="project">打开项目目录</button>` : ''}`,
+            );
+        })
+        .catch(() => {
+          /* A missing or revoked source has no open action. */
+        });
+    }
     const copy = body.querySelector<HTMLElement>('[data-copy-session]');
     if (copy) copy.dataset.copySession = sessionId;
   } catch (error) {
@@ -883,7 +1245,20 @@ function buildPatch(
   }
   if (section === 'voice' && (field === 'scope' || field === 'content')) {
     // 枚举值由下拉框给出；只接受 schema 允许的项，避免把未知值写进设置。
-    const allowed = field === 'scope' ? ['attention', 'milestones', 'all'] : ['title', 'prompt'];
+    const allowed =
+      field === 'scope'
+        ? [
+            'attention',
+            'milestones',
+            'all',
+            'none',
+            'started',
+            'completed',
+            'started_attention',
+            'started_completed',
+            'attention_completed',
+          ]
+        : ['title', 'prompt'];
     if (!allowed.includes(String(value))) return {};
     return { voice: { [field]: String(value) } };
   }
@@ -960,7 +1335,7 @@ function pendingChangeCount(): number {
     (sum, section) => sum + Object.keys(section).length,
     0,
   );
-  return fields + pendingRules.size;
+  return fields + pendingRules.size + featureDirtyGroups().length;
 }
 
 function hasPendingChanges(): boolean {
@@ -1037,7 +1412,12 @@ function clearPendingState(): void {
   const values = routeDrafts('settings');
   // 只清设置与规则控件；试听文本等纯界面输入保留。
   for (const id of Array.from(values.keys()))
-    if (id.startsWith('setting-') || id.startsWith('rule-')) values.delete(id);
+    if (
+      id.startsWith('setting-') ||
+      id.startsWith('rule-') ||
+      Object.values(featureDraftIds).some((ids) => (ids as readonly string[]).includes(id))
+    )
+      values.delete(id);
   delete state.sectionErrors.settings;
 }
 
@@ -1120,6 +1500,13 @@ async function commitPendingSettings(): Promise<boolean> {
   const revisions = new Map(
     Array.from(routeDrafts('settings')).map(([id, draft]) => [id, draft.revision]),
   );
+  try {
+    if (!(await commitFeatureDrafts())) return false;
+  } catch (error) {
+    state.sectionErrors.settings = errorMessage(error);
+    toast(`保存失败：${errorMessage(error)}`);
+    return false;
+  }
   if (!Object.keys(patch).length && !rules.length) {
     render(true);
     return true;
@@ -1386,7 +1773,41 @@ async function updateTask(button: HTMLElement): Promise<void> {
 }
 
 /** @description: Delegation survives region replacement and handles nested button icons. */
+function closeBoardCalendar(restoreFocus = false): void {
+  if (!boardCalendar) return;
+  const field = boardCalendar.field;
+  boardCalendar = null;
+  render(true);
+  if (restoreFocus) document.getElementById(`board-${field}`)?.focus({ preventScroll: true });
+}
+function selectBoardDate(value: string): void {
+  if (!boardCalendar) return;
+  const field = boardCalendar.field;
+  state.boardQuery[field] = value;
+  saveUiPreferences('board', state.boardQuery);
+  state.board = null;
+  closeBoardCalendar(true);
+  void refresh();
+}
+function shiftCalendarMonth(delta: number): void {
+  if (!boardCalendar) return;
+  const date = calendarDate(`${boardCalendar.month}-01`)!;
+  date.setMonth(date.getMonth() + delta);
+  boardCalendar.month = calendarIso(date).slice(0, 7);
+  boardCalendar.focus = calendarIso(date);
+  render(true);
+}
+
 function bindEvents(): void {
+  document.addEventListener('click', (event) => {
+    if (boardCalendar && !(event.target as HTMLElement).closest('.board-date-picker'))
+      closeBoardCalendar();
+  });
+  document.addEventListener('focusin', (event) => {
+    if (boardCalendar && !(event.target as HTMLElement).closest('.board-date-picker'))
+      closeBoardCalendar();
+  });
+
   qs<HTMLElement>('#nav').addEventListener('click', (event) => {
     const button = (event.target as HTMLElement).closest<HTMLElement>('[data-route]');
     const route = button?.dataset.route as RouteName | undefined;
@@ -1479,6 +1900,61 @@ function bindEvents(): void {
   bindOfficeInteractions(view);
   view.addEventListener('click', (event) => {
     const target = event.target as HTMLElement;
+    const dateTrigger = target.closest<HTMLElement>('[data-date-open]');
+    if (dateTrigger) {
+      const field = dateTrigger.dataset.dateOpen as BoardDateField;
+      if (boardCalendar?.field === field) closeBoardCalendar();
+      else {
+        const date = calendarDate(state.boardQuery[field] ?? '') ?? new Date();
+        const focus = calendarIso(date);
+        boardCalendar = { field, month: focus.slice(0, 7), focus };
+        render(true);
+        view
+          .querySelector<HTMLElement>('.calendar-day[tabindex="0"]')
+          ?.focus({ preventScroll: true });
+      }
+      return;
+    }
+    const day = target.closest<HTMLElement>('[data-calendar-day]');
+    if (day) {
+      selectBoardDate(day.dataset.calendarDay!);
+      return;
+    }
+    if (target.closest('[data-calendar-clear]')) {
+      selectBoardDate('');
+      return;
+    }
+    const month = target.closest<HTMLElement>('[data-calendar-month]');
+    if (month) {
+      shiftCalendarMonth(Number(month.dataset.calendarMonth));
+      return;
+    }
+    const feature = target.closest<HTMLElement>('[data-feature]');
+    if (feature?.dataset.feature) {
+      void perform(
+        `feature:${feature.dataset.feature}`,
+        `[data-feature="${feature.dataset.feature}"]`,
+        () => featureAction(feature),
+      );
+      return;
+    }
+
+    const verify = target.closest<HTMLButtonElement>('[data-verify-integration]');
+    if (verify?.dataset.verifyIntegration) {
+      state.integrationVerification = {
+        toolId: verify.dataset.verifyIntegration,
+        since: new Date().toISOString(),
+        seen: Object.fromEntries(
+          (
+            state.tools.find((tool) => tool.toolId === verify.dataset.verifyIntegration)
+              ?.milestones ?? []
+          ).map((item) => [item.eventType, item.ts]),
+        ),
+      };
+      render(true);
+      document.getElementById(`verify-${state.integrationVerification.toolId}`)?.focus();
+      return;
+    }
     const dismiss = target.closest<HTMLElement>('[data-office-dismiss]');
     if (dismiss?.dataset.officeDismiss) {
       dismissOfficeMessage(dismiss.dataset.officeDismiss, event.detail === 0);
@@ -1512,6 +1988,7 @@ function bindEvents(): void {
       ['all', 'working', 'attention'].includes(officeFilter.dataset.officeFilter ?? '')
     ) {
       officeUi.filter = officeFilter.dataset.officeFilter as OfficeFilter;
+      persistOfficePreferences();
       syncOfficeSelection(state, true);
       render(true);
       return;
@@ -1531,8 +2008,15 @@ function bindEvents(): void {
       document.getElementById('office-search')?.focus({ preventScroll: true });
       return;
     }
+    if (target.closest('[data-office-priority]')) {
+      officeUi.attentionFirst = !officeUi.attentionFirst;
+      persistOfficePreferences();
+      render(true);
+      return;
+    }
     if (target.closest('[data-office-motion]')) {
       officeUi.motion = !officeUi.motion;
+      persistOfficePreferences();
       render(true);
       return;
     }
@@ -1809,7 +2293,11 @@ function bindEvents(): void {
         URL.revokeObjectURL(url);
         toast('事件已导出为 JSON');
       } else if (action === 'clear-board') {
+        boardCalendar = null;
         state.boardQuery = { q: '', toolId: '' };
+        saveUiPreferences('board', state.boardQuery);
+        for (const key of ['board-from', 'board-to', 'board-order'])
+          routeDrafts('board').delete(key);
         routeDrafts('board').delete('board-search');
         routeDrafts('board').delete('board-tool');
         for (const id of ['board-search', 'board-tool']) {
@@ -1823,6 +2311,52 @@ function bindEvents(): void {
     });
   });
   view.addEventListener('keydown', (event) => {
+    if (boardCalendar && (event.target as HTMLElement).closest('.board-date-picker')) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeBoardCalendar(true);
+        return;
+      }
+      const day = (event.target as HTMLElement).closest<HTMLElement>('.calendar-day');
+      const shifts: Record<string, number> = {
+        ArrowLeft: -1,
+        ArrowRight: 1,
+        ArrowUp: -7,
+        ArrowDown: 7,
+      };
+      if (
+        day &&
+        (event.key in shifts || ['Home', 'End', 'PageUp', 'PageDown'].includes(event.key))
+      ) {
+        event.preventDefault();
+        const date = calendarDate(day.dataset.calendarDay!)!;
+        if (event.key === 'PageUp' || event.key === 'PageDown') {
+          const originalDay = date.getDate();
+          date.setDate(1);
+          date.setMonth(date.getMonth() + (event.key === 'PageUp' ? -1 : 1));
+          const last = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+          date.setDate(Math.min(originalDay, last));
+        } else {
+          const weekday = (date.getDay() + 6) % 7;
+          date.setDate(
+            date.getDate() +
+              (event.key === 'Home'
+                ? -weekday
+                : event.key === 'End'
+                  ? 6 - weekday
+                  : shifts[event.key]),
+          );
+        }
+        boardCalendar.focus = calendarIso(date);
+        boardCalendar.month = boardCalendar.focus.slice(0, 7);
+        render(true);
+        view
+          .querySelector<HTMLElement>('.calendar-day[tabindex="0"]')
+          ?.focus({ preventScroll: true });
+        return;
+      }
+    }
+
     const tab = (event.target as HTMLElement).closest<HTMLElement>('[data-settings-section]');
     if (!tab || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
     const tabs = Array.from(
@@ -1830,11 +2364,12 @@ function bindEvents(): void {
     );
     if (!tabs.length) return;
     const current = Math.max(0, tabs.indexOf(tab));
-    const next = event.key === 'Home'
-      ? 0
-      : event.key === 'End'
-        ? tabs.length - 1
-        : (current + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+    const next =
+      event.key === 'Home'
+        ? 0
+        : event.key === 'End'
+          ? tabs.length - 1
+          : (current + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
     event.preventDefault();
     settingsSectionId = tabs[next]!.dataset.settingsSection ?? 'voice';
     render(true);
@@ -1860,12 +2395,14 @@ function bindEvents(): void {
     }
     if (control.id === 'office-search') {
       officeUi.query = control.value;
+      persistOfficePreferences();
       syncOfficeSelection(state);
       render();
       return;
     }
     if (control.id === 'board-search') {
       state.boardQuery.q = control.value;
+      saveUiPreferences('board', state.boardQuery);
       ++loadSequence;
       if (searchTimer !== null) window.clearTimeout(searchTimer);
       searchTimer = window.setTimeout(() => {
@@ -1884,8 +2421,36 @@ function bindEvents(): void {
     ))
       return;
     rememberControl(control);
+    if (control instanceof HTMLInputElement && control.dataset.scopeEvent) {
+      const eventOrder = ['started', 'attention', 'completed'];
+      const selected = Array.from(
+        view.querySelectorAll<HTMLInputElement>('[data-scope-event]:checked'),
+      )
+        .map((checkbox) => checkbox.dataset.scopeEvent ?? '')
+        .filter((event) => eventOrder.includes(event))
+        .sort((a, b) => eventOrder.indexOf(a) - eventOrder.indexOf(b));
+      const scope =
+        selected.length === 0
+          ? 'none'
+          : selected.length === eventOrder.length
+            ? 'milestones'
+            : selected.join('_');
+      stagePatch(buildPatch('voice.scope', scope), ['voice.scope']);
+      routeDrafts('settings').delete(control.id);
+      return;
+    }
+    if (['board-from', 'board-to', 'board-order'].includes(control.id)) {
+      if (control.id === 'board-from') state.boardQuery.from = control.value;
+      else if (control.id === 'board-to') state.boardQuery.to = control.value;
+      else state.boardQuery.order = control.value === 'asc' ? 'asc' : 'desc';
+      saveUiPreferences('board', state.boardQuery);
+      state.board = null;
+      void refresh();
+      return;
+    }
     if (control.id === 'board-tool') {
       state.boardQuery.toolId = control.value;
+      saveUiPreferences('board', state.boardQuery);
       state.board = null;
       void refresh();
       return;
@@ -1947,6 +2512,16 @@ function bindEvents(): void {
   // Rebuilding on focusout can replace a clicked button before its click event fires.
   qs<HTMLElement>('#drawer').addEventListener('click', (event) => {
     const target = event.target as HTMLElement;
+    const feature = target.closest<HTMLElement>('[data-feature]');
+    if (feature?.dataset.feature) {
+      void perform(
+        `feature:${feature.dataset.feature}`,
+        `[data-feature="${feature.dataset.feature}"]`,
+        () => featureAction(feature),
+      );
+      return;
+    }
+
     if (target.closest('[data-close]')) {
       closeDrawer();
       return;
@@ -2080,13 +2655,27 @@ async function openStream(): Promise<void> {
       const status = normalizeModelStatus(data);
       if (status) {
         applyModelStatus(kind, status);
-        if (state.route === 'settings') render();
+        if (state.route === 'settings') {
+          render();
+          if (status.state === 'ready' || status.state === 'missing') void loadModelState(kind);
+        }
       }
+      return;
+    }
+    if (type === 'maintenance.error') {
+      state.sectionErrors.maintenance = '自动清理未完成，请到应用与数据中重试';
+      toast(state.sectionErrors.maintenance);
+      if (state.route === 'settings') render();
+      return;
+    }
+    if (type === 'voice.status') {
+      state.playback = data as PlaybackStatus;
+      if (state.route === 'settings') render();
       return;
     }
     if (type === 'state.transition') {
       invalidateResources('board', 'overview', 'hooks', 'office');
-      if (state.route === 'office') invalidateResources('tools');
+      if (state.route === 'office' || state.route === 'integrations') invalidateResources('tools');
     } else if (type === 'board.updated') invalidateResources('board', 'overview', 'office');
     else if (type === 'notify') invalidateResources('notifications');
     else if (type === 'settings.changed') invalidateResources('settings', 'rules', 'office');

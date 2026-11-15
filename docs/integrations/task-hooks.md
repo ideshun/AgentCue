@@ -15,15 +15,18 @@ AgentCue 的安装识别、MCP 工具和任务事件接入分别有独立用途�
 | Claude Code                 | `~/.claude/settings.json`                                         | `UserPromptSubmit`   | `Stop`                              |
 | Cursor 自带 Agent / 聊天    | `~/.cursor/hooks.json`                                            | `beforeSubmitPrompt` | `stop`：completed / aborted / error |
 
-Cursor 还配置 `preToolUse`：Agent 弹出提问框时走内部 `AskQuestion` 工具，桥接只把该工具调用记为 `task.waiting_human`，其他工具调用一律忽略。Cursor 没有专门的“等待确认”事件，这是当前唯一可靠信号；`stop` 会在提问框仍然打开时触发，因此不能把 `stop` 当成完成。
 | Cline 4.1.25                | `~/Documents/Cline/Hooks/TaskStart`、`TaskComplete`、`TaskCancel` | `TaskStart`          | `TaskComplete` / `TaskCancel`       |
 | CodeBuddy IDE 4.12.39997873 | `~/.codebuddy/settings.json`，或项目 `.codebuddy/settings.json`   | `UserPromptSubmit`   | `Stop`                              |
+
+Cursor 还配置 `preToolUse`：Agent 弹出提问框时走内部 `AskQuestion` 工具，桥接只把该工具调用记为 `task.waiting_human`，其他工具调用一律忽略。Cursor 没有专门的“等待确认”事件，这是当前唯一可靠信号；`stop` 会在提问框仍然打开时触发，因此不能把 `stop` 当成完成。
 
 Claude Code 还配置 `Notification` 事件并以 `matcher: "permission_prompt"` 只接收权限确认提醒，映射为等待用户确认。Claude Code 会把 `UserPromptSubmit` 的纯文本 stdout 注入 Agent 上下文，因此桥接在所有阶段只输出 `{}`。
 
 Cline 的三个文件是可执行脚本，需要 `chmod u+x` 并在 Cline Feature Settings 中启用 Hooks。已有同名脚本时合并调用，不能覆盖原逻辑。CodeBuddy 项目配置可能覆盖用户配置；存在项目 Hooks 时将条目合并到项目对应配置。
 
-当前复制命令面向 macOS/Linux 的 shell；本轮仅验收 macOS arm64。配置仍由用户保存，AgentCue 不自动改写客户端文件。
+原生版会按平台生成命令：macOS/Linux 使用 POSIX shell；Windows Cursor 使用 PowerShell，Cline 使用 `.ps1`（需支持此能力的版本，保存为 UTF-8 BOM），Claude Code / CodeBuddy 使用 Git Bash。Claude Code 需支持 `shell=bash` 的版本。模板有合成转义测试，各工具实际执行仍需按安装版本核验。配置由用户保存，AgentCue 不自动改写客户端文件。
+
+接入页可从当前时刻验证三类关键事件，并显示采集条件和最近时间。验证只证明 AgentCue 收到了事件，不等同于音频设备已出声，也不将跨任务的三类时间当作同一任务生命周期。详细步骤见[本机管理](../local-management.md)。
 
 ## 播报范围、内容与音色
 

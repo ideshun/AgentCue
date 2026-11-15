@@ -127,7 +127,19 @@ pub fn automatic(event: &str) -> bool {
     ["task.started", "task.waiting_human", "task.completed"].contains(&event)
 }
 pub fn in_scope(scope: &str, event: &str) -> bool {
-    scope == "all" || (scope == "milestones" && automatic(event)) || event == "task.waiting_human"
+    if scope == "all" || scope == "milestones" {
+        return automatic(event);
+    }
+    match scope {
+        "attention" => event == "task.waiting_human",
+        "none" => false,
+        "started" => event == "task.started",
+        "completed" => event == "task.completed",
+        "started_attention" => event == "task.started" || event == "task.waiting_human",
+        "started_completed" => event == "task.started" || event == "task.completed",
+        "attention_completed" => event == "task.waiting_human" || event == "task.completed",
+        _ => event == "task.waiting_human",
+    }
 }
 pub fn priority(event: &str) -> u8 {
     match event {

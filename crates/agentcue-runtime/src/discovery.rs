@@ -229,6 +229,34 @@ pub fn process_match(output: &str, names: &[Value], windows: bool) -> Option<Str
     }
     None
 }
+/// Resolve process evidence only from this adapter and its declared extension hosts.
+/// An unresolved host means absence cannot be established safely.
+pub fn heartbeat_process_names(manifest: &Value, manifests: &[Value]) -> Option<Vec<Value>> {
+    let mut names = manifest["detect"]["processNames"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    if let Some(extensions) = manifest["detect"]["extensions"].as_array() {
+        for extension in extensions {
+            let host = extension["host"].as_str()?;
+            let host = manifests.iter().find(|candidate| {
+                [candidate["id"].as_str(), candidate["name"].as_str()]
+                    .into_iter()
+                    .flatten()
+                    .any(|name| name.eq_ignore_ascii_case(host))
+            })?;
+            let host_names = host["detect"]["processNames"]
+                .as_array()
+                .filter(|names| !names.is_empty())?;
+            names.extend(host_names.iter().cloned());
+        }
+    }
+    names.retain(|name| name.as_str().is_some_and(|name| !name.is_empty()));
+    names.sort_by(|a, b| a.as_str().cmp(&b.as_str()));
+    names.dedup();
+    (!names.is_empty()).then_some(names)
+}
+
 pub async fn process_snapshot() -> Result<String, String> {
     let mut command = if cfg!(windows) {
         let mut c = Command::new("tasklist");

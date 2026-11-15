@@ -78,7 +78,7 @@ fn migrates_data_and_rewrites_moved_voice_reference() {
 }
 
 #[test]
-fn does_not_overwrite_new_data_or_migrate_while_old_instance_holds_lock() {
+fn existing_new_data_wins_and_actual_migration_requires_the_legacy_lock() {
     let fixture = Fixture::new();
     let paths = fixture_paths(&fixture.0);
     let legacy = paths.legacy_data_dir.as_ref().unwrap();
@@ -91,12 +91,20 @@ fn does_not_overwrite_new_data_or_migrate_while_old_instance_holds_lock() {
     options.read(true).write(true).create(true).truncate(false);
     let lock = options.open(legacy.join("agentcue.lock")).unwrap();
     lock.try_lock().unwrap();
-    assert!(paths::migrate_legacy(&paths).is_err());
-    drop(lock);
-
+    // No migration is attempted when the new profile already has its own database.
     paths::migrate_legacy(&paths).unwrap();
     assert_eq!(fs::read(paths.data_dir.join("awm.db")).unwrap(), b"new");
     assert_eq!(fs::read(legacy.join("awm.db")).unwrap(), b"old");
+
+    fs::remove_file(paths.data_dir.join("awm.db")).unwrap();
+    assert!(paths::migrate_legacy(&paths).is_err());
+    assert!(!paths.data_dir.join("awm.db").exists());
+    assert_eq!(fs::read(legacy.join("awm.db")).unwrap(), b"old");
+    drop(lock);
+
+    paths::migrate_legacy(&paths).unwrap();
+    assert_eq!(fs::read(paths.data_dir.join("awm.db")).unwrap(), b"old");
+    assert!(!legacy.join("awm.db").exists());
 }
 
 #[test]

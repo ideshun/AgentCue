@@ -38,7 +38,16 @@ pub async fn run<R: AsyncRead + Unpin, W: AsyncWrite + Unpin>(
             .redirect(reqwest::redirect::Policy::none())
             .build()
             .map_err(|_| ())?;
-        for event in events {
+        for mut event in events {
+            let project = raw["cwd"]
+                .as_str()
+                .or_else(|| raw["workspace_roots"][0].as_str())
+                .or_else(|| raw["workspaceRoots"][0].as_str());
+            if let Some(project) = project.filter(|s| {
+                s.len() <= 4096 && !s.contains('\0') && std::path::Path::new(s).is_absolute()
+            }) {
+                event.payload.insert("projectPath".into(), json!(project));
+            }
             let mode = hooks::mode(&event);
             let body = json!({"mode":mode,"event":event});
             for attempt in 0..3 {

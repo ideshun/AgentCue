@@ -133,6 +133,14 @@ pub fn migrate_legacy(paths: &AppPaths) -> io::Result<()> {
     if legacy_dir == paths.data_dir {
         return Ok(());
     }
+    // An existing new database is authoritative. Leave the old Electron profile intact;
+    // it can contain Chromium singleton symlinks and stale SQLite sidecars.
+    let current_db = paths.data_dir.join("awm.db");
+    if fs::symlink_metadata(&current_db)
+        .is_ok_and(|metadata| metadata.is_file() && !metadata.file_type().is_symlink())
+    {
+        return Ok(());
+    }
     let legacy_metadata = match fs::symlink_metadata(legacy_dir) {
         Ok(metadata) => metadata,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),

@@ -6,7 +6,10 @@ use serde_json::{Value, json};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex, Weak},
+    sync::{
+        Arc, Mutex, Weak,
+        atomic::{AtomicBool, Ordering},
+    },
     time::{Duration, Instant},
 };
 use tokio::{io::AsyncWriteExt, process::Command, sync::watch, task::JoinHandle};
@@ -40,16 +43,31 @@ pub fn specs() -> Vec<Spec> {
         .expect("embedded model specs")
 }
 struct Job {
+    busy: bool,
     status: Value,
     cancel: Option<watch::Sender<u64>>,
     task: Option<JoinHandle<()>>,
     last_progress: Instant,
 }
 pub struct Models {
+    closing: AtomicBool,
     pub root: PathBuf,
     specs: Vec<Spec>,
     jobs: Mutex<HashMap<String, Job>>,
     runtime: Weak<Runtime>,
+}
+struct ModelOperation<'a> {
+    manager: &'a Models,
+    kind: String,
+}
+impl Drop for ModelOperation<'_> {
+    fn drop(&mut self) {
+        if let Ok(mut jobs) = self.manager.jobs.lock()
+            && let Some(job) = jobs.get_mut(&self.kind)
+        {
+            job.busy = false;
+        }
+    }
 }
 impl Models {
     pub fn new(root: PathBuf, runtime: Weak<Runtime>, specs: Vec<Spec>) -> Arc<Self> {
@@ -59,6 +77,7 @@ impl Models {
                 (
                     s.kind.clone(),
                     Job {
+                        busy: false,
                         status: json!({"state":"missing","kind":s.kind}),
                         cancel: None,
                         task: None,
@@ -68,6 +87,7 @@ impl Models {
             })
             .collect();
         let manager = Arc::new(Self {
+            closing: AtomicBool::new(false),
             root,
             specs,
             jobs: Mutex::new(jobs),
@@ -77,6 +97,24 @@ impl Models {
             let _ = runtime.models.set(Arc::downgrade(&manager));
         }
         manager
+    }
+    fn operation(&self, kind: &str) -> Result<ModelOperation<'_>, String> {
+        let mut jobs = self.jobs.lock().map_err(|_| "模型状态不可用")?;
+        if self.closing.load(Ordering::Acquire) {
+            return Err("应用正在退出".into());
+        }
+        let job = jobs.get_mut(kind).ok_or("模型类型无效")?;
+        if job.busy
+            || job.task.as_ref().is_some_and(|t| !t.is_finished())
+            || job.status["state"] == "extracting"
+        {
+            return Err("模型正在下载、导入或校验，请稍后重试".into());
+        }
+        job.busy = true;
+        Ok(ModelOperation {
+            manager: self,
+            kind: kind.into(),
+        })
     }
     pub fn directory(&self, kind: &str) -> Option<PathBuf> {
         self.specs
@@ -101,6 +139,123 @@ impl Models {
             status
         }
     }
+    pub fn details(&self, kind: &str) -> Value {
+        let mut value = self.status(kind);
+        if let Some(spec) = self.specs.iter().find(|s| s.kind == kind) {
+            value["directoryName"] = json!(spec.dir_name);
+            value["sourceUrl"] = json!(spec.archive_url);
+            value["installedBytes"] =
+                json!(self.directory(kind).map(|p| model_size(&p)).unwrap_or(0));
+        }
+        value
+    }
+    pub fn verify(&self, kind: &str) -> Result<Value, String> {
+        let _operation = self.operation(kind)?;
+        let spec = self
+            .specs
+            .iter()
+            .find(|s| s.kind == kind)
+            .ok_or("模型类型无效")?;
+        let root = self.root.join(&spec.dir_name);
+        inspect(&root, spec)?;
+        let hashes = fingerprints(&root, spec)?;
+        let baseline = root.join(".agentcue-integrity.json");
+        if baseline
+            .symlink_metadata()
+            .is_ok_and(|m| m.file_type().is_symlink())
+        {
+            return Err("模型校验记录不能是符号链接".into());
+        }
+        let previous = match std::fs::read(&baseline) {
+            Ok(bytes) => Some(
+                serde_json::from_slice::<Value>(&bytes)
+                    .map_err(|_| "模型校验记录损坏，请重新导入或下载")?,
+            ),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+            Err(_) => return Err("模型校验记录不可读".into()),
+        };
+        if previous
+            .as_ref()
+            .is_some_and(|previous| previous != &hashes)
+        {
+            return Err("模型文件与本机记录的 SHA-256 不一致，请重新下载或导入".into());
+        }
+        crate::settings::write_atomic(&baseline, &hashes).map_err(|_| "无法记录模型校验值")?;
+        Ok(
+            json!({"ok":true,"baselineCreated":previous.is_none(),"message":if previous.is_some(){"本机 SHA-256 校验通过"}else{"已建立本机 SHA-256 记录；这不等于发布者签名认证"}}),
+        )
+    }
+    pub async fn remove(&self, kind: &str) -> Result<(), String> {
+        let _operation = self.operation(kind)?;
+        let spec = self
+            .specs
+            .iter()
+            .find(|s| s.kind == kind)
+            .ok_or("模型类型无效")?;
+        {
+            let jobs = self.jobs.lock().map_err(|_| "模型状态不可用")?;
+            if jobs.get(kind).is_some_and(|j| {
+                j.task.as_ref().is_some_and(|t| !t.is_finished())
+                    || j.status["state"] == "extracting"
+            }) {
+                return Err("请先取消并等待下载或导入结束".into());
+            }
+        }
+        let path = self.root.join(&spec.dir_name);
+        if path
+            .symlink_metadata()
+            .is_ok_and(|m| m.file_type().is_symlink())
+        {
+            return Err("模型目录不能是符号链接".into());
+        }
+        match tokio::fs::remove_dir_all(&path).await {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(_) => return Err("模型目录删除失败".into()),
+        }
+        // Removing a model also removes its own resumable download, never other models.
+        for suffix in ["tar.bz2", "tar.bz2.part"] {
+            let cache = self.root.join(format!("{}.{}", spec.dir_name, suffix));
+            match tokio::fs::remove_file(cache).await {
+                Ok(()) => {}
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(_) => return Err("模型已删除，但下载缓存清理失败，请重试".into()),
+            }
+        }
+        self.publish(kind, json!({"state":"missing"}), true);
+        Ok(())
+    }
+    pub async fn import(self: &Arc<Self>, kind: &str, source: PathBuf) -> Result<(), String> {
+        let _operation = self.operation(kind)?;
+        let spec = self
+            .specs
+            .iter()
+            .find(|s| s.kind == kind)
+            .ok_or("模型类型无效")?
+            .clone();
+        {
+            let mut jobs = self.jobs.lock().map_err(|_| "模型状态不可用")?;
+            let job = jobs.get_mut(kind).ok_or("模型类型无效")?;
+            if job.task.as_ref().is_some_and(|t| !t.is_finished())
+                || job.status["state"] == "extracting"
+            {
+                return Err("模型正在下载或导入".into());
+            }
+            job.status = json!({"state":"extracting","kind":kind});
+        }
+        let root = self.root.clone();
+        let spec_copy = spec.clone();
+        let result =
+            tokio::task::spawn_blocking(move || import_directory(&root, &source, &spec_copy))
+                .await
+                .map_err(|_| "导入任务异常退出".to_owned())
+                .and_then(|r| r);
+        match &result {
+            Ok(()) => self.publish(kind, json!({"state":"ready"}), true),
+            Err(e) => self.publish(kind, json!({"state":"error","error":e}), true),
+        };
+        result
+    }
     pub fn cancel(&self, kind: &str) {
         if let Ok(jobs) = self.jobs.lock()
             && let Some(cancel) = jobs.get(kind).and_then(|j| j.cancel.as_ref())
@@ -109,6 +264,9 @@ impl Models {
         }
     }
     pub fn start(self: &Arc<Self>, kind: &str) -> Result<(), String> {
+        if self.closing.load(Ordering::Acquire) {
+            return Err("应用正在退出".into());
+        }
         let spec = self
             .specs
             .iter()
@@ -119,8 +277,17 @@ impl Models {
             return Ok(());
         }
         let mut jobs = self.jobs.lock().map_err(|_| "model lock unavailable")?;
+        if self.closing.load(Ordering::Acquire) {
+            return Err("应用正在退出".into());
+        }
         let job = jobs.get_mut(kind).ok_or("本地模型种类无效")?;
-        if job.task.as_ref().is_some_and(|t| !t.is_finished()) {
+        if job.busy {
+            return Err("模型正在操作，请稍后重试".into());
+        }
+
+        if job.task.as_ref().is_some_and(|t| !t.is_finished())
+            || job.status["state"] == "extracting"
+        {
             return Ok(());
         }
         let (cancel, receiver) = watch::channel(0);
@@ -208,6 +375,9 @@ impl Models {
                 .await?;
             }
             inspect(&inner, &spec)?;
+            let hashes = fingerprints(&inner, &spec)?;
+            crate::settings::write_atomic(&inner.join(".agentcue-integrity.json"), &hashes)
+                .map_err(|_| "模型校验记录保存失败")?;
             if cancel.cancelled() {
                 return Err("下载已取消".into());
             }
@@ -357,6 +527,7 @@ impl Models {
         }
     }
     pub async fn close(&self) {
+        self.closing.store(true, Ordering::Release);
         let tasks = {
             let mut jobs = self.jobs.lock().unwrap_or_else(|p| p.into_inner());
             jobs.values_mut()
@@ -376,6 +547,19 @@ impl Models {
                 task.abort();
                 let _ = task.await;
             }
+        }
+        // Do not restart or release the data lock midway through an atomic model import.
+        loop {
+            let busy = self
+                .jobs
+                .lock()
+                .unwrap_or_else(|p| p.into_inner())
+                .values()
+                .any(|j| j.busy);
+            if !busy {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(25)).await;
         }
     }
 }
@@ -404,4 +588,161 @@ pub fn inspect(dir: &Path, spec: &Spec) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+fn model_size(path: &Path) -> u64 {
+    let Ok(info) = path.symlink_metadata() else {
+        return 0;
+    };
+    if info.file_type().is_symlink() {
+        return 0;
+    }
+    if info.is_file() {
+        return info.len();
+    }
+    std::fs::read_dir(path)
+        .into_iter()
+        .flatten()
+        .filter_map(|e| e.ok())
+        .map(|e| model_size(&e.path()))
+        .sum()
+}
+fn fingerprints(root: &Path, spec: &Spec) -> Result<Value, String> {
+    use sha2::{Digest, Sha256};
+    use std::io::Read;
+    if root
+        .symlink_metadata()
+        .is_ok_and(|m| m.file_type().is_symlink())
+    {
+        return Err("模型目录不能是符号链接".into());
+    }
+    fn collect(path: &Path, files: &mut Vec<PathBuf>, depth: usize) -> Result<(), String> {
+        if depth > 32 || files.len() > 100000 {
+            return Err("模型目录层级或文件数过多".into());
+        }
+        let meta = path.symlink_metadata().map_err(|_| "模型文件不可读")?;
+        if meta.file_type().is_symlink() {
+            return Err("模型不能包含符号链接".into());
+        }
+        if meta.is_file() {
+            files.push(path.to_owned());
+        } else if meta.is_dir() {
+            for entry in std::fs::read_dir(path).map_err(|_| "模型目录不可读")? {
+                collect(
+                    &entry.map_err(|_| "模型文件不可读")?.path(),
+                    files,
+                    depth + 1,
+                )?;
+            }
+        } else {
+            return Err("模型文件类型不支持".into());
+        }
+        Ok(())
+    }
+    let mut files = vec![];
+    for name in spec
+        .required_files
+        .iter()
+        .map(|f| f.name.as_str())
+        .chain(spec.extra_files.iter().map(|f| f.name.as_str()))
+        .chain(spec.required_dirs.iter().map(String::as_str))
+    {
+        collect(&root.join(name), &mut files, 0)?;
+    }
+    files.sort();
+    files.dedup();
+    let mut hashes = serde_json::Map::new();
+    for path in files {
+        let name = path
+            .strip_prefix(root)
+            .map_err(|_| "模型路径越界")?
+            .to_string_lossy()
+            .replace('\\', "/");
+        let mut file = std::fs::File::open(path).map_err(|_| "模型文件不可读")?;
+        let mut hash = Sha256::new();
+        let mut buf = [0u8; 65536];
+        loop {
+            let n = file.read(&mut buf).map_err(|_| "模型读取失败")?;
+            if n == 0 {
+                break;
+            }
+            hash.update(&buf[..n]);
+        }
+        hashes.insert(name, json!(format!("{:x}", hash.finalize())));
+    }
+    Ok(Value::Object(hashes))
+}
+fn copy_model(source: &Path, target: &Path, budget: &mut u64, depth: u8) -> Result<(), String> {
+    if depth > 32 {
+        return Err("模型目录层级过深".into());
+    }
+    let meta = source.symlink_metadata().map_err(|_| "导入文件不可读")?;
+    if meta.file_type().is_symlink() {
+        return Err("导入模型不能包含符号链接".into());
+    }
+    if meta.is_file() {
+        *budget = budget.checked_sub(meta.len()).ok_or("导入模型超过 2GB")?;
+        std::fs::copy(source, target).map_err(|_| "模型文件复制失败")?;
+    } else if meta.is_dir() {
+        std::fs::create_dir_all(target).map_err(|_| "模型目录创建失败")?;
+        for item in std::fs::read_dir(source).map_err(|_| "模型目录不可读")? {
+            let item = item.map_err(|_| "模型目录不可读")?;
+            copy_model(
+                &item.path(),
+                &target.join(item.file_name()),
+                budget,
+                depth + 1,
+            )?;
+        }
+    } else {
+        return Err("模型包含不支持的文件类型".into());
+    }
+    Ok(())
+}
+fn import_directory(root: &Path, source: &Path, spec: &Spec) -> Result<(), String> {
+    if !source.is_absolute()
+        || source
+            .symlink_metadata()
+            .is_ok_and(|m| m.file_type().is_symlink())
+    {
+        return Err("请选择有效的本机模型目录".into());
+    }
+    inspect(source, spec)?;
+    std::fs::create_dir_all(root).map_err(|_| "模型根目录创建失败")?;
+    let work = root.join(format!(".import-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir(&work).map_err(|_| "导入目录创建失败")?;
+    let result = (|| {
+        let mut budget = 2 * 1024 * 1024 * 1024u64;
+        for name in spec
+            .required_files
+            .iter()
+            .map(|f| f.name.as_str())
+            .chain(spec.extra_files.iter().map(|f| f.name.as_str()))
+            .chain(spec.required_dirs.iter().map(String::as_str))
+        {
+            copy_model(&source.join(name), &work.join(name), &mut budget, 0)?;
+        }
+        inspect(&work, spec)?;
+        let hashes = fingerprints(&work, spec)?;
+        crate::settings::write_atomic(&work.join(".agentcue-integrity.json"), &hashes)
+            .map_err(|_| "校验记录保存失败")?;
+        let target = root.join(&spec.dir_name);
+        let previous = root.join(format!(".previous-{}", uuid::Uuid::new_v4()));
+        let existed = target.exists();
+        if existed {
+            std::fs::rename(&target, &previous).map_err(|_| "旧模型暂时不可替换")?;
+        }
+        if std::fs::rename(&work, &target).is_err() {
+            if existed {
+                let _ = std::fs::rename(&previous, &target);
+            }
+            return Err("导入失败，已保留旧模型".into());
+        }
+        if existed {
+            let _ = std::fs::remove_dir_all(previous);
+        }
+        Ok(())
+    })();
+    let _ = std::fs::remove_dir_all(work);
+    result
 }

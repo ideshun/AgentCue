@@ -180,6 +180,22 @@ pub fn ingest_events(
             } else {
                 tx.execute("INSERT INTO sessions(session_id,tool_id,current_state,updated_at) VALUES(?1,?2,?3,?4) ON CONFLICT(session_id) DO NOTHING",params![original.session_id,original.tool_id,previous.as_str(),original.occurred_at])?;
             }
+            if original.actor == "tool"
+                && let Some(project) =
+                    payload
+                        .get("projectPath")
+                        .and_then(Value::as_str)
+                        .filter(|s| {
+                            s.len() <= 4096
+                                && !s.contains('\0')
+                                && std::path::Path::new(s).is_absolute()
+                        })
+            {
+                tx.execute(
+                    "UPDATE sessions SET project=?1 WHERE session_id=?2",
+                    params![project, original.session_id],
+                )?;
+            }
             let encoded = serde_json::to_string(&payload)?;
             tx.execute("INSERT INTO state_events(event_id,session_id,tool_id,event_type,prev_state,next_state,actor,reason,ts,payload) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",params![original.event_id,original.session_id,original.tool_id,kind.as_str(),previous.as_str(),next.map(TaskState::as_str),original.actor,payload.get("reason").and_then(Value::as_str),original.occurred_at,encoded])?;
             if let Some(next) = next {

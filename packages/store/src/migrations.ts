@@ -130,4 +130,11 @@ CREATE INDEX idx_sessions_updated ON sessions(updated_at DESC, session_id DESC);
     name: 'session-visibility',
     sql: 'ALTER TABLE sessions ADD COLUMN visible INTEGER NOT NULL DEFAULT 1;',
   },
+  {
+    version: 6,
+    name: 'board-time-and-milestone-indexes',
+    sql: `CREATE INDEX idx_sessions_board_state ON sessions(current_state, julianday(updated_at), session_id) WHERE visible=1;
+CREATE INDEX idx_events_tool_milestones ON state_events(tool_id, event_type, julianday(ts)) WHERE actor='tool';
+`,
+  },
 ] as const;

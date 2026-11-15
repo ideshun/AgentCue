@@ -1,5 +1,6 @@
 //! Native monitoring runtime under migration; production entry point lives in the desktop host.
 
+pub mod maintenance;
 pub mod settings;
 
 pub mod queries;

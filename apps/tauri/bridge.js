@@ -6,13 +6,15 @@
   const subscribe = (name, handler, ready) => {
     let disposed = false;
     let remove;
-    void event.listen(name, ({ payload }) => handler(payload)).then((unlisten) => {
-      if (disposed) unlisten();
-      else {
-        remove = unlisten;
-        if (ready) void invoke('bridge_ready');
-      }
-    });
+    void event
+      .listen(name, ({ payload }) => handler(payload))
+      .then((unlisten) => {
+        if (disposed) unlisten();
+        else {
+          remove = unlisten;
+          if (ready) void invoke('bridge_ready');
+        }
+      });
     return () => {
       disposed = true;
       remove?.();
@@ -21,6 +23,7 @@
   window.awm = Object.freeze({
     platform: '__AGENTCUE_PLATFORM__',
     getConfig: () => invoke('get_config'),
+    desktopFeature: (action, body = {}) => invoke('desktop_feature', { action, body }),
     scanNow: () => invoke('scan_now'),
     setMuted: (muted) => invoke('set_muted', { muted }),
     speakTest: (text) => invoke('speak_test', { text }),

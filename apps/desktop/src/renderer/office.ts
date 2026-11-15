@@ -12,16 +12,32 @@ interface OfficeEmployee {
   color: number;
   seat: number;
 }
+const savedOfficePreferences = readUiPreferences('office');
 const officeUi = {
   selectedToolId: '',
   openToolId: '',
   suppressedToolId: '',
   dismissedMessages: new Map<string, string>(),
-  filter: 'all' as OfficeFilter,
-  query: '',
+  filter: (['all', 'working', 'attention'].includes(String(savedOfficePreferences.filter))
+    ? savedOfficePreferences.filter
+    : 'all') as OfficeFilter,
+  query:
+    typeof savedOfficePreferences.query === 'string'
+      ? savedOfficePreferences.query.slice(0, 200)
+      : '',
   tab: 'active' as OfficeTaskTab,
-  motion: true,
+  motion: savedOfficePreferences.motion !== false,
+  attentionFirst: savedOfficePreferences.attentionFirst === true,
 };
+
+function persistOfficePreferences(): void {
+  saveUiPreferences('office', {
+    filter: officeUi.filter,
+    query: officeUi.query,
+    motion: officeUi.motion,
+    attentionFirst: officeUi.attentionFirst,
+  });
+}
 
 const OFFICE_STATUS_LABELS: Record<OfficeStatus, string> = {
   working: '工作中',
@@ -112,19 +128,23 @@ function officeNeedsAttention(employee: OfficeEmployee): boolean {
 
 function officeVisibleEmployees(employees: OfficeEmployee[]): OfficeEmployee[] {
   const query = officeUi.query.trim().toLocaleLowerCase();
-  return employees.filter((employee) => {
-    const inFilter =
-      officeUi.filter === 'all' ||
-      (officeUi.filter === 'working' && officeWorking(employee)) ||
-      (officeUi.filter === 'attention' && officeNeedsAttention(employee));
-    return (
-      inFilter &&
-      (!query ||
-        `${employee.tool.name} ${employee.tool.toolId} ${employee.tool.host ?? ''}`
-          .toLocaleLowerCase()
-          .includes(query))
+  return employees
+    .filter((employee) => {
+      const inFilter =
+        officeUi.filter === 'all' ||
+        (officeUi.filter === 'working' && officeWorking(employee)) ||
+        (officeUi.filter === 'attention' && officeNeedsAttention(employee));
+      return (
+        inFilter &&
+        (!query ||
+          `${employee.tool.name} ${employee.tool.toolId} ${employee.tool.host ?? ''}`
+            .toLocaleLowerCase()
+            .includes(query))
+      );
+    })
+    .sort((a, b) =>
+      officeUi.attentionFirst ? Number(b.status === 'waiting') - Number(a.status === 'waiting') : 0,
     );
-  });
 }
 
 function selectedOfficeEmployee(employees: OfficeEmployee[]): OfficeEmployee | undefined {
@@ -243,7 +263,7 @@ function renderOfficeDesk(employee: OfficeEmployee, state: AppState, stale: bool
   const counts = workload?.counts;
   const details =
     active && counts
-      ? `${counts.running} 项进行中 · ${counts.waiting_human} 项待确认`
+      ? `${counts.running} 项进行中 · ${counts.waiting_human} 项等待确认`
       : tool.host
         ? `${tool.host} 扩展 · ${capabilityLabel(tool.sessionCapability)}`
         : capabilityLabel(tool.sessionCapability);
@@ -291,7 +311,7 @@ function renderOfficeInspector(employee: OfficeEmployee, state: AppState): strin
     <div class="office-dialog-heading">${officeToolMark(tool)}<div><h2 id="office-dialog-title">${esc(tool.name)}</h2><span class="office-dialog-status">${esc(employee.label)} · 工位 ${String(employee.seat).padStart(2, '0')}</span></div><button class="office-dialog-close" id="office-close" type="button" data-office-close aria-label="关闭工位详情">×</button></div>
     <p class="office-dialog-description">${esc(tool.host ? `${tool.host} 扩展 · ${capabilityLabel(tool.sessionCapability)}` : capabilityLabel(tool.sessionCapability))}</p>
     ${status === 'paused' || status === 'offline' || status === 'unknown' ? `<p class="office-dialog-note">${esc(officeTaskText(employee, state.tools))}</p>` : ''}
-    <div class="office-person-metrics"><span><strong>${counts ? counts.running : '—'}</strong>进行中</span><span><strong>${counts ? counts.waiting_human : '—'}</strong>待确认</span><span><strong>${counts ? counts.completed : '—'}</strong>已完成</span></div>
+    <div class="office-person-metrics"><span><strong>${counts ? counts.running : '—'}</strong>进行中</span><span><strong>${counts ? counts.waiting_human : '—'}</strong>等待确认</span><span><strong>${counts ? counts.completed : '—'}</strong>已完成</span></div>
     <div class="office-task-tabs" role="group" aria-label="任务分组">${(
       [
         ['active', '在跑的'],
@@ -321,7 +341,7 @@ function renderOffice(state: AppState): string {
   const reduced =
     typeof window.matchMedia === 'function' &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  return `<section class="office-command" data-region="office-command"><div class="office-command-heading"><span class="office-live-dot${stale || !state.office ? ' is-stale' : ''}" aria-hidden="true"></span><span>我的 AI 办公室</span><span class="office-command-meta">${employees.length} 个工位</span><div class="office-view-controls"><button class="btn btn-ghost btn-small" type="button" id="office-motion" data-office-motion aria-pressed="${officeUi.motion}" ${reduced ? 'disabled title="系统开了减少动态效果"' : ''}>${reduced ? '系统已减少动效' : officeUi.motion ? '暂停动效' : '开启动效'}</button><input class="control-input office-search" id="office-search" type="search" data-draft value="${esc(officeUi.query)}" aria-label="查找员工" placeholder="查找员工" /></div><span class="office-last-sync">${stale ? '显示的是上次的数据' : state.office ? `更新于 ${esc(fmtTime(state.office.generatedAt))}` : '正在读取…'}</span></div>${sectionError(state, 'office')}${sectionError(state, 'tools')}<div class="office-controls"><div class="office-filters" role="group" aria-label="筛选工位">${(
+  return `<section class="office-command" data-region="office-command"><div class="office-command-heading"><span class="office-live-dot${stale || !state.office ? ' is-stale' : ''}" aria-hidden="true"></span><span>我的 AI 办公室</span><span class="office-command-meta">${employees.length} 个工位</span><div class="office-view-controls"><button class="btn btn-ghost btn-small" type="button" id="office-motion" data-office-motion aria-pressed="${officeUi.motion}" ${reduced ? 'disabled title="系统开了减少动态效果"' : ''}>${reduced ? '系统已减少动效' : officeUi.motion ? '暂停动效' : '开启动效'}</button><button class="btn btn-ghost btn-small" type="button" data-office-priority aria-pressed="${officeUi.attentionFirst}">等待确认优先</button><input class="control-input office-search" id="office-search" type="search" data-draft value="${esc(officeUi.query)}" aria-label="查找员工" placeholder="查找员工" /></div><span class="office-last-sync">${stale ? '显示的是上次的数据' : state.office ? `更新于 ${esc(fmtTime(state.office.generatedAt))}` : '正在读取…'}</span></div>${sectionError(state, 'office')}${sectionError(state, 'tools')}<div class="office-controls"><div class="office-filters" role="group" aria-label="筛选工位">${(
     [
       ['all', '全部员工', employees.length],
       ['working', '工作中', working],
@@ -332,10 +352,8 @@ function renderOffice(state: AppState): string {
       ([id, label, total]) =>
         `<button type="button" id="office-filter-${id}" data-office-filter="${id}" aria-pressed="${officeUi.filter === id}">${label}<span>${total}</span></button>`,
     )
-    .join(
-      '',
-    )}</div></div></section>
-    <section class="office-room${!officeUi.motion ? ' is-motion-paused' : ''}${stale ? ' is-stale' : ''}" data-region="office-room" aria-label="员工工位"><div class="office-room-caption"><span class="office-room-caption-title">WORKSPACE <b>01</b></span><span>${working} 位工作中 · ${waiting} 位等你确认</span></div><div class="office-floor">${visible.length ? visible.map((employee) => renderOfficeDesk(employee, state, stale)).join('') : `<div class="office-room-empty"><span aria-hidden="true">⌑</span><h2>${employees.length ? '现在很安静' : '办公室还空着'}</h2><p>${employees.length ? '没有符合条件的员工。' : !state.office ? '正在读取工具和工作状态…' : '扫描本机工具后，员工会坐到对应的工位上。'}</p>${employees.length ? '<button class="btn btn-ghost" type="button" id="office-reset" data-office-reset>显示全部员工</button>' : '<a class="btn btn-primary" href="#/adapters">查看工具与扩展</a>'}</div>`}</div><div class="office-room-footer"><span>鼠标移上去看消息 · 点击看任务</span><span>工作中和等你确认的会自动亮出消息</span></div></section>
+    .join('')}</div></div></section>
+    <section class="office-room${!officeUi.motion ? ' is-motion-paused' : ''}${stale ? ' is-stale' : ''}" data-region="office-room" aria-label="员工工位"><div class="office-room-caption"><span class="office-room-caption-title">WORKSPACE <b>01</b></span><span>${working} 位工作中 · ${waiting} 位等你确认</span></div><div class="office-floor">${visible.length ? visible.map((employee) => renderOfficeDesk(employee, state, stale)).join('') : `<div class="office-room-empty"><span aria-hidden="true">⌑</span><h2>${employees.length ? '现在很安静' : '办公室还空着'}</h2><p>${employees.length ? '没有符合条件的员工。' : !state.office ? '正在读取工具和工作状态…' : '扫描本机工具后，员工会坐到对应的工位上。'}</p>${employees.length ? '<button class="btn btn-ghost" type="button" id="office-reset" data-office-reset>显示全部员工</button>' : '<a class="btn btn-primary" href="#/adapters">查看工具与扩展</a>'}</div>`}</div><div class="office-room-footer"><span>鼠标悬浮看消息 · 点击看任务</span><span>工作中和需要确认的消息会自动弹窗提示</span></div></section>
     <div class="office-popover-root" id="office-popover-root" data-region="office-popover">${open ? renderOfficeInspector(open, state) : ''}</div>`;
 }
 

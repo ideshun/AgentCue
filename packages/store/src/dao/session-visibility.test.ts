@@ -156,7 +156,7 @@ describe('session source visibility', () => {
     const before = sqlite.prepare('SELECT * FROM sessions').get() as Record<string, unknown>;
     const events = sqlite.prepare('SELECT * FROM state_events').all();
     applyMigrations(sqlite);
-    expect(sqlite.pragma('user_version', { simple: true })).toBe(5);
+    expect(sqlite.pragma('user_version', { simple: true })).toBe(6);
     expect(sqlite.prepare('SELECT * FROM sessions').get()).toEqual({ ...before, visible: 1 });
     const db = drizzle(sqlite, { schema });
     expect(getSession(db, 'demo:p:legacy')).toMatchObject({

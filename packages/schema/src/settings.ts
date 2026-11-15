@@ -69,7 +69,19 @@ export const voiceSettingsSchema = z.object({
    * - 'milestones'：待确认 + 开始/完成（默认）
    * - 'all'：兼容旧设置，语音仍限于三个关键节点
    */
-  scope: z.enum(['attention', 'milestones', 'all']).default('milestones'),
+  scope: z
+    .enum([
+      'attention',
+      'milestones',
+      'all',
+      'none',
+      'started',
+      'completed',
+      'started_attention',
+      'started_completed',
+      'attention_completed',
+    ])
+    .default('milestones'),
   /**
    * 播报内容来源：会话标题（短、可听）还是用户输入正文（可能很长）。
    * - 'title'：只播标题（默认）

@@ -9,7 +9,13 @@
 
 ---
 
-## 一、当前已交付
+## 当前开发入口
+
+安装版以 `apps/tauri` 和 `crates/` 为准，渲染层继续复用 `apps/desktop/src/renderer`。`pnpm tauri:assets` 构建共享界面，`cargo build -p agentcue-desktop --features custom-protocol` 编译宿主；运行时使用 `--isolated --data-dir /绝对/临时目录` 进行合成验收。`pnpm dev` 仍是旧版 Electron 入口，不能用它代替原生交互验收。
+
+新增原生维护功能见[本机管理](./local-management.md)；发布与可选签名见[发版手册](./releasing.md)。
+
+## 历史实现里程碑（v0.x）
 
 ### M0 技术验证
 

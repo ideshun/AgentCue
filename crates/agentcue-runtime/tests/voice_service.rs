@@ -199,3 +199,20 @@ async fn reconfiguration_cancels_current_audio_and_turns_pending_items_into_sing
     assert_eq!(f.fake.calls.lock().unwrap().len(), 1);
     f.close().await;
 }
+
+#[tokio::test]
+async fn user_stop_releases_audio_without_replaying_or_creating_extra_notifications() {
+    let f = Fixture::new(true);
+    let voice = f.voice.clone();
+    let preview = tokio::spawn(async move { voice.preview("Git 测试播报").await });
+    f.calls(1).await;
+    assert_eq!(f.voice.status()["playing"], true);
+    f.voice.stop_playback().await;
+    assert!(!preview.await.unwrap().ok);
+    assert_eq!(f.voice.status()["playing"], false);
+    assert!(f.voice.status()["text"].is_null());
+    assert_eq!(f.fake.active.load(Ordering::SeqCst), 0);
+    assert_eq!(f.notifications(), 0);
+    assert_eq!(f.fake.calls.lock().unwrap().len(), 1);
+    f.close().await;
+}

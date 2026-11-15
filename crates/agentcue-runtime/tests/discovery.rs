@@ -103,3 +103,28 @@ fn only_declared_environment_overrides_can_change_a_source_root() {
     );
     assert!(discovery::process_match("\"Cursor.exe\",\"123\",\"Console\"", &names, true).is_some());
 }
+
+#[test]
+fn heartbeat_processes_follow_declared_hosts_without_guessing_unknown_hosts() {
+    let host = json!({"id":"editor","name":"Example Editor","detect":{"processNames":["editor"]}});
+    let extension = json!({"id":"extension","detect":{"processNames":[],"extensions":[{"host":"Example Editor"}]}});
+    let names =
+        discovery::heartbeat_process_names(&extension, std::slice::from_ref(&host)).unwrap();
+    assert_eq!(names, vec![json!("editor")]);
+    assert!(
+        discovery::process_match(
+            "123 /Applications/Editor.app/Contents/MacOS/editor",
+            &names,
+            false
+        )
+        .is_some()
+    );
+    assert!(discovery::process_match("\"editor.exe\",\"123\"", &names, true).is_some());
+    assert!(discovery::heartbeat_process_names(&extension, &[]).is_none());
+    let multiple_hosts =
+        json!({"detect":{"extensions":[{"host":"Example Editor"},{"host":"Unknown Editor"}]}});
+    assert!(discovery::heartbeat_process_names(&multiple_hosts, &[host]).is_none());
+    assert!(
+        discovery::heartbeat_process_names(&json!({"detect":{"processNames":[]}}), &[]).is_none()
+    );
+}
