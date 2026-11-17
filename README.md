@@ -13,14 +13,14 @@ AgentCue 是一款本地优先的 AI 编码任务监控桌面应用。将多个�
 
 ## 下载与安装
 
-从 [Releases](https://github.com/ideshun/AgentCue/releases) 下载对应安装包。当前正式版为 **v1.0.1**，基于 Rust + Tauri 2。
+从 [Releases](https://github.com/ideshun/AgentCue/releases) 下载对应安装包。当前正式版为 **v1.0.2**，基于 Rust + Tauri 2。
 
 | 系统 | 安装包 |
 | --- | --- |
-| macOS · Apple 芯片 | `AgentCue_1.0.1_aarch64.dmg` |
-| macOS · Intel | `AgentCue_1.0.1_x64.dmg` |
-| Windows · x64 | `AgentCue_1.0.1_x64-setup.exe` |
-| Linux · x64 | `AgentCue_1.0.1_amd64.deb` 或 `AgentCue_1.0.1_amd64.AppImage` |
+| macOS · Apple 芯片 | `AgentCue_1.0.2_aarch64.dmg` |
+| macOS · Intel | `AgentCue_1.0.2_x64.dmg` |
+| Windows · x64 | `AgentCue_1.0.2_x64-setup.exe` |
+| Linux · x64 | `AgentCue_1.0.2_amd64.deb` 或 `AgentCue_1.0.2_amd64.AppImage` |
 
 macOS 将应用拖入「应用程序」后启动；Windows 运行安装程序；Linux 给 AppImage 添加执行权限后运行。安装版自带运行环境，无需安装 Node.js、pnpm 或拉取源码。
 
@@ -70,7 +70,7 @@ macOS 将应用拖入「应用程序」后启动；Windows 运行安装程序；
 
 ## 安装包体积与语音模型
 
-v1.0.1 使用 Rust + Tauri 2 和系统 WebView，不再把 Chromium 与 Node.js 打进安装包；各平台的实际下载大小见 Release 附件。安装包仍包含本地 TTS 推理运行库，Kokoro / ZipVoice 模型由用户在应用中主动下载，不随包分发。v0.2.0 的 Electron 安装包继续保留在旧版 Releases 中。
+v1.0.2 使用 Rust + Tauri 2 和系统 WebView，不再把 Chromium 与 Node.js 打进安装包；各平台的实际下载大小见 Release 附件。安装包仍包含本地 TTS 推理运行库，Kokoro / ZipVoice 模型由用户在应用中主动下载，不随包分发。v0.2.0 的 Electron 安装包继续保留在旧版 Releases 中。
 
 全部插画原稿、历史版本和设计说明仍保留在仓库中，只是不进入应用包。编译源码、中间文件和未使用的插画版本也不会打进安装包。
 

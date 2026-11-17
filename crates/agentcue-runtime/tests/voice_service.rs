@@ -147,7 +147,7 @@ async fn urgent_confirmation_interrupts_lower_priority_and_old_audio_does_not_re
     f.event("evt_wait", "task.waiting_human").await;
     f.calls(2).await;
     assert_eq!(f.fake.max_active.load(Ordering::SeqCst), 1);
-    assert_eq!(f.notifications(), 1);
+    assert_eq!(f.notifications(), 2);
     assert_eq!(f.fake.calls.lock().unwrap().len(), 2);
     f.close().await;
 }
@@ -214,5 +214,107 @@ async fn user_stop_releases_audio_without_replaying_or_creating_extra_notificati
     assert_eq!(f.fake.active.load(Ordering::SeqCst), 0);
     assert_eq!(f.notifications(), 0);
     assert_eq!(f.fake.calls.lock().unwrap().len(), 1);
+    f.close().await;
+}
+
+#[tokio::test]
+async fn spoken_confirmation_is_acknowledgeable_without_an_os_notification() {
+    let f = Fixture::new(false);
+    let mut events = f.runtime.events.subscribe();
+    f.event("evt_start", "task.started").await;
+    f.calls(1).await;
+    f.event("evt_wait", "task.waiting_human").await;
+    f.calls(2).await;
+    let snapshot = || {
+        let db = f.runtime.db.lock().unwrap();
+        let office = agentcue_runtime::queries::office(&db, &[], &f.runtime.config()).unwrap();
+        office["workstations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|w| w["toolId"] == "codex")
+            .unwrap()
+            .clone()
+    };
+    assert_eq!(f.notifications(), 1);
+    assert_eq!(snapshot()["attentionCount"], 1);
+    assert_eq!(snapshot()["attentionCounts"]["waiting_human"], 1);
+    let mut updated = false;
+    while let Ok(event) = events.try_recv() {
+        assert_ne!(
+            event["type"], "notify",
+            "successful speech must not duplicate the OS alert"
+        );
+        updated |= event["type"] == "notifications.updated";
+    }
+    assert!(updated);
+    f.runtime
+        .db
+        .lock()
+        .unwrap()
+        .execute("UPDATE notifications SET read=1", [])
+        .unwrap();
+    assert_eq!(snapshot()["attentionCount"], 0);
+    f.event("evt_wait", "task.waiting_human").await;
+    assert_eq!(snapshot()["attentionCount"], 0);
+    // Switching off speech must not lose a fresh confirmation during the cooldown.
+    f.runtime
+        .update_settings(&json!({"voice":{"enabled":false}}))
+        .unwrap();
+    f.event("evt_resume", "human.responded").await;
+    f.event("evt_wait_again", "task.waiting_human").await;
+    tokio::time::timeout(Duration::from_secs(4), async {
+        while snapshot()["attentionCount"] != 1 {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+    assert_eq!(
+        snapshot()["attentionTasks"][0]["attentionEventId"],
+        "evt_wait_again"
+    );
+    f.close().await;
+}
+
+#[tokio::test]
+async fn interrupted_confirmation_falls_back_once_without_resetting_acknowledgement() {
+    let f = Fixture::new(true);
+    f.event("evt_start", "task.started").await;
+    f.calls(1).await;
+    f.event("evt_wait", "task.waiting_human").await;
+    f.calls(2).await;
+    let mut events = f.runtime.events.subscribe();
+    f.runtime
+        .db
+        .lock()
+        .unwrap()
+        .execute("UPDATE notifications SET read=1", [])
+        .unwrap();
+    f.runtime
+        .update_settings(&json!({"voice":{"enabled":false}}))
+        .unwrap();
+    tokio::time::timeout(Duration::from_secs(1), async {
+        loop {
+            let event = events.recv().await.unwrap();
+            if event["type"] == "notify" {
+                assert_eq!(event["data"]["reason"], "settings-changed");
+                break;
+            }
+        }
+    })
+    .await
+    .unwrap();
+    let unread: i64 = f
+        .runtime
+        .db
+        .lock()
+        .unwrap()
+        .query_row("SELECT count(*) FROM notifications WHERE read=0", [], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    assert_eq!(unread, 0);
+    assert_eq!(f.notifications(), 2);
     f.close().await;
 }

@@ -57,7 +57,7 @@ describe('来源任务上下文检查点', () => {
       checkpoint.prefixHash, checkpoint.title, checkpoint.updatedAt,
     );
     applyMigrations(sqlite);
-    expect(sqlite.pragma('user_version', { simple: true })).toBe(6);
+    expect(sqlite.pragma('user_version', { simple: true })).toBe(7);
     const db = drizzle(sqlite, { schema });
     expect(getSourceCheckpoint(db, checkpoint.sourcePath)).toEqual({ ...checkpoint, context: null });
     applyMigrations(sqlite);

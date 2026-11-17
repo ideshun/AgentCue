@@ -103,7 +103,7 @@ interface ControlDraft {
 const drafts = new Map<RouteName, Map<string, ControlDraft>>();
 const ROUTE_META: Record<RouteName, { title: string; subtitle: string }> = {
   overview: { title: '总览', subtitle: 'AI Agent 任务状态' },
-  office: { title: '办公室', subtitle: '一个工位对应一个工具，随时查看工作状态。' },
+  office: { title: '办公室', subtitle: '每个工位对应一个工具，实时查看工作状态。' },
   board: { title: '任务看板', subtitle: '按状态查看所有任务。' },
   notifications: { title: '通知中心', subtitle: '展示所有提醒记录' },
   integrations: { title: '播报接入', subtitle: '将 AgentCue 接入 AI 工具' },
@@ -2132,6 +2132,7 @@ function bindEvents(): void {
     if (notice?.dataset.readNotice) {
       void perform('read-notice', '[data-read-notice]', async () => {
         await Api.post('/api/v1/notifications/read', { notificationId: notice.dataset.readNotice });
+        invalidateResources('office', 'notifications');
         await refresh();
       });
       return;
@@ -2265,6 +2266,7 @@ function bindEvents(): void {
         await refresh();
       } else if (action === 'mark-all-read') {
         await Api.post('/api/v1/notifications/read', {});
+        invalidateResources('office', 'notifications');
         await refresh();
       } else if (action === 'load-notices') {
         // 向后翻一页更早的通知：按 id 去重后追加；不足一页说明已到底。
@@ -2677,7 +2679,8 @@ async function openStream(): Promise<void> {
       invalidateResources('board', 'overview', 'hooks', 'office');
       if (state.route === 'office' || state.route === 'integrations') invalidateResources('tools');
     } else if (type === 'board.updated') invalidateResources('board', 'overview', 'office');
-    else if (type === 'notify') invalidateResources('notifications');
+    else if (type === 'notify' || type === 'notifications.updated')
+      invalidateResources('notifications', 'office');
     else if (type === 'settings.changed') invalidateResources('settings', 'rules', 'office');
     else if (type === 'tools.updated' || type === 'scan.completed')
       invalidateResources('tools', 'board', 'overview', 'hooks', 'office');

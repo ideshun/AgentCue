@@ -86,6 +86,65 @@ fn history_snapshots_stay_outside_workflow_counts() {
 }
 
 #[test]
+fn office_attention_follows_read_status_of_the_latest_event_without_preview_limits() {
+    let c = db();
+    for i in 0..8 {
+        let id = format!("attention-{i}");
+        add(&c, &id, "waiting_human", "等待确认");
+        c.execute("INSERT INTO state_events(event_id,session_id,tool_id,event_type,next_state,actor,ts) VALUES(?1,?2,'fixture','task.waiting_human','waiting_human','tool','2026-11-08T00:00:00Z')",params![format!("event-{i}"),id]).unwrap();
+        c.execute("INSERT INTO notifications(notification_id,session_id,ts,title,body,level,read) VALUES(?1,?2,'2026-11-08T00:00:00Z','提醒','任务','attention',1)",params![format!("notify_event-{i}"),id]).unwrap();
+    }
+    let snapshot = || queries::office(&c, &[], &settings::defaults()).unwrap();
+    assert_eq!(snapshot()["workstations"][0]["attentionTasks"], json!([]));
+    assert_eq!(snapshot()["workstations"][0]["counts"]["waiting_human"], 8);
+    // An unread task outside the normal five-item preview must still trigger a bubble.
+    c.execute(
+        "UPDATE notifications SET read=0 WHERE session_id='attention-0'",
+        [],
+    )
+    .unwrap();
+    assert_eq!(
+        snapshot()["workstations"][0]["attentionTasks"][0]["sessionId"],
+        "attention-0"
+    );
+    c.execute("UPDATE notifications SET read=1", []).unwrap();
+    // A fresh event does not show until its own unread notification exists.
+    c.execute("INSERT INTO state_events(event_id,session_id,tool_id,event_type,next_state,actor,ts) VALUES('fresh','attention-0','fixture','task.waiting_human','waiting_human','tool','2026-11-09T00:00:00Z')", []).unwrap();
+    assert_eq!(snapshot()["workstations"][0]["attentionTasks"], json!([]));
+    c.execute("INSERT INTO notifications(notification_id,session_id,ts,title,body,level,read) VALUES('notify_fresh','attention-0','2026-11-09T00:00:00Z','提醒','任务','attention',0)", []).unwrap();
+    assert_eq!(
+        snapshot()["workstations"][0]["attentionTasks"][0]["attentionEventId"],
+        "fresh"
+    );
+    assert_eq!(snapshot()["workstations"][0]["attentionCount"], 1);
+    c.execute("UPDATE notifications SET read=1", []).unwrap();
+    // Historical anomalies without notifications do not become fresh reminders.
+    add(&c, "orphan", "failed", "历史异常");
+    // Completed sessions never trigger attention even if an old notification is unread.
+    c.execute(
+        "UPDATE sessions SET current_state='completed' WHERE session_id='attention-0'",
+        [],
+    )
+    .unwrap();
+    c.execute(
+        "UPDATE notifications SET read=0 WHERE notification_id='notify_fresh'",
+        [],
+    )
+    .unwrap();
+    assert_eq!(snapshot()["workstations"][0]["attentionTasks"], json!([]));
+    assert_eq!(snapshot()["workstations"][0]["attentionCount"], 0);
+    c.execute("UPDATE notifications SET read=0", []).unwrap();
+    assert_eq!(
+        snapshot()["workstations"][0]["attentionTasks"]
+            .as_array()
+            .unwrap()
+            .len(),
+        5
+    );
+    assert_eq!(snapshot()["workstations"][0]["attentionCount"], 7);
+}
+
+#[test]
 fn connection_evidence_excludes_manual_hidden_and_paused_events() {
     let c = db();
     add(&c, "visible", "running", "private task title");
@@ -238,4 +297,31 @@ fn board_time_window_uses_an_index_without_a_temporary_sort() {
     let plan = serde_json::to_string(&plan).unwrap();
     assert!(plan.contains("idx_sessions_board_state"), "{plan}");
     assert!(!plan.contains("TEMP B-TREE"), "{plan}");
+}
+
+#[test]
+fn office_prioritizes_waiting_and_counts_all_unread_states() {
+    let c = db();
+    for i in 0..8 {
+        let state = if i == 0 {
+            "waiting_human"
+        } else if i == 1 {
+            "timeout"
+        } else {
+            "failed"
+        };
+        let id = format!("pending-{i}");
+        add(&c, &id, state, "任务");
+        c.execute("INSERT INTO state_events(event_id,session_id,tool_id,event_type,next_state,actor,ts) VALUES(?1,?2,'fixture',?3,?4,'tool','2026-11-08T00:00:00Z')", params![format!("evt_{i}"),id,format!("task.{state}"),state]).unwrap();
+        c.execute("INSERT INTO notifications(notification_id,session_id,ts,title,body,level) VALUES(?1,?2,'2026-11-08T00:00:00Z','提醒','任务','attention')",params![format!("notify_evt_{i}"),id]).unwrap();
+    }
+    let snapshot = queries::office(&c, &[], &settings::defaults()).unwrap();
+    let w = &snapshot["workstations"][0];
+    assert_eq!(w["attentionCount"], 8);
+    assert_eq!(
+        w["attentionCounts"],
+        json!({"waiting_human":1,"failed":6,"timeout":1})
+    );
+    assert_eq!(w["attentionTasks"].as_array().unwrap().len(), 5);
+    assert_eq!(w["attentionTasks"][0]["sessionId"], "pending-0");
 }

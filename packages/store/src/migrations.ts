@@ -137,4 +137,11 @@ CREATE INDEX idx_sessions_updated ON sessions(updated_at DESC, session_id DESC);
 CREATE INDEX idx_events_tool_milestones ON state_events(tool_id, event_type, julianday(ts)) WHERE actor='tool';
 `,
   },
+  {
+    version: 7,
+    name: 'office-unread-attention-indexes',
+    sql: `CREATE INDEX IF NOT EXISTS idx_events_session_attention ON state_events(session_id, next_state, julianday(ts) DESC) WHERE event_type IN ('task.waiting_human','task.failed','task.timeout');
+CREATE INDEX IF NOT EXISTS idx_notifications_unread_attention ON notifications(session_id) WHERE read=0 AND level='attention';
+`,
+  },
 ] as const;

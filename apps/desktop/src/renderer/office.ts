@@ -1,8 +1,13 @@
 /** Office scene: view-only employees, sourced from the same workflow records as the board. */
-type OfficeStatus =
-  'working' | 'waiting' | 'error' | 'done' | 'idle' | 'paused' | 'offline' | 'unknown';
+type OfficeStatus = 'working' | 'waiting' | 'error' | 'idle' | 'paused' | 'offline' | 'unknown';
 type OfficeFilter = 'all' | 'working' | 'attention';
 type OfficeTaskTab = 'active' | 'issues' | 'ended';
+const OFFICE_TASK_GROUPS: Record<OfficeTaskTab, { label: string; states: TaskState[] }> = {
+  active: { label: '进行中', states: ['running'] },
+  issues: { label: '需确认', states: ['waiting_human', 'failed', 'timeout'] },
+  ended: { label: '已结束', states: ['completed', 'cancelled', 'idle'] },
+};
+const OFFICE_PREVIEW_LIMIT = 5;
 interface OfficeEmployee {
   tool: ToolSummary;
   workload?: OfficeWorkstation;
@@ -41,10 +46,9 @@ function persistOfficePreferences(): void {
 
 const OFFICE_STATUS_LABELS: Record<OfficeStatus, string> = {
   working: '工作中',
-  waiting: '等你确认',
-  error: '有问题',
-  done: '任务完成',
-  idle: '空闲中',
+  waiting: '需确认',
+  error: '需确认',
+  idle: '空闲',
   paused: '已暂停监控',
   offline: '没装',
   unknown: '还没接入',
@@ -63,31 +67,40 @@ function officeEmployees(state: AppState): OfficeEmployee[] {
     const workload = workloads.get(tool.toolId);
     const counts = workload?.counts;
     const tasks = workload?.tasks ?? [];
+    const attentionTasks = workload?.attentionTasks;
+    const waiting = workload?.attentionCounts
+      ? workload.attentionCounts.waiting_human > 0
+      : attentionTasks === undefined
+        ? (counts?.waiting_human ?? 0) > 0
+        : attentionTasks.some((task) => task.currentState === 'waiting_human');
+    const issues = workload?.attentionCounts
+      ? workload.attentionCounts.failed + workload.attentionCounts.timeout > 0
+      : attentionTasks === undefined
+        ? (counts?.failed ?? 0) + (counts?.timeout ?? 0) > 0
+        : attentionTasks.some(
+            (task) => task.currentState === 'failed' || task.currentState === 'timeout',
+          );
     let status: OfficeStatus;
     if (tool.ignored || state.settings?.privacy.sessionFileRead === false) status = 'paused';
     else if (tool.detectStatus === 'not_installed') status = 'offline';
     else if (!counts) status = 'unknown';
     else if (tool.sessionCapability !== 'events' && !tool.hookLastEventAt) status = 'unknown';
-    else if (counts.waiting_human > 0) status = 'waiting';
+    else if (waiting) status = 'waiting';
     else if (counts.running > 0) status = 'working';
-    else if (counts.failed + counts.timeout > 0) status = 'error';
-    else {
-      const latest = tasks.slice().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
-      const age = latest
-        ? Date.parse(state.office?.generatedAt ?? '') - Date.parse(latest.updatedAt)
-        : Infinity;
-      status = latest?.currentState === 'completed' && age >= 0 && age < 180_000 ? 'done' : 'idle';
-    }
+    else if (issues) status = 'error';
+    else status = 'idle';
     const preferred: TaskState[] =
       status === 'waiting'
-        ? ['waiting_human', 'running']
+        ? ['waiting_human', 'failed', 'timeout', 'running']
         : status === 'working'
           ? ['running', 'waiting_human']
           : status === 'error'
             ? ['failed', 'timeout']
             : ['completed', 'running', 'waiting_human'];
+    const messageTasks =
+      status === 'waiting' || status === 'error' ? (workload?.attentionTasks ?? tasks) : tasks;
     const primary = preferred
-      .map((value) => tasks.find((task) => task.currentState === value))
+      .map((value) => messageTasks.find((task) => task.currentState === value))
       .find(Boolean);
     const label =
       status === 'unknown'
@@ -122,7 +135,9 @@ function officeNeedsAttention(employee: OfficeEmployee): boolean {
   return (
     !['paused', 'offline', 'unknown'].includes(employee.status) &&
     !!counts &&
-    counts.waiting_human + counts.failed + counts.timeout > 0
+    (employee.workload?.attentionTasks === undefined
+      ? counts.waiting_human + counts.failed + counts.timeout > 0
+      : employee.workload.attentionTasks.length > 0)
   );
 }
 
@@ -159,11 +174,12 @@ function selectedOfficeEmployee(employees: OfficeEmployee[]): OfficeEmployee | u
 function officeDefaultTab(employee: OfficeEmployee | undefined): OfficeTaskTab {
   if (!employee) return 'active';
   if (
-    employee?.status === 'error' ||
-    (officeUi.filter === 'attention' && (employee?.workload?.counts.waiting_human ?? 0) === 0)
+    employee.status === 'waiting' ||
+    employee.status === 'error' ||
+    (officeUi.filter === 'attention' && officeNeedsAttention(employee))
   )
     return 'issues';
-  return employee?.status === 'done' ? 'ended' : 'active';
+  return employee.status === 'idle' ? 'ended' : 'active';
 }
 
 /** @description: Keep a pinned bubble on a visible employee when data, search or filters change. */
@@ -251,19 +267,25 @@ function officeMessageKey(employee: OfficeEmployee): string {
     employee.status,
     employee.primary?.sessionId ?? null,
     employee.primary?.currentState ?? null,
+    employee.workload?.attentionTasks?.find(
+      (task) => task.sessionId === employee.primary?.sessionId,
+    )?.attentionEventId ?? null,
   ]);
 }
 
 function renderOfficeDesk(employee: OfficeEmployee, state: AppState, stale: boolean): string {
   const { tool, workload, status } = employee;
   const open = officeUi.openToolId === tool.toolId;
-  const active = status === 'working' || status === 'waiting';
+  const active =
+    status === 'working' ||
+    (officeNeedsAttention(employee) &&
+      (workload?.attentionTasks === undefined || workload.attentionTasks.length > 0));
   const dismissed = officeUi.dismissedMessages.get(tool.toolId) === officeMessageKey(employee);
   const suppressed = officeUi.suppressedToolId === tool.toolId && dismissed;
   const counts = workload?.counts;
   const details =
     active && counts
-      ? `${counts.running} 项进行中 · ${counts.waiting_human} 项等待确认`
+      ? `${counts.running} 项进行中 · ${workload?.attentionCount ?? workload?.attentionTasks?.length ?? counts.waiting_human + counts.failed + counts.timeout} 项需确认`
       : tool.host
         ? `${tool.host} 扩展 · ${capabilityLabel(tool.sessionCapability)}`
         : capabilityLabel(tool.sessionCapability);
@@ -273,10 +295,11 @@ function renderOfficeDesk(employee: OfficeEmployee, state: AppState, stale: bool
     eventTime && Number.isFinite(eventTime.getTime())
       ? `<time class="office-bubble-meta" datetime="${esc(lastEvent)}">最近事件 · ${esc(eventTime.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }))}</time>`
       : `<span class="office-bubble-meta">${workload ? '还没收到任务事件' : '正在同步…'}</span>`;
-  return `<article class="office-workstation is-${status}${active && !stale && !dismissed ? ' has-message' : ''}${open ? ' is-open' : ''}${suppressed ? ' is-tooltip-dismissed' : ''}" data-office-employee="${esc(tool.toolId)}">
+  return `<article class="office-workstation is-${status}${active && !dismissed ? ' has-message' : ''}${open ? ' is-open' : ''}${suppressed ? ' is-tooltip-dismissed' : ''}" data-office-employee="${esc(tool.toolId)}">
     <button id="office-desk-${esc(tool.toolId)}" class="office-desk" type="button" data-office-select="${esc(tool.toolId)}" aria-controls="office-inspector" aria-expanded="${open}" aria-describedby="office-message-${esc(tool.toolId)}" aria-label="${esc(`${tool.name}，${employee.label}，展开任务详情`)}">${officeDeskArt(employee)}</button>
     <div class="office-bubble" id="office-bubble-${esc(tool.toolId)}" role="group" aria-label="${esc(tool.name)} 的任务消息">
-      <div class="office-bubble-heading">${officeToolMark(tool)}<strong>${esc(tool.name)}</strong><span class="office-bubble-status"><i></i>${esc(employee.label)}</span><button class="office-bubble-close" id="office-message-close-${esc(tool.toolId)}" type="button" data-office-dismiss="${esc(tool.toolId)}" aria-label="关闭 ${esc(tool.name)} 的任务消息" title="关闭这条消息">×</button></div>
+      <button class="office-bubble-open" id="office-bubble-open-${esc(tool.toolId)}" type="button" data-office-select="${esc(tool.toolId)}" aria-label="查看 ${esc(tool.name)} 的任务详情" aria-controls="office-inspector" aria-expanded="${open}" aria-describedby="office-message-${esc(tool.toolId)}"></button>
+      <div class="office-bubble-heading">${officeToolMark(tool)}<strong>${esc(tool.name)}</strong><span class="office-bubble-status"><i></i>${esc(employee.label)}</span><button class="office-bubble-close" id="office-message-close-${esc(tool.toolId)}" type="button" data-office-dismiss="${esc(tool.toolId)}" aria-label="关闭 ${esc(tool.name)} 的任务消息" title="关闭这条消息"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button></div>
       <p class="office-bubble-task" id="office-message-${esc(tool.toolId)}">${esc(officeTaskText(employee, state.tools))}</p><span class="office-bubble-meta">${stale ? '上次同步的记录 · ' : ''}${esc(details)}</span>${timeLabel}
     </div>
   </article>`;
@@ -284,16 +307,12 @@ function renderOfficeDesk(employee: OfficeEmployee, state: AppState, stale: bool
 
 function officeTasksForTab(employee: OfficeEmployee): { tasks: BoardItem[]; total: number } {
   const counts = employee.workload?.counts;
-  const states: TaskState[] =
-    officeUi.tab === 'active'
-      ? ['waiting_human', 'running']
-      : officeUi.tab === 'issues'
-        ? ['failed', 'timeout']
-        : ['completed', 'cancelled', 'idle'];
+  const { states } = OFFICE_TASK_GROUPS[officeUi.tab];
   return {
     tasks: (employee.workload?.tasks ?? [])
       .filter((task) => task.currentState && states.includes(task.currentState))
-      .slice(0, 6),
+      .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
+      .slice(0, OFFICE_PREVIEW_LIMIT),
     total: counts ? states.reduce((sum, value) => sum + counts[value], 0) : 0,
   };
 }
@@ -302,31 +321,27 @@ function renderOfficeInspector(employee: OfficeEmployee, state: AppState): strin
   const { tool, workload, status } = employee;
   const counts = workload?.counts;
   const preview = officeTasksForTab(employee);
-  const totals = {
-    active: counts ? counts.running + counts.waiting_human : 0,
-    issues: counts ? counts.failed + counts.timeout : 0,
-    ended: counts ? counts.completed + counts.cancelled + counts.idle : 0,
-  };
+  const totals = Object.fromEntries(
+    Object.entries(OFFICE_TASK_GROUPS).map(([id, group]) => [
+      id,
+      counts ? group.states.reduce((sum, value) => sum + counts[value], 0) : 0,
+    ]),
+  );
   return `<section id="office-inspector" class="office-dialog is-${status}" role="dialog" aria-modal="false" aria-labelledby="office-dialog-title" tabindex="-1" data-scroll-key="office-detail-${esc(tool.toolId)}">
-    <div class="office-dialog-heading">${officeToolMark(tool)}<div><h2 id="office-dialog-title">${esc(tool.name)}</h2><span class="office-dialog-status">${esc(employee.label)} · 工位 ${String(employee.seat).padStart(2, '0')}</span></div><button class="office-dialog-close" id="office-close" type="button" data-office-close aria-label="关闭工位详情">×</button></div>
+    <div class="office-dialog-heading">${officeToolMark(tool)}<div><h2 id="office-dialog-title">${esc(tool.name)}</h2><span class="office-dialog-status">${esc(employee.label)} · 工位 ${String(employee.seat).padStart(2, '0')}</span></div><button class="office-dialog-close" id="office-close" type="button" data-office-close aria-label="关闭工位详情"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button></div>
     <p class="office-dialog-description">${esc(tool.host ? `${tool.host} 扩展 · ${capabilityLabel(tool.sessionCapability)}` : capabilityLabel(tool.sessionCapability))}</p>
     ${status === 'paused' || status === 'offline' || status === 'unknown' ? `<p class="office-dialog-note">${esc(officeTaskText(employee, state.tools))}</p>` : ''}
-    <div class="office-person-metrics"><span><strong>${counts ? counts.running : '—'}</strong>进行中</span><span><strong>${counts ? counts.waiting_human : '—'}</strong>等待确认</span><span><strong>${counts ? counts.completed : '—'}</strong>已完成</span></div>
-    <div class="office-task-tabs" role="group" aria-label="任务分组">${(
-      [
-        ['active', '在跑的'],
-        ['issues', '有问题'],
-        ['ended', '已结束'],
-      ] as const
+    <div class="office-task-tabs" role="group" aria-label="任务分组">${Object.entries(
+      OFFICE_TASK_GROUPS,
     )
       .map(
-        ([id, label]) =>
+        ([id, { label }]) =>
           `<button type="button" id="office-task-tab-${id}" data-office-tab="${id}" aria-pressed="${officeUi.tab === id}">${label}<span>${counts ? totals[id] : '—'}</span></button>`,
       )
       .join('')}</div>
-    <div class="office-task-list" data-scroll-key="office-tasks-${esc(tool.toolId)}-${officeUi.tab}">${preview.tasks.length ? preview.tasks.map((task) => `<button class="office-task" id="office-task-${esc(task.sessionId)}" type="button" data-session="${esc(task.sessionId)}"><span class="office-task-title">${esc(displayTaskTitle(task, state.tools))}</span><span class="office-task-meta"><span class="badge" data-state="${esc(task.currentState ?? 'unknown')}">${esc(stateLabel(task.currentState ?? 'unknown'))}</span><span>${esc(fmtRelative(task.updatedAt))}</span><span aria-hidden="true">↗</span></span></button>`).join('') : `<p class="office-task-empty">${!workload ? '任务信息还在路上。' : officeUi.tab === 'active' ? '现在没有在跑或等你的任务。' : officeUi.tab === 'issues' ? '没有有问题的任务。' : '还没有结束的任务。'}</p>`}</div>
-    ${preview.total > preview.tasks.length ? `<p class="office-preview-note">先显示 ${preview.tasks.length} 条，共 ${preview.total} 条</p>` : ''}
-    <div class="office-dialog-actions"><button class="btn btn-primary" type="button" id="office-board-${esc(tool.toolId)}" data-office-board="${esc(tool.toolId)}">去看板看 ↗</button><a class="btn btn-ghost" href="#/integrations">接入设置</a></div>
+    <div class="office-task-list" data-scroll-key="office-tasks-${esc(tool.toolId)}-${officeUi.tab}">${preview.tasks.length ? preview.tasks.map((task) => `<button class="office-task" id="office-task-${esc(task.sessionId)}" type="button" data-session="${esc(task.sessionId)}"><span class="office-task-title">${esc(displayTaskTitle(task, state.tools))}</span><span class="office-task-meta"><span class="badge" data-state="${esc(task.currentState ?? 'unknown')}">${esc(stateLabel(task.currentState ?? 'unknown'))}</span><span>${esc(fmtRelative(task.updatedAt))}</span><span aria-hidden="true">↗</span></span></button>`).join('') : `<p class="office-task-empty">${!workload ? '正在加载任务…' : officeUi.tab === 'active' ? '暂无进行中的任务。' : officeUi.tab === 'issues' ? '暂无需要确认的任务。' : '还没有结束的任务。'}</p>`}</div>
+    ${preview.total > preview.tasks.length ? `<p class="office-preview-note">${preview.tasks.length} 条，共 ${preview.total} 条</p>` : ''}
+    <div class="office-dialog-actions"><button class="btn btn-primary" type="button" id="office-board-${esc(tool.toolId)}" data-office-board="${esc(tool.toolId)}">任务看板 ↗</button><a class="btn btn-ghost" href="#/integrations">接入设置</a></div>
   </section>`;
 }
 
@@ -353,7 +368,7 @@ function renderOffice(state: AppState): string {
         `<button type="button" id="office-filter-${id}" data-office-filter="${id}" aria-pressed="${officeUi.filter === id}">${label}<span>${total}</span></button>`,
     )
     .join('')}</div></div></section>
-    <section class="office-room${!officeUi.motion ? ' is-motion-paused' : ''}${stale ? ' is-stale' : ''}" data-region="office-room" aria-label="员工工位"><div class="office-room-caption"><span class="office-room-caption-title">WORKSPACE <b>01</b></span><span>${working} 位工作中 · ${waiting} 位等你确认</span></div><div class="office-floor">${visible.length ? visible.map((employee) => renderOfficeDesk(employee, state, stale)).join('') : `<div class="office-room-empty"><span aria-hidden="true">⌑</span><h2>${employees.length ? '现在很安静' : '办公室还空着'}</h2><p>${employees.length ? '没有符合条件的员工。' : !state.office ? '正在读取工具和工作状态…' : '扫描本机工具后，员工会坐到对应的工位上。'}</p>${employees.length ? '<button class="btn btn-ghost" type="button" id="office-reset" data-office-reset>显示全部员工</button>' : '<a class="btn btn-primary" href="#/adapters">查看工具与扩展</a>'}</div>`}</div><div class="office-room-footer"><span>鼠标悬浮看消息 · 点击看任务</span><span>工作中和需要确认的消息会自动弹窗提示</span></div></section>
+    <section class="office-room${!officeUi.motion ? ' is-motion-paused' : ''}${stale ? ' is-stale' : ''}" data-region="office-room" aria-label="员工工位"><div class="office-room-caption"><span class="office-room-caption-title">WORKSPACE <b>01</b></span><span>${working} 位工作中 · ${waiting} 位需确认</span></div><div class="office-floor">${visible.length ? visible.map((employee) => renderOfficeDesk(employee, state, stale)).join('') : `<div class="office-room-empty"><span aria-hidden="true">⌑</span><h2>${employees.length ? '现在很安静' : '办公室还空着'}</h2><p>${employees.length ? '没有符合条件的员工。' : !state.office ? '正在读取工具和工作状态…' : '扫描本机工具后，员工会坐到对应的工位上。'}</p>${employees.length ? '<button class="btn btn-ghost" type="button" id="office-reset" data-office-reset>显示全部员工</button>' : '<a class="btn btn-primary" href="#/adapters">查看工具与扩展</a>'}</div>`}</div><div class="office-room-footer"><span>鼠标悬浮看消息 · 点击看任务</span><span>工作中和需要确认的消息会自动弹窗提示</span></div></section>
     <div class="office-popover-root" id="office-popover-root" data-region="office-popover">${open ? renderOfficeInspector(open, state) : ''}</div>`;
 }
 
@@ -401,7 +416,6 @@ function positionOfficePopover(): void {
 function closeOfficePopover(restoreFocus = true): void {
   const toolId = officeUi.openToolId;
   if (!toolId) return;
-  rememberOfficeMessageDismissal(toolId);
   officeUi.openToolId = '';
   officeUi.suppressedToolId = toolId;
   render(true);

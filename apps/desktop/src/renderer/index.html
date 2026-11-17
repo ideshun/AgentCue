@@ -14,8 +14,9 @@
   </head>
   <body>
     <div id="app" class="app">
-      <aside class="rail" >
-        <div class="brand">
+      <aside class="rail">
+        <div class="rail-titlebar" data-tauri-drag-region="deep" aria-hidden="true"></div>
+        <div class="brand" data-tauri-drag-region="deep">
           <span class="brand-mark" aria-hidden="true">
             <img
               src="./assets/brand/brand-mark.png"
@@ -23,6 +24,7 @@
               width="32"
               height="32"
               alt=""
+              draggable="false"
             />
           </span>
           <div class="brand-text">
@@ -174,13 +176,13 @@
       </aside>
 
       <main class="main">
-        <header class="pagehead" id="topbar">
-          <div class="pagehead-inner" data-tauri-drag-region>
+        <header class="pagehead" id="topbar" data-tauri-drag-region="deep">
+          <div class="pagehead-inner">
             <div class="pagehead-title">
               <h1 id="page-title">总览</h1>
               <p id="page-subtitle">正在加载…</p>
             </div>
-            <div class="pagehead-actions">
+            <div class="pagehead-actions" data-tauri-drag-region="false">
               <button
                 id="btn-scan"
                 class="btn btn-primary"

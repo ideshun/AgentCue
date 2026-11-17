@@ -605,6 +605,7 @@ async fn route(
             } else {
                 db.execute("UPDATE notifications SET read=1", [])?;
             }
+            runtime.emit("notifications.updated", json!({}));
             json!({"ok":true})
         }
         ("GET", "/api/v1/voice/rules") => control::voice_rules(&db)?,

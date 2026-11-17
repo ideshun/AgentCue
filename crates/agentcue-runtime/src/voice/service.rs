@@ -381,6 +381,21 @@ impl Actor {
             config["voice"]["scope"].as_str().unwrap_or("attention"),
             &signal.event_type,
         );
+        let speak = self.may_speak(&signal, &config, rule);
+        // A fresh confirmation remains acknowledgeable even during the speech cooldown.
+        // INSERT OR IGNORE preserves read status when the same event is replayed.
+        let attention = policy::attention(&signal.event_type);
+        if attention {
+            self.record_notification(
+                &signal,
+                if speak {
+                    "speech-queued"
+                } else {
+                    "notification-only"
+                },
+                !speak,
+            );
+        }
         let dedupe = if in_scope {
             &mut self.spoken
         } else {
@@ -389,8 +404,10 @@ impl Actor {
         let Some(delay) = dedupe.accept(&signal, Instant::now()) else {
             return;
         };
-        if !self.may_speak(&signal, &config, rule) {
-            self.notify(&signal, "notification-only");
+        if !speak {
+            if !attention {
+                self.notify(&signal, "notification-only");
+            }
             return;
         }
         let priority = rule
@@ -423,6 +440,9 @@ impl Actor {
             && rule.is_none_or(|r| r["action"] == "speak")
     }
     fn notify(&self, signal: &Signal, reason: &str) {
+        self.record_notification(signal, reason, true);
+    }
+    fn record_notification(&self, signal: &Signal, reason: &str, desktop: bool) {
         if !self.runtime.enabled(&signal.tool_id) {
             return;
         }
@@ -438,7 +458,14 @@ impl Actor {
         let body = policy::task_title(signal, 40);
         let attention = policy::attention(&signal.event_type);
         let saved=self.runtime.db.lock().ok().and_then(|db|db.execute("INSERT OR IGNORE INTO notifications(notification_id,ts,title,body,level,read,session_id) VALUES(?1,?2,?3,?4,?5,0,?6)",params![format!("notify_{}",signal.event_id),queries::now(),title,body,if attention{"attention"}else{"info"},signal.session_id]).ok()).is_some_and(|n|n>0);
-        if saved {
+        if saved && !desktop {
+            self.runtime.emit(
+                "notifications.updated",
+                json!({"sessionId":signal.session_id}),
+            );
+        }
+        // A speech failure may need an OS fallback after its history was already saved.
+        if desktop && (saved || (attention && reason != "notification-only")) {
             self.runtime.emit("notify",json!({"title":title,"body":body,"attention":attention,"reason":reason,"sessionId":signal.session_id}));
         }
     }

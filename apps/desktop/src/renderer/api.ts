@@ -285,6 +285,7 @@ const Api = {
       'state.transition',
       'notify',
       'settings.changed',
+      'notifications.updated',
       'tools.updated',
       'board.updated',
       'scan.completed',

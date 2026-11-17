@@ -21,6 +21,29 @@ fn every_legacy_version_upgrades_without_losing_rows() {
         migrate(&mut db).unwrap();
         migrate(&mut db).unwrap();
         assert_eq!(version(&db), SCHEMA_VERSION);
+        for (sql, index) in [
+            (
+                "EXPLAIN QUERY PLAN SELECT event_id FROM state_events WHERE session_id='s' AND next_state='waiting_human' AND event_type IN ('task.waiting_human','task.failed','task.timeout') ORDER BY julianday(ts) DESC,rowid DESC LIMIT 1",
+                "idx_events_session_attention",
+            ),
+            (
+                "EXPLAIN QUERY PLAN SELECT 1 FROM notifications WHERE session_id='s' AND read=0 AND level='attention'",
+                "idx_notifications_unread_attention",
+            ),
+        ] {
+            let plan = db
+                .prepare(sql)
+                .unwrap()
+                .query_map([], |r| r.get::<_, String>(3))
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap()
+                .join("\n");
+            assert!(
+                plan.contains(index),
+                "missing indexed lookup after schema {legacy}: {plan}"
+            );
+        }
         db.prepare("SELECT context FROM source_checkpoints")
             .unwrap();
         if legacy > 0 {

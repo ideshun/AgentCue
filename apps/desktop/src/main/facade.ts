@@ -175,7 +175,7 @@ export class DesktopFacade implements EngineFacade {
           TASK_STATES.map((state) => [state, countSessions(db, { toolId: tool.toolId, state })]),
         ) as Record<TaskState, number>,
         tasks: groups.flatMap((states) =>
-          listSessions(db, { toolId: tool.toolId, states, limit: 4 }),
+          listSessions(db, { toolId: tool.toolId, states, limit: 5 }),
         ).map((row) => ({
           kind: 'session' as const,
           sessionId: row.sessionId,

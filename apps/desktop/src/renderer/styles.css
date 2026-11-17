@@ -242,6 +242,7 @@ pre {
 
 /* ── 侧栏 ─────────────────────────────────────────────── */
 .rail {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -251,11 +252,26 @@ pre {
 html[data-platform='darwin'] .rail {
   padding-top: 44px;
 }
+.rail-titlebar {
+  display: none;
+}
+html[data-platform='darwin'] .rail-titlebar {
+  display: block;
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 78px;
+  height: 44px;
+  -webkit-app-region: drag;
+}
 .brand {
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 0 8px 12px;
+  -webkit-app-region: drag;
+  user-select: none;
+  -webkit-user-select: none;
 }
 .brand-mark {
   display: block;
@@ -496,8 +512,9 @@ html[data-platform='darwin'] .rail {
   padding: 20px 36px var(--space-2);
   background: var(--bg);
   -webkit-app-region: drag;
+  user-select: none;
+  -webkit-user-select: none;
 }
-.pagehead-title,
 .pagehead-actions {
   -webkit-app-region: no-drag;
 }
@@ -2675,7 +2692,6 @@ button.task-open:hover .session-title {
   .pagehead {
     padding-inline: 16px;
   }
-  .pagehead-title,
   .pagehead-actions {
     -webkit-app-region: no-drag;
   }

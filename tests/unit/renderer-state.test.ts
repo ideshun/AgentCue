@@ -260,6 +260,162 @@ describe('renderer settings', () => {
 });
 
 describe('renderer office', () => {
+  it('uses complete unread counts when the preview omits a waiting task', () => {
+    const context = officeFixture();
+    evaluate(context, `
+      state.office.workstations[0].counts.running = 1;
+      state.office.workstations[0].attentionTasks = Array.from({length: 5}, (_, i) => ({
+        ...state.office.workstations[0].tasks[2], currentState: 'failed', sessionId: 'failed-' + i
+      }));
+      state.office.workstations[0].attentionCount = 6;
+      state.office.workstations[0].attentionCounts = {waiting_human: 1, failed: 5, timeout: 0};
+    `);
+    expect(evaluate(context, 'officeEmployees(state)[0].status')).toBe('waiting');
+    expect(evaluate(context, 'officeNeedsAttention(officeEmployees(state)[0])')).toBe(true);
+  });
+
+  it('suppresses handled attention bubbles while keeping task browsing and working bubbles', () => {
+    const context = officeFixture();
+    evaluate(
+      context,
+      'state.office.workstations[0].attentionTasks = []; state.office.workstations[0].counts.running = 0',
+    );
+    expect(
+      evaluate<string>(context, 'renderOfficeDesk(officeEmployees(state)[0], state, false)'),
+    ).not.toContain(' has-message');
+    expect(
+      evaluate<string>(context, 'renderOfficeInspector(officeEmployees(state)[0], state)'),
+    ).toContain('需确认<span>31</span>');
+    expect(evaluate<string>(context, 'officeEmployees(state)[0].status')).toBe('idle');
+    evaluate(context, "officeUi.tab = 'ended'");
+    expect(
+      evaluate<string>(context, 'renderOfficeInspector(officeEmployees(state)[0], state)'),
+    ).toContain('空闲 · 工位');
+    evaluate(
+      context,
+      'state.office.workstations[0].attentionTasks = [state.office.workstations[0].tasks[2]]',
+    );
+    expect(
+      evaluate<string>(context, 'renderOfficeDesk(officeEmployees(state)[0], state, false)'),
+    ).toContain(' has-message');
+    expect(evaluate<string>(context, 'officeEmployees(state)[0].primary.sessionId')).toBe('task-2');
+    evaluate(
+      context,
+      'Object.assign(state.office.workstations[0].counts, {running:2,waiting_human:0,failed:0,timeout:0}); state.office.workstations[0].attentionTasks = []',
+    );
+    expect(
+      evaluate<string>(context, 'renderOfficeDesk(officeEmployees(state)[0], state, false)'),
+    ).toContain(' has-message');
+  });
+
+  it('keeps employee status independent of task tabs and opens details from the message', () => {
+    const context = officeFixture();
+    evaluate(context, "officeUi.tab = 'ended'");
+    expect(
+      evaluate<string>(context, 'renderOfficeInspector(officeEmployees(state)[0], state)'),
+    ).toContain('需确认 · 工位');
+    const markup = evaluate<string>(
+      context,
+      'renderOfficeDesk(officeEmployees(state)[0], state, false)',
+    );
+    expect(markup).toContain('class="office-bubble-open"');
+    expect(markup).toContain(
+      'id="office-bubble-open-demo" type="button" data-office-select="demo"',
+    );
+    expect(markup).toContain('data-office-dismiss="demo"');
+    evaluate(
+      context,
+      'Object.assign(state.office.workstations[0].counts, {running:0,waiting_human:0,failed:0,timeout:0}); state.office.workstations[0].attentionTasks = []; state.office.generatedAt = state.office.workstations[0].tasks[7].updatedAt',
+    );
+    expect(evaluate<string>(context, 'officeEmployees(state)[0].label')).toBe('空闲');
+    evaluate(context, 'state.office.workstations[0].counts.running = 1');
+    expect(
+      evaluate<string>(context, 'renderOfficeInspector(officeEmployees(state)[0], state)'),
+    ).toContain('工作中 · 工位');
+  });
+
+  function officeFixture() {
+    const context = renderer();
+    evaluate(
+      context,
+      `
+      state.tools = [{toolId:'demo',name:'Demo',detectStatus:'installed',sessionCapability:'events'}];
+      state.office = {generatedAt:'2026-11-17T00:00:00Z', workstations:[{
+        toolId:'demo', counts:{running:2,waiting_human:1,failed:20,timeout:10,completed:100,cancelled:5,idle:3},
+        tasks:['failed','running','timeout','waiting_human','failed','timeout','failed','completed'].map((currentState, i) => ({
+          kind:'session',toolId:'demo',sessionId:'task-'+i,title:'Task '+i,currentState,
+          updatedAt:'2026-11-16T00:00:0'+i+'Z'
+        }))
+      }]};
+      officeUi.tab = 'issues';
+    `,
+    );
+    return context;
+  }
+
+  it('uses one set of groups and renders exactly the advertised five latest tasks', () => {
+    const context = officeFixture();
+    const markup = evaluate<string>(
+      context,
+      'renderOfficeInspector(officeEmployees(state)[0], state)',
+    );
+    expect(markup).not.toContain('office-person-metrics');
+    expect(markup).toContain('需确认<span>31</span>');
+    expect(markup).toContain('进行中<span>2</span>');
+    expect(markup).toContain('已结束<span>108</span>');
+    expect(markup.match(/class="office-task"/g)).toHaveLength(5);
+    expect(markup).toContain('5 条，共 31 条');
+    expect(markup).not.toContain('先显示');
+    expect(markup).toContain('>任务看板 ↗');
+    expect(
+      evaluate<string[]>(
+        context,
+        'officeTasksForTab(officeEmployees(state)[0]).tasks.map(task => task.sessionId)',
+      ),
+    ).toEqual(['task-6', 'task-5', 'task-4', 'task-3', 'task-2']);
+    evaluate(context, "officeUi.tab = 'active'");
+    expect(
+      evaluate<string[]>(
+        context,
+        'officeTasksForTab(officeEmployees(state)[0]).tasks.map(task => task.currentState)',
+      ),
+    ).toEqual(['running']);
+  });
+
+  it('automatically shows working and attention messages and keeps dismissal separate from details', () => {
+    const context = officeFixture();
+    for (const counts of [
+      { running: 1, waiting_human: 0, failed: 0, timeout: 0 },
+      { running: 0, waiting_human: 1, failed: 0, timeout: 0 },
+      { running: 0, waiting_human: 0, failed: 1, timeout: 0 },
+      { running: 0, waiting_human: 0, failed: 0, timeout: 1 },
+    ]) {
+      context.countsFixture = counts;
+      evaluate(context, 'Object.assign(state.office.workstations[0].counts, countsFixture)');
+      const markup = evaluate<string>(
+        context,
+        'renderOfficeDesk(officeEmployees(state)[0], state, false)',
+      );
+      expect(markup).toContain(' has-message');
+    }
+    const staleMarkup = evaluate<string>(
+      context,
+      'renderOfficeDesk(officeEmployees(state)[0], state, true)',
+    );
+    expect(staleMarkup).toContain(' has-message');
+    expect(staleMarkup).toContain('上次同步的记录');
+    evaluate(context, "officeUi.openToolId = 'demo'; closeOfficePopover(false)");
+    expect(evaluate<number>(context, 'officeUi.dismissedMessages.size')).toBe(0);
+    expect(
+      evaluate<string>(context, 'renderOfficeDesk(officeEmployees(state)[0], state, false)'),
+    ).toContain(' has-message');
+    evaluate(context, "rememberOfficeMessageDismissal('demo')");
+    expect(
+      evaluate<string>(context, 'renderOfficeDesk(officeEmployees(state)[0], state, false)'),
+    ).not.toContain(' has-message');
+    expect(evaluate<string>(context, 'officeDefaultTab(officeEmployees(state)[0])')).toBe('issues');
+  });
+
   it('shows the latest actual event time and handles missing event history', () => {
     const context = renderer();
     context.settingsFixture = structuredClone(settings);

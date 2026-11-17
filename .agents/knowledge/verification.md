@@ -40,7 +40,7 @@ pnpm lint
 - 监控链路：`tests/integration/monitor-service.test.ts`
 - 进程内时延预算：`tests/perf/latency-report.test.ts`
 
-Rust 迁移模块按 [ADR-21](../../docs/adr/ADR-21-rust-tauri-migration.md) 独立验证：`pnpm rust:verify` 运行 workspace 格式检查以及核心库的 Clippy 与 Rust 测试，`pnpm rust:contract` 从构建后的 TS 包重新导出兼容夹具。现有 Vitest 中的 `rust-state-contract.test.ts` 检查夹具仍与当前 TS 行为一致；`rust-store-contract.test.ts` 检查六版 SQL 与 TS 存储一致；`rust-runtime-contract.test.ts` 校验共享设置、接入模板、出厂规则及适配器合成夹具；L1 workflow 设有独立 Rust job，不以 TS 测试通过代替 Rust 测试通过。Rust API/MCP 集成测试需要允许临时回环监听和模拟子进程，不能在权限受限时静默跳过；采集、数据库与设置测试不读取用户真实目录。
+Rust 迁移模块按 [ADR-21](../../docs/adr/ADR-21-rust-tauri-migration.md) 独立验证：`pnpm rust:verify` 运行 workspace 格式检查以及核心库的 Clippy 与 Rust 测试，`pnpm rust:contract` 从构建后的 TS 包重新导出兼容夹具。现有 Vitest 中的 `rust-state-contract.test.ts` 检查夹具仍与当前 TS 行为一致；`rust-store-contract.test.ts` 检查七版 SQL 与 TS 存储一致；`rust-runtime-contract.test.ts` 校验共享设置、接入模板、出厂规则及适配器合成夹具；L1 workflow 设有独立 Rust job，不以 TS 测试通过代替 Rust 测试通过。Rust API/MCP 集成测试需要允许临时回环监听和模拟子进程，不能在权限受限时静默跳过；采集、数据库与设置测试不读取用户真实目录。
 
 ## 待确认
 

@@ -20,6 +20,8 @@ const env = {
   ...process.env,
   PATH: [process.env.PATH, join(homedir(), '.cargo/bin')].filter(Boolean).join(delimiter),
 };
+// Local macOS builds need the same ad-hoc identity used by unsigned CI builds.
+if (process.platform === 'darwin') env.APPLE_SIGNING_IDENTITY ||= '-';
 const run = (command, params, cwd = root, capture = false) =>
   execFileSync(command, params, {
     cwd,
@@ -64,3 +66,7 @@ run(
   ],
   app,
 );
+
+if (process.platform === 'darwin') {
+  run('codesign', ['--verify', '--deep', '--strict', join(target, 'release/bundle/macos/AgentCue.app')]);
+}

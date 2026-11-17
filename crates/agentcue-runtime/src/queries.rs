@@ -211,15 +211,44 @@ pub fn office(db: &Connection, manifests: &[Value], settings: &Value) -> rusqlit
         let id = tool["toolId"].as_str().unwrap_or_default();
         let mut tasks = vec![];
         for (_, states) in GROUPS {
-            let mut group = sessions(db, states, Some(id), None, None, 4)?;
+            let mut group = sessions(db, states, Some(id), None, None, 5)?;
             for row in &mut group {
                 row["kind"] = json!("session")
             }
             tasks.extend(group);
         }
+        // Only an unread notification for the current attention event can open a bubble.
+        // Older sessions without notifications are still browsable, but never auto-popup.
+        let attention_tasks = rows(db,
+            "SELECT s.session_id AS sessionId,s.tool_id AS toolId,s.title,s.current_state AS currentState,s.updated_at AS updatedAt,'session' AS kind,
+                    e.event_id AS attentionEventId,count(*) OVER() AS attentionCount,
+                    sum(s.current_state='waiting_human') OVER() AS waitingCount,
+                    sum(s.current_state='failed') OVER() AS failedCount,
+                    sum(s.current_state='timeout') OVER() AS timeoutCount
+             FROM sessions s JOIN state_events e ON e.event_id=(
+               SELECT latest.event_id FROM state_events latest WHERE latest.session_id=s.session_id
+                 AND latest.next_state=s.current_state
+                 AND latest.event_type IN ('task.waiting_human','task.failed','task.timeout')
+               ORDER BY julianday(latest.ts) DESC,latest.rowid DESC LIMIT 1)
+             WHERE s.visible=1 AND s.tool_id=? AND s.current_state IN ('waiting_human','failed','timeout')
+             AND EXISTS (SELECT 1 FROM notifications n WHERE n.read=0 AND n.level='attention' AND n.session_id=s.session_id
+               AND (n.notification_id='notify_' || e.event_id
+                 OR (substr(n.notification_id,1,7)!='notify_' AND julianday(n.ts)>=julianday(e.ts))))
+             ORDER BY (s.current_state='waiting_human') DESC,julianday(s.updated_at) DESC,s.session_id DESC LIMIT 5",
+            vec![s(id)],
+        )?;
+        let attention_count = attention_tasks
+            .first()
+            .and_then(|task| task["attentionCount"].as_u64())
+            .unwrap_or(0);
+        let attention_counts = json!({
+            "waiting_human": attention_tasks.first().map_or(0, |t| t["waitingCount"].as_u64().unwrap_or(0)),
+            "failed": attention_tasks.first().map_or(0, |t| t["failedCount"].as_u64().unwrap_or(0)),
+            "timeout": attention_tasks.first().map_or(0, |t| t["timeoutCount"].as_u64().unwrap_or(0)),
+        });
         let time:Option<String>=db.query_row("SELECT strftime('%Y-%m-%dT%H:%M:%fZ',max(julianday(e.ts))) FROM state_events e JOIN sessions s ON e.session_id=s.session_id WHERE s.visible=1 AND e.tool_id=?",[id],|r|r.get(0))?;
         desks.push(
-            json!({"toolId":id,"counts":counts(db,Some(id))?,"lastEventAt":time,"tasks":tasks}),
+            json!({"toolId":id,"counts":counts(db,Some(id))?,"lastEventAt":time,"tasks":tasks,"attentionTasks":attention_tasks,"attentionCount":attention_count,"attentionCounts":attention_counts}),
         );
     }
     Ok(json!({"workstations":desks,"generatedAt":now()}))

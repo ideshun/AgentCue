@@ -1,6 +1,6 @@
 # AgentCue 安装与发布
 
-仓库：[ideshun/AgentCue](https://github.com/ideshun/AgentCue)。当前主版本为 **v1.0.1**，桌面宿主为 Rust + Tauri 2。旧版 v0.x Electron 安装包继续保留在 Releases 中。
+仓库：[ideshun/AgentCue](https://github.com/ideshun/AgentCue)。当前主版本为 **v1.0.2**，桌面宿主为 Rust + Tauri 2。旧版 v0.x Electron 安装包继续保留在 Releases 中。
 
 ## v1.x 原生版发布
 

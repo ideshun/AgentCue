@@ -153,7 +153,7 @@
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
   align-content: start;
   gap: 8px 28px;
-  padding: 32px 16px 22px;
+  padding: 12px 16px 22px;
   min-height: 330px;
   background-image:
     repeating-linear-gradient(150deg, transparent 0 149px, var(--office-floor-line) 150px 151px),
@@ -166,8 +166,15 @@
   width: 100%;
   max-width: 280px;
   justify-self: center;
-  padding-top: 96px;
+  padding-top: 12px;
   --office-message-color: var(--muted);
+}
+.office-workstation.has-message {
+  z-index: 1;
+}
+.office-workstation:hover,
+.office-workstation:focus-within {
+  z-index: 5;
 }
 .office-workstation.is-working {
   --office-message-color: var(--ok);
@@ -240,7 +247,7 @@
 }
 .office-bubble {
   position: absolute;
-  top: -16px;
+  bottom: calc(100% - 24px);
   left: 50%;
   z-index: 2;
   width: min(282px, calc(100% - 16px));
@@ -258,6 +265,32 @@
   transition:
     opacity 0.14s ease,
     visibility 0.14s ease;
+}
+.office-bubble-open {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.office-bubble > :not(.office-bubble-open) {
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+}
+.office-bubble .office-bubble-close {
+  pointer-events: auto;
+}
+.office-bubble::before {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  height: 16px;
 }
 .office-bubble::after {
   content: '';
@@ -410,23 +443,33 @@
   visibility: visible;
 }
 .office-dialog-heading {
-  display: flex;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 28px;
   align-items: center;
-  gap: 10px;
+  column-gap: 10px;
+  row-gap: 3px;
 }
 .office-dialog-heading .tool-icon {
+  grid-column: 1;
+  grid-row: 1 / 3;
   width: 28px;
   height: 28px;
   object-fit: contain;
 }
 .office-dialog-heading > div {
-  flex: 1;
-  min-width: 0;
+  display: contents;
 }
 .office-dialog-heading h2 {
-  margin: 0 0 3px;
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  margin: 0;
   font-size: var(--fs-lg);
   font-weight: 650;
+}
+.office-dialog-status {
+  grid-column: 2;
+  grid-row: 2;
 }
 .office-dialog-status,
 .office-dialog-description {
@@ -434,7 +477,13 @@
   font-size: 11px;
 }
 .office-dialog-close {
-  align-self: start;
+  grid-column: 3;
+  grid-row: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  flex: none;
   width: 28px;
   height: 28px;
   padding: 0;
@@ -456,28 +505,8 @@
   font-size: 11px;
   line-height: 1.7;
 }
-.office-person-metrics {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  margin: 16px 0;
-  padding: 12px 0;
-  border-block: 1px solid var(--border);
-}
-.office-person-metrics span {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-  color: var(--muted);
-  font-size: 11px;
-}
-.office-person-metrics strong {
-  font: 500 22px / 1 var(--mono);
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
-}
 .office-task-tabs {
+  margin-top: 16px;
   padding: 3px;
   border: 0;
   background: var(--surface-2);
@@ -543,14 +572,26 @@
   text-align: center;
 }
 .office-dialog-actions {
-  display: grid;
-  grid-template-columns: 1fr auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 8px;
-  margin-top: 15px;
+  margin-top: 12px;
 }
 .office-dialog-actions .btn {
   justify-content: center;
-  font-size: 11px;
+  min-height: 32px;
+  padding: 6px 12px;
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+}
+.office-dialog-close svg,
+.office-bubble-close svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+  flex: none;
 }
 .office-workstation.is-working .office-monitor-cursor {
   animation: office-cursor 1s steps(2, jump-none) infinite;
