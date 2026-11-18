@@ -279,13 +279,15 @@ async fn integration_paths_are_real_and_shell_quoted() {
         assert!(!content.contains("__AGENTCUE_EXECUTABLE__"));
         if snippet["format"] == "json" {
             let parsed: Value = serde_json::from_str(content).unwrap();
-            assert_eq!(
-                parsed
+            let command = if snippet["id"] == "opencode" {
+                &parsed["mcp"]["servers"]["ai-workflow-monitor"]["command"][0]
+            } else {
+                &parsed
                     .get("mcpServers")
                     .or_else(|| parsed.get("servers"))
-                    .unwrap()["ai-workflow-monitor"]["command"],
-                json!(f.runtime.executable)
-            );
+                    .unwrap()["ai-workflow-monitor"]["command"]
+            };
+            assert_eq!(command, &json!(f.runtime.executable));
         }
     }
     let hooks: Value = f

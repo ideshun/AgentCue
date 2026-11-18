@@ -63,65 +63,67 @@ function officeColor(id: string): number {
 /** @description: Installation, history indexes and paused capture never imply active work. */
 function officeEmployees(state: AppState): OfficeEmployee[] {
   const workloads = new Map(state.office?.workstations.map((item) => [item.toolId, item]));
-  return state.tools.map((tool, index) => {
-    const workload = workloads.get(tool.toolId);
-    const counts = workload?.counts;
-    const tasks = workload?.tasks ?? [];
-    const attentionTasks = workload?.attentionTasks;
-    const waiting = workload?.attentionCounts
-      ? workload.attentionCounts.waiting_human > 0
-      : attentionTasks === undefined
-        ? (counts?.waiting_human ?? 0) > 0
-        : attentionTasks.some((task) => task.currentState === 'waiting_human');
-    const issues = workload?.attentionCounts
-      ? workload.attentionCounts.failed + workload.attentionCounts.timeout > 0
-      : attentionTasks === undefined
-        ? (counts?.failed ?? 0) + (counts?.timeout ?? 0) > 0
-        : attentionTasks.some(
-            (task) => task.currentState === 'failed' || task.currentState === 'timeout',
-          );
-    let status: OfficeStatus;
-    if (tool.ignored || state.settings?.privacy.sessionFileRead === false) status = 'paused';
-    else if (tool.detectStatus === 'not_installed') status = 'offline';
-    else if (!counts) status = 'unknown';
-    else if (tool.sessionCapability !== 'events' && !tool.hookLastEventAt) status = 'unknown';
-    else if (waiting) status = 'waiting';
-    else if (counts.running > 0) status = 'working';
-    else if (issues) status = 'error';
-    else status = 'idle';
-    const preferred: TaskState[] =
-      status === 'waiting'
-        ? ['waiting_human', 'failed', 'timeout', 'running']
-        : status === 'working'
-          ? ['running', 'waiting_human']
-          : status === 'error'
-            ? ['failed', 'timeout']
-            : ['completed', 'running', 'waiting_human'];
-    const messageTasks =
-      status === 'waiting' || status === 'error' ? (workload?.attentionTasks ?? tasks) : tasks;
-    const primary = preferred
-      .map((value) => messageTasks.find((task) => task.currentState === value))
-      .find(Boolean);
-    const label =
-      status === 'unknown'
-        ? !workload
-          ? state.sectionErrors.office
-            ? '同步失败'
-            : '正在同步'
-          : tool.detectStatus === 'unknown'
-            ? '状态未知'
-            : '待接入'
-        : OFFICE_STATUS_LABELS[status];
-    return {
-      tool,
-      workload,
-      status,
-      label,
-      primary,
-      color: officeColor(tool.toolId),
-      seat: index + 1,
-    };
-  });
+  return state.tools
+    .filter((tool) => ['installed', 'running'].includes(tool.detectStatus))
+    .map((tool, index) => {
+      const workload = workloads.get(tool.toolId);
+      const counts = workload?.counts;
+      const tasks = workload?.tasks ?? [];
+      const attentionTasks = workload?.attentionTasks;
+      const waiting = workload?.attentionCounts
+        ? workload.attentionCounts.waiting_human > 0
+        : attentionTasks === undefined
+          ? (counts?.waiting_human ?? 0) > 0
+          : attentionTasks.some((task) => task.currentState === 'waiting_human');
+      const issues = workload?.attentionCounts
+        ? workload.attentionCounts.failed + workload.attentionCounts.timeout > 0
+        : attentionTasks === undefined
+          ? (counts?.failed ?? 0) + (counts?.timeout ?? 0) > 0
+          : attentionTasks.some(
+              (task) => task.currentState === 'failed' || task.currentState === 'timeout',
+            );
+      let status: OfficeStatus;
+      if (tool.ignored || state.settings?.privacy.sessionFileRead === false) status = 'paused';
+      else if (tool.detectStatus === 'not_installed') status = 'offline';
+      else if (!counts) status = 'unknown';
+      else if (tool.sessionCapability !== 'events' && !tool.hookLastEventAt) status = 'unknown';
+      else if (waiting) status = 'waiting';
+      else if (counts.running > 0) status = 'working';
+      else if (issues) status = 'error';
+      else status = 'idle';
+      const preferred: TaskState[] =
+        status === 'waiting'
+          ? ['waiting_human', 'failed', 'timeout', 'running']
+          : status === 'working'
+            ? ['running', 'waiting_human']
+            : status === 'error'
+              ? ['failed', 'timeout']
+              : ['completed', 'running', 'waiting_human'];
+      const messageTasks =
+        status === 'waiting' || status === 'error' ? (workload?.attentionTasks ?? tasks) : tasks;
+      const primary = preferred
+        .map((value) => messageTasks.find((task) => task.currentState === value))
+        .find(Boolean);
+      const label =
+        status === 'unknown'
+          ? !workload
+            ? state.sectionErrors.office
+              ? '同步失败'
+              : '正在同步'
+            : tool.detectStatus === 'unknown'
+              ? '状态未知'
+              : '待接入'
+          : OFFICE_STATUS_LABELS[status];
+      return {
+        tool,
+        workload,
+        status,
+        label,
+        primary,
+        color: officeColor(tool.toolId),
+        seat: index + 1,
+      };
+    });
 }
 
 function officeWorking(employee: OfficeEmployee): boolean {
@@ -203,6 +205,10 @@ const OFFICE_TOOL_ICONS: Record<string, string> = {
   'claude-code': 'assets/office/icons/claude-code-orange.svg',
   cline: 'assets/office/icons/cline.svg',
   codebuddy: 'assets/office/icons/codebuddy.svg',
+  'deepseek-harness': 'assets/office/icons/deepseek-harness.svg',
+  'gemini-cli': 'assets/office/icons/gemini-cli.png',
+  'qwen-code': 'assets/office/icons/qwen-code.svg',
+  opencode: 'assets/office/icons/opencode.png',
 };
 
 const OFFICE_DESK_STYLES = [
@@ -341,7 +347,7 @@ function renderOfficeInspector(employee: OfficeEmployee, state: AppState): strin
       .join('')}</div>
     <div class="office-task-list" data-scroll-key="office-tasks-${esc(tool.toolId)}-${officeUi.tab}">${preview.tasks.length ? preview.tasks.map((task) => `<button class="office-task" id="office-task-${esc(task.sessionId)}" type="button" data-session="${esc(task.sessionId)}"><span class="office-task-title">${esc(displayTaskTitle(task, state.tools))}</span><span class="office-task-meta"><span class="badge" data-state="${esc(task.currentState ?? 'unknown')}">${esc(stateLabel(task.currentState ?? 'unknown'))}</span><span>${esc(fmtRelative(task.updatedAt))}</span><span aria-hidden="true">↗</span></span></button>`).join('') : `<p class="office-task-empty">${!workload ? '正在加载任务…' : officeUi.tab === 'active' ? '暂无进行中的任务。' : officeUi.tab === 'issues' ? '暂无需要确认的任务。' : '还没有结束的任务。'}</p>`}</div>
     ${preview.total > preview.tasks.length ? `<p class="office-preview-note">${preview.tasks.length} 条，共 ${preview.total} 条</p>` : ''}
-    <div class="office-dialog-actions"><button class="btn btn-primary" type="button" id="office-board-${esc(tool.toolId)}" data-office-board="${esc(tool.toolId)}">任务看板 ↗</button><a class="btn btn-ghost" href="#/integrations">接入设置</a></div>
+    <div class="office-dialog-actions"><button class="btn btn-primary" type="button" id="office-board-${esc(tool.toolId)}" data-office-board="${esc(tool.toolId)}">任务看板 ↗</button><a class="btn btn-ghost" href="${esc(integrationToolHref(tool.toolId))}">接入设置</a></div>
   </section>`;
 }
 

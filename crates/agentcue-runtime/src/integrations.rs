@@ -30,7 +30,7 @@ pub fn mcp_snippets(runtime: &Runtime) -> Value {
     let executable = runtime.executable.to_string_lossy();
     for value in values.as_array_mut().unwrap() {
         if let Some(content) = value["json"].as_str() {
-            let updated = if value["format"] == "toml" {
+            let updated = if value["format"] == "toml" || value["format"] == "yaml" {
                 content.replace(
                     &serde_json::to_string(MARKER).unwrap(),
                     &serde_json::to_string(executable.as_ref()).unwrap(),
@@ -49,6 +49,13 @@ pub fn mcp_snippets(runtime: &Runtime) -> Value {
 pub fn hooks(runtime: &Runtime) -> Result<Value> {
     let mut values: Value = serde_json::from_str(include_str!("../resources/hook-templates.json"))
         .expect("embedded hook templates");
+    let extra: Value =
+        serde_json::from_str(include_str!("../resources/extended-hook-templates.json"))
+            .expect("extended hook templates");
+    values
+        .as_array_mut()
+        .unwrap()
+        .extend(extra.as_array().unwrap().iter().cloned());
     let config = runtime.config();
     let db = runtime.db.lock().map_err(|_| ControlError::unavailable())?;
     let executable = runtime.executable.to_string_lossy();
@@ -82,22 +89,29 @@ pub fn render_hook_files(value: &mut Value, executable: &str, platform: &str) ->
     } else {
         shell_quote(&path)
     };
-    fn commands(value: &mut Value, replacement: &str, force_bash: bool) {
+    fn commands(
+        value: &mut Value,
+        replacement: &str,
+        force_bash: bool,
+        override_command: Option<&str>,
+    ) {
         match value {
             Value::Object(map) => {
                 if let Some(Value::String(command)) = map.get_mut("command") {
-                    *command = command.replace(&shell_quote(MARKER), replacement);
+                    *command = override_command
+                        .map(str::to_owned)
+                        .unwrap_or_else(|| command.replace(&shell_quote(MARKER), replacement));
                     if force_bash {
                         map.insert("shell".into(), json!("bash"));
                     }
                 }
                 for v in map.values_mut() {
-                    commands(v, replacement, force_bash);
+                    commands(v, replacement, force_bash, override_command);
                 }
             }
             Value::Array(values) => {
                 for v in values {
-                    commands(v, replacement, force_bash);
+                    commands(v, replacement, force_bash, override_command);
                 }
             }
             _ => {}
@@ -107,6 +121,12 @@ pub fn render_hook_files(value: &mut Value, executable: &str, platform: &str) ->
         .as_array_mut()
         .ok_or_else(|| ControlError::invalid("接入模板无效"))?
     {
+        if let Some(content) = file["content"].as_str() {
+            file["content"] = json!(content.replace(
+                "__AGENTCUE_EXECUTABLE_JSON__",
+                &serde_json::to_string(executable).unwrap()
+            ));
+        }
         if windows && id == "cline" {
             let name = file["path"]
                 .as_str()
@@ -124,7 +144,14 @@ pub fn render_hook_files(value: &mut Value, executable: &str, platform: &str) ->
             let mut content: Value =
                 serde_json::from_str(file["content"].as_str().unwrap_or_default())
                     .map_err(|_| ControlError::invalid("Hook JSON 模板无效"))?;
-            commands(&mut content, &replacement, windows && id == "claude-code");
+            let override_command = (windows && ["gemini-cli", "qwen-code"].contains(&id.as_str()))
+                .then(|| format!("\"{path}\" --tool-hook {id}"));
+            commands(
+                &mut content,
+                &replacement,
+                windows && id == "claude-code",
+                override_command.as_deref(),
+            );
             file["content"] = json!(
                 serde_json::to_string_pretty(&content).map_err(|_| ControlError::unavailable())?
             );
@@ -138,7 +165,7 @@ pub fn render_hook_files(value: &mut Value, executable: &str, platform: &str) ->
         }
     }
     if windows {
-        value["steps"].as_array_mut().unwrap().insert(0,json!(match id.as_str(){"cline"=>"需要支持 Windows .ps1 Hooks 的 Cline 版本；将脚本保存为 UTF-8 BOM 编码。","cursor"=>"Windows Hooks 由 Cursor 的 PowerShell 执行，配置内已使用对应调用语法。",_=>"Windows 需要 Git for Windows（Git Bash）；Claude Code 需支持 shell=bash 的版本。"}));
+        value["steps"].as_array_mut().unwrap().insert(0,json!(match id.as_str(){"deepseek-harness"|"opencode"=>"插件通过 Node 子进程调用 AgentCue，不修改原工具的权限决策。","gemini-cli"|"qwen-code"=>"Windows 配置使用本机可执行文件的双引号路径；请保留已有 Hooks。","cline"=>"需要支持 Windows .ps1 Hooks 的 Cline 版本；将脚本保存为 UTF-8 BOM 编码。","cursor"=>"Windows Hooks 由 Cursor 的 PowerShell 执行，配置内已使用对应调用语法。",_=>"Windows 需要 Git for Windows（Git Bash）；Claude Code 需支持 shell=bash 的版本。"}));
     }
     Ok(())
 }

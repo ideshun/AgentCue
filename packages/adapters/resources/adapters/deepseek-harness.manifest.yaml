@@ -1,0 +1,15 @@
+id: deepseek-harness
+name: DeepSeek Harness
+sessionCapability: detect-only
+capabilityReason: '安装识别与任务事件接入分别显示；配置接入后运行新任务验证。'
+detect:
+  configPaths:
+    - mac: '~/.dsh'
+      win: '%USERPROFILE%/.dsh'
+      linux: '~/.dsh'
+  processNames: ['DeepSeek Harness', 'dsh']
+  apis: []
+sessionSource:
+  type: none
+heartbeat: { intervalSec: 60, probe: file_mtime }
+eventMapping: {}

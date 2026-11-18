@@ -148,9 +148,22 @@ pub fn tools(
     for item in &mut tools {
         let id = item["toolId"].as_str().unwrap_or_default().to_owned();
         let manifest = manifests.iter().find(|v| v["id"] == id);
-        let hook = manifest
-            .and_then(|v| v.get("hookConfig"))
-            .is_some_and(|v| v.is_object());
+        if let Some(path) = settings["scan"]["customTools"]
+            .as_array()
+            .and_then(|tools| tools.iter().find(|t| t["id"] == id))
+            .and_then(|t| t["iconPath"].as_str())
+            .filter(|p| !p.is_empty())
+        {
+            match crate::icons::read(path) {
+                Ok(icon) => item["icon"] = json!(icon),
+                Err(error) => item["iconError"] = json!(error),
+            }
+        }
+        let hook = ["deepseek-harness", "gemini-cli", "qwen-code", "opencode"]
+            .contains(&id.as_str())
+            || manifest
+                .and_then(|v| v.get("hookConfig"))
+                .is_some_and(|v| v.is_object());
         let time:Option<String>=db.query_row("SELECT strftime('%Y-%m-%dT%H:%M:%fZ',max(julianday(ts))) FROM state_events WHERE tool_id=? AND substr(event_id,1,9)='evt_hook_'",[&id],|r|r.get(0))?;
         item["sessionCount"] = json!(count(db, &["running", "waiting_human"], Some(&id), None)?);
         item["ignored"] = json!(

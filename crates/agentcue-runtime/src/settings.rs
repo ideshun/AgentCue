@@ -126,6 +126,12 @@ pub fn validate(v: &Value) -> io::Result<()> {
         return Err(invalid());
     };
     for tool in tools {
+        if tool
+            .get("iconPath")
+            .is_some_and(|v| v.as_str().is_none_or(|s| s.len() > 4096))
+        {
+            return Err(invalid());
+        }
         if !tool["id"].as_str().is_some_and(|s| {
             !s.is_empty()
                 && s.bytes()

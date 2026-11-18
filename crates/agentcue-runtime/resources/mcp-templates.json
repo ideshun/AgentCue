@@ -86,6 +86,67 @@
     "commandReady": true
   },
   {
+    "id": "gemini-cli",
+    "name": "Gemini CLI",
+    "hint": "~/.gemini/settings.json 或项目 .gemini/settings.json",
+    "json": "{\n  \"mcpServers\": {\n    \"ai-workflow-monitor\": {\n      \"command\": \"/__AGENTCUE_EXECUTABLE__\",\n      \"args\": [\n        \"--mcp-stdio\"\n      ]\n    }\n  }\n}",
+    "format": "json",
+    "steps": [
+      "保持 AgentCue 桌面应用运行。",
+      "将 mcpServers 条目添加到 settings.json，保留已有设置。",
+      "重启 Gemini CLI，运行 /mcp 检查 AgentCue 连接及工具列表。",
+      "将配置合并进现有 MCP 配置，保留其他服务条目。",
+      "保存后在客户端刷新 MCP，确认出现 6 个 AgentCue 工具；在 AgentCue 中也可验证桥接。"
+    ],
+    "commandReady": true
+  },
+  {
+    "id": "qwen-code",
+    "name": "Qwen Code",
+    "hint": "~/.qwen/settings.json 或项目 .qwen/settings.json",
+    "json": "{\n  \"mcpServers\": {\n    \"ai-workflow-monitor\": {\n      \"command\": \"/__AGENTCUE_EXECUTABLE__\",\n      \"args\": [\n        \"--mcp-stdio\"\n      ]\n    }\n  }\n}",
+    "format": "json",
+    "steps": [
+      "保持 AgentCue 桌面应用运行。",
+      "将 mcpServers 条目添加到 settings.json，保留已有设置。",
+      "重启 Qwen Code，运行 /mcp 检查 AgentCue 连接及工具列表。",
+      "将配置合并进现有 MCP 配置，保留其他服务条目。",
+      "保存后在客户端刷新 MCP，确认出现 6 个 AgentCue 工具；在 AgentCue 中也可验证桥接。"
+    ],
+    "commandReady": true
+  },
+  {
+    "id": "opencode",
+    "name": "OpenCode",
+    "hint": "OpenCode 2：项目 opencode.jsonc 或 ~/.config/opencode/opencode.jsonc",
+    "json": "{\n  \"mcp\": {\n    \"servers\": {\n      \"ai-workflow-monitor\": {\n        \"type\": \"local\",\n        \"command\": [\n          \"/__AGENTCUE_EXECUTABLE__\",\n          \"--mcp-stdio\"\n        ]\n      }\n    }\n  }\n}",
+    "format": "json",
+    "steps": [
+      "保持 AgentCue 桌面应用运行。",
+      "本配置适用于 OpenCode 2，添加到 mcp.servers 下；不要使用旧版 mcp 平铺格式。",
+      "重新加载 OpenCode，运行 opencode mcp list 检查连接。",
+      "将配置合并进现有 MCP 配置，保留其他服务条目。",
+      "保存后在客户端刷新 MCP，确认出现 6 个 AgentCue 工具；在 AgentCue 中也可验证桥接。"
+    ],
+    "commandReady": true
+  },
+  {
+    "id": "deepseek-harness",
+    "name": "DeepSeek Harness",
+    "hint": "当前启用的 Cordis profile 插件列表（CLI 与桌面 profile 分别配置）",
+    "json": "- id: mcp-agentcue\n  name: '@deepseek-ai/dsh-mcp-client'\n  config:\n    serverName: agentcue\n    transport: stdio\n    command: \"/__AGENTCUE_EXECUTABLE__\"\n    args: [\"--mcp-stdio\"]\n",
+    "format": "yaml",
+    "steps": [
+      "保持 AgentCue 桌面应用运行。",
+      "将下方 YAML 条目添加到当前 profile 的插件列表，保留已有插件；不要整份覆盖配置。",
+      "确认已安装官方 @deepseek-ai/dsh-mcp-client 插件，重启对应 profile。",
+      "在客户端确认出现 mcp__agentcue__ 前缀的工具，再调用工具核验事件。",
+      "将配置合并进现有 MCP 配置，保留其他服务条目。",
+      "保存后在客户端刷新 MCP，确认出现 6 个 AgentCue 工具；在 AgentCue 中也可验证桥接。"
+    ],
+    "commandReady": true
+  },
+  {
     "id": "codex",
     "name": "Codex",
     "hint": "~/.codex/config.toml",

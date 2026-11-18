@@ -117,6 +117,104 @@ pub fn normalize(
         return Err("Hook 输入须为 JSON 对象".into());
     }
     match tool {
+        "opencode" => {
+            let phase = phase(value, explicit)?;
+            let kind = match phase {
+                "session.execution.started" => "task.started",
+                "session.execution.succeeded" => "task.completed",
+                "session.execution.failed" => "task.failed",
+                "session.execution.interrupted" => "task.cancelled",
+                "permission.asked" => "task.waiting_human",
+                "permission.replied" => "human.responded",
+                _ => return Ok(vec![]),
+            };
+            let native = required(value, "session_id")?;
+            let key = required(value, "event_id")?;
+            let time = required(value, "occurred_at")?;
+            timestamp(time)?;
+            Ok(vec![event(
+                tool,
+                kind,
+                format!("opencode:hooks:{}", digest(native)),
+                json!([tool, native, key]),
+                time,
+                None,
+            )])
+        }
+        "deepseek-harness" => {
+            let phase = phase(value, explicit)?;
+            let kind = match phase {
+                "turn/start" => "task.started",
+                "turn/end" => match value["reason"]["kind"].as_str() {
+                    Some("completed") => "task.completed",
+                    Some("aborted") => "task.cancelled",
+                    Some("error" | "max-tokens" | "blocked") => "task.failed",
+                    _ => return Ok(vec![]),
+                },
+                _ => return Ok(vec![]),
+            };
+            let native = required(value, "session_id")?;
+            let turn = value["turn"].as_u64().ok_or("缺少 turn")?;
+            let key = required(value, "event_id")?;
+            let time = required(value, "occurred_at")?;
+            timestamp(time)?;
+            Ok(vec![event(
+                tool,
+                kind,
+                format!("{tool}:hooks:{}:turn:{turn}", digest(native)),
+                json!([tool, native, key]),
+                time,
+                None,
+            )])
+        }
+        "gemini-cli" | "qwen-code" => {
+            let phase = phase(value, explicit)?;
+            let kind = match (tool, phase) {
+                ("gemini-cli", "BeforeAgent") => "task.started",
+                ("gemini-cli", "AfterAgent") if value["stop_hook_active"] != true => {
+                    "task.completed"
+                }
+                ("gemini-cli", "Notification")
+                    if value["notification_type"] == "ToolPermission" =>
+                {
+                    "task.waiting_human"
+                }
+                ("qwen-code", "UserPromptSubmit")
+                    if value["submitted_prompt"]
+                        .as_str()
+                        .is_some_and(|p| !p.trim().is_empty()) =>
+                {
+                    "task.started"
+                }
+                ("qwen-code", "StopFailure") => "task.failed",
+                ("qwen-code", "Stop") if value["stop_hook_active"] != true => "task.completed",
+                ("qwen-code", "Notification")
+                    if value["notification_type"] == "permission_prompt" =>
+                {
+                    "task.waiting_human"
+                }
+                _ => return Ok(vec![]),
+            };
+            let native = required(value, "session_id")?;
+            timestamp(received)?;
+            let titles = if kind == "task.started" {
+                let mut input = value.clone();
+                if tool == "qwen-code" {
+                    input["prompt"] = value["submitted_prompt"].clone();
+                }
+                title(&input)?
+            } else {
+                None
+            };
+            Ok(vec![event(
+                tool,
+                kind,
+                format!("{tool}:hooks:{}", digest(native)),
+                json!([tool, native, phase, value.get("event_id"), received]),
+                received,
+                titles,
+            )])
+        }
         "cursor" => {
             let phase = phase(value, explicit)?;
             if !["beforeSubmitPrompt", "preToolUse", "stop"].contains(&phase) {
@@ -304,6 +402,31 @@ pub fn parse(value: &Value) -> Result<Envelope, String> {
             "turn",
             vec!["task.started", "task.completed", "task.waiting_human"],
         ),
+        "opencode" => (
+            "session",
+            vec![
+                "task.started",
+                "task.completed",
+                "task.failed",
+                "task.cancelled",
+                "task.waiting_human",
+                "human.responded",
+            ],
+        ),
+        "deepseek-harness" | "gemini-cli" | "qwen-code" => (
+            if e.tool_id == "deepseek-harness" {
+                "turn"
+            } else {
+                "session"
+            },
+            vec![
+                "task.started",
+                "task.completed",
+                "task.waiting_human",
+                "task.failed",
+                "task.cancelled",
+            ],
+        ),
         "cursor" => (
             "turn",
             vec![
@@ -401,7 +524,8 @@ pub fn acknowledgment(tool: &str, phase: Option<&str>) -> Value {
 
 /// Task identity granularity declared by the supported native hook adapters.
 pub fn mode(event: &Event) -> &'static str {
-    if event.tool_id == "claude-code"
+    if (event.tool_id == "deepseek-harness" && event.session_id.contains(":turn:"))
+        || event.tool_id == "claude-code"
         || event.tool_id == "cursor"
         || (event.tool_id == "codebuddy" && event.session_id.contains(":turn:"))
     {

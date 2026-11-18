@@ -102,6 +102,25 @@ async fn desktop_feature(
 ) -> Result<Value, String> {
     let runtime = &host.services.runtime;
     match action.as_str() {
+        "read-tool-icon" => Ok(
+            json!({"icon":agentcue_runtime::icons::read(body["path"].as_str().ok_or("缺少图标路径")?)?}),
+        ),
+        "pick-tool-icon" => {
+            let (send, receive) = oneshot::channel();
+            app.dialog()
+                .file()
+                .set_title("选择工具图标")
+                .add_filter("图片", &["png", "jpg", "jpeg", "webp"])
+                .pick_file(move |path| {
+                    let _ = send.send(path);
+                });
+            let Some(path) = receive.await.map_err(|_| "文件选择器已关闭")? else {
+                return Ok(Value::Null);
+            };
+            let path = path.into_path().map_err(|_| "请选择本机图片")?;
+            let path = path.to_string_lossy();
+            Ok(json!({"path":path,"icon":agentcue_runtime::icons::read(&path)?}))
+        }
         "preferences" => Ok(crate::features::load(&runtime.config_dir)),
         "save-preferences" => crate::features::save(
             &runtime.config_dir,

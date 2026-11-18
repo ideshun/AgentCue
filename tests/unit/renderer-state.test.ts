@@ -16,6 +16,7 @@ function renderer(): vm.Context {
     clearTimeout,
     window: {
       location: { hash: '#/overview' },
+      addEventListener() {},
       setTimeout,
       clearTimeout,
       awm: { platform: 'darwin' },
@@ -259,17 +260,79 @@ describe('renderer settings', () => {
   });
 });
 
+describe('integration tool navigation', () => {
+  it('links to the matching integration and keeps query parameters out of the route name', () => {
+    const context = renderer();
+    evaluate(context, "window.location.hash = '#/integrations?tool=deepseek-harness'");
+    expect(evaluate(context, 'currentRoute()')).toBe('integrations');
+    expect(
+      evaluate(context, 'toolHookStatus({toolId:"deepseek-harness",hookSupported:true}, null)'),
+    ).toContain('href="#/integrations?tool=deepseek-harness">前往接入');
+  });
+  it('waits for the requested tool, expands Hooks, and scrolls only once', () => {
+    const context = renderer();
+    evaluate(
+      context,
+      `
+      state.route = 'integrations';
+      window.location.hash = '#/integrations?tool=deepseek-harness';
+      document.getElementById = () => null;
+      revealIntegrationTarget();
+      globalThis.jumpCount = 0;
+      globalThis.hookDetails = {open:false, dataset:{disclosureKey:"integration-deepseek-harness-hooks"}};
+      document.getElementById = id => id === 'integration-tool-deepseek-harness' ? {
+        querySelector: () => hookDetails,
+        scrollIntoView: () => jumpCount++
+      } : null;
+      revealIntegrationTarget();
+      revealIntegrationTarget();
+    `,
+    );
+    expect(evaluate(context, 'jumpCount')).toBe(1);
+    expect(evaluate(context, 'hookDetails.open')).toBe(true);
+    expect(evaluate(context, 'disclosureStates.get("integration-deepseek-harness-hooks")')).toBe(
+      true,
+    );
+  });
+});
+
 describe('renderer office', () => {
+  it('only assigns contiguous seats to detected installations or running tools', () => {
+    const context = officeFixture();
+    evaluate(
+      context,
+      `
+      state.tools = [
+        {toolId:'missing',name:'Missing',detectStatus:'not_installed'},
+        ...state.tools,
+        {toolId:'unknown',name:'Unknown',detectStatus:'unknown'},
+        {toolId:'configured',name:'Configured',detectStatus:'installed',ignored:true},
+        {toolId:'running',name:'Running',detectStatus:'running'}
+      ];
+    `,
+    );
+    expect(
+      plain(evaluate(context, 'officeEmployees(state).map(({tool,seat}) => [tool.toolId,seat])')),
+    ).toEqual([
+      ['demo', 1],
+      ['configured', 2],
+      ['running', 3],
+    ]);
+  });
+
   it('uses complete unread counts when the preview omits a waiting task', () => {
     const context = officeFixture();
-    evaluate(context, `
+    evaluate(
+      context,
+      `
       state.office.workstations[0].counts.running = 1;
       state.office.workstations[0].attentionTasks = Array.from({length: 5}, (_, i) => ({
         ...state.office.workstations[0].tasks[2], currentState: 'failed', sessionId: 'failed-' + i
       }));
       state.office.workstations[0].attentionCount = 6;
       state.office.workstations[0].attentionCounts = {waiting_human: 1, failed: 5, timeout: 0};
-    `);
+    `,
+    );
     expect(evaluate(context, 'officeEmployees(state)[0].status')).toBe('waiting');
     expect(evaluate(context, 'officeNeedsAttention(officeEmployees(state)[0])')).toBe(true);
   });
@@ -692,6 +755,24 @@ describe('renderer hook integrations', () => {
     enabled: true,
     capabilityReason: '开始与结束事件；等待确认尚未验证。',
   };
+
+  it('shows only supported connection methods and preserves load errors', () => {
+    const context = renderer();
+    evaluate(
+      context,
+      `state.mcpSnippets = [{id:'desktop',name:'Desktop',json:'{}',hint:'Connect'}]`,
+    );
+    const mcpOnly = evaluate<string>(context, 'renderIntegrations(state)');
+    expect(mcpOnly).not.toContain('data-disclosure-key="integration-desktop-hooks"');
+    expect(mcpOnly).toContain('data-disclosure-key="integration-desktop-mcp"');
+    context.integrationFixture = structuredClone(integration);
+    evaluate(context, 'state.mcpSnippets = []; state.hookIntegrations = [integrationFixture]');
+    expect(evaluate<string>(context, 'renderIntegrations(state)')).not.toContain(
+      'data-disclosure-key="integration-cline-mcp"',
+    );
+    evaluate(context, `state.sectionErrors.snippets = 'Failed to load'`);
+    expect(evaluate<string>(context, 'renderIntegrations(state)')).toContain('MCP 配置未能加载');
+  });
 
   it('distinguishes waiting, historical receipt, paused reception and an unavailable entry', () => {
     const context = renderer();

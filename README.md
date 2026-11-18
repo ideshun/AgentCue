@@ -11,16 +11,18 @@
 
 AgentCue 是一款本地优先的 AI 编码任务监控桌面应用。将多个工具的任务集中到看板和动画办公室，在任务开始、需要确认、任务完成时按你的规则提醒，减少反复切换窗口。
 
+更多工具的接入方式和自定义图标见[接入说明](docs/integrations/extended-tools.md)。
+
 ## 下载与安装
 
-从 [Releases](https://github.com/ideshun/AgentCue/releases) 下载对应安装包。当前正式版为 **v1.0.2**，基于 Rust + Tauri 2。
+从 [Releases](https://github.com/ideshun/AgentCue/releases) 下载对应安装包。当前正式版为 **v1.0.3**，基于 Rust + Tauri 2。
 
 | 系统 | 安装包 |
 | --- | --- |
-| macOS · Apple 芯片 | `AgentCue_1.0.2_aarch64.dmg` |
-| macOS · Intel | `AgentCue_1.0.2_x64.dmg` |
-| Windows · x64 | `AgentCue_1.0.2_x64-setup.exe` |
-| Linux · x64 | `AgentCue_1.0.2_amd64.deb` 或 `AgentCue_1.0.2_amd64.AppImage` |
+| macOS · Apple 芯片 | `AgentCue_1.0.3_aarch64.dmg` |
+| macOS · Intel | `AgentCue_1.0.3_x64.dmg` |
+| Windows · x64 | `AgentCue_1.0.3_x64-setup.exe` |
+| Linux · x64 | `AgentCue_1.0.3_amd64.deb` 或 `AgentCue_1.0.3_amd64.AppImage` |
 
 macOS 将应用拖入「应用程序」后启动；Windows 运行安装程序；Linux 给 AppImage 添加执行权限后运行。安装版自带运行环境，无需安装 Node.js、pnpm 或拉取源码。
 
@@ -44,6 +46,15 @@ macOS 将应用拖入「应用程序」后启动；Windows 运行安装程序；
 | Cursor 自带 Agent | 官方 Hooks | `AskQuestion` 调用 |
 | Cursor 中的 Cline | 扩展安装识别 + 官方 Hooks；历史索引另列 | 以实际提供的 Hook 事件为准 |
 | Cursor 中的 CodeBuddy | 扩展安装识别 + 官方 Hooks | 以实际提供的 Hook 事件为准 |
+
+v1.0.3 新增以下接入，并提供对应 MCP 配置指引：
+
+| 工具 | 任务事件来源 | 需要确认提醒 |
+| --- | --- | --- |
+| DeepSeek Harness | 本地插件，提交后的 turn 边界 | 暂不推断 |
+| OpenCode 2 | 原生插件，execution 结果事件 | permission.asked / replied |
+| Gemini CLI | BeforeAgent / AfterAgent Hooks | ToolPermission 通知 |
+| Qwen Code | submitted_prompt / Stop / StopFailure Hooks | permission_prompt 通知 |
 
 **识别已安装、MCP 连通与任务播报接入是不同能力。** 仅识别安装或配置 MCP 不会凭空产生任务事件；请按工具完成 Hooks 配置。历史快照不计作正在执行的任务，缺少状态时显示未知。
 
@@ -70,7 +81,7 @@ macOS 将应用拖入「应用程序」后启动；Windows 运行安装程序；
 
 ## 安装包体积与语音模型
 
-v1.0.2 使用 Rust + Tauri 2 和系统 WebView，不再把 Chromium 与 Node.js 打进安装包；各平台的实际下载大小见 Release 附件。安装包仍包含本地 TTS 推理运行库，Kokoro / ZipVoice 模型由用户在应用中主动下载，不随包分发。v0.2.0 的 Electron 安装包继续保留在旧版 Releases 中。
+v1.0.3 使用 Rust + Tauri 2 和系统 WebView，不再把 Chromium 与 Node.js 打进安装包；各平台的实际下载大小见 Release 附件。安装包仍包含本地 TTS 推理运行库，Kokoro / ZipVoice 模型由用户在应用中主动下载，不随包分发。v0.2.0 的 Electron 安装包继续保留在旧版 Releases 中。
 
 全部插画原稿、历史版本和设计说明仍保留在仓库中，只是不进入应用包。编译源码、中间文件和未使用的插画版本也不会打进安装包。
 

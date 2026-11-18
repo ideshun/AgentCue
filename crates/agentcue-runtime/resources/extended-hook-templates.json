@@ -1,0 +1,80 @@
+[
+  {
+    "id": "gemini-cli",
+    "name": "Gemini CLI",
+    "files": [
+      {
+        "path": "~/.gemini/settings.json",
+        "content": "{\n  \"hooks\": {\n    \"BeforeAgent\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"'/__AGENTCUE_EXECUTABLE__' '--tool-hook' 'gemini-cli'\",\n            \"timeout\": 10\n          }\n        ]\n      }\n    ],\n    \"AfterAgent\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"'/__AGENTCUE_EXECUTABLE__' '--tool-hook' 'gemini-cli'\",\n            \"timeout\": 10\n          }\n        ]\n      }\n    ],\n    \"Notification\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"'/__AGENTCUE_EXECUTABLE__' '--tool-hook' 'gemini-cli'\",\n            \"timeout\": 10\n          }\n        ],\n        \"matcher\": \"ToolPermission\"\n      }\n    ]\n  }\n}"
+      }
+    ],
+    "steps": [
+      "保持 AgentCue 运行，启用来源读取。",
+      "将 hooks 合并到已有配置，保留其他设置和 Hooks；重启工具并发起一个新任务验证。"
+    ],
+    "capabilityReason": "BeforeAgent / AfterAgent 表示一轮请求的开始与结束；仅 ToolPermission 通知表示等待确认，不推断失败。",
+    "commandReady": false,
+    "lastEventAt": null,
+    "enabled": true
+  },
+  {
+    "id": "qwen-code",
+    "name": "Qwen Code",
+    "files": [
+      {
+        "path": "~/.qwen/settings.json",
+        "content": "{\n  \"hooks\": {\n    \"UserPromptSubmit\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"'/__AGENTCUE_EXECUTABLE__' '--tool-hook' 'qwen-code'\",\n            \"timeout\": 10\n          }\n        ]\n      }\n    ],\n    \"Stop\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"'/__AGENTCUE_EXECUTABLE__' '--tool-hook' 'qwen-code'\",\n            \"timeout\": 10\n          }\n        ]\n      }\n    ],\n    \"StopFailure\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"'/__AGENTCUE_EXECUTABLE__' '--tool-hook' 'qwen-code'\",\n            \"timeout\": 10\n          }\n        ]\n      }\n    ],\n    \"Notification\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"'/__AGENTCUE_EXECUTABLE__' '--tool-hook' 'qwen-code'\",\n            \"timeout\": 10\n          }\n        ],\n        \"matcher\": \"permission_prompt\"\n      }\n    ]\n  }\n}"
+      }
+    ],
+    "steps": [
+      "保持 AgentCue 运行，启用来源读取。",
+      "将 hooks 合并到已有配置，保留其他设置和 Hooks；重启工具并发起一个新任务验证。"
+    ],
+    "capabilityReason": "仅带 submitted_prompt 的 UserPromptSubmit 记为开始，避免将续跑记为新任务；老版本可能缺少开始事件。Stop 表示响应结束，不保证用户目标已完成。permission_prompt 表示等待确认，StopFailure 表示失败。",
+    "commandReady": false,
+    "lastEventAt": null,
+    "enabled": true
+  },
+  {
+    "id": "deepseek-harness",
+    "name": "DeepSeek Harness",
+    "files": [
+      {
+        "path": "./agentcue.mjs",
+        "content": "import { spawn } from 'node:child_process';\nexport const name = 'agentcue';\nexport const inject = ['sessions'];\nexport function apply(ctx) {\n  ctx.on('session/event', (session, event) => {\n    if (!['turn/start', 'turn/end'].includes(event.type)) return;\n    const child = spawn(__AGENTCUE_EXECUTABLE_JSON__, ['--tool-hook', 'deepseek-harness'], { stdio: ['pipe','ignore','ignore'], windowsHide: true });\n    const timer = setTimeout(() => child.kill(), 2000);\n    child.on('error', () => clearTimeout(timer));\n    child.on('exit', () => clearTimeout(timer));\n    child.stdin.on('error', () => {});\n    child.stdin.end(JSON.stringify({session_id: session.id, hook_event_name:event.type,\n      turn:event.data.turn, reason:event.data.reason, event_id:String(event.seq),\n      occurred_at:new Date(event.time).toISOString()}));\n  });\n}\n"
+      },
+      {
+        "path": "./cordis.patch.yml（合并到当前启用的 profile 配置）",
+        "content": "- name: ./agentcue.mjs\n"
+      }
+    ],
+    "steps": [
+      "将 agentcue.mjs 保存到当前配置目录；在当前启用的 profile 插件列表中添加本地模块路径，保留已有插件。",
+      "插件监听提交后的 session/event，不使用兼容桥的 Stop 判断成功。",
+      "重启 DeepSeek Harness，运行一个新任务验证；CLI 与桌面 profile 需分别启用插件。"
+    ],
+    "capabilityReason": "原生插件接收 turn/start、turn/end：区分完成、取消、失败和截断；当前不推断等待确认，也不读取对话正文。",
+    "commandReady": false,
+    "lastEventAt": null,
+    "enabled": true
+  },
+  {
+    "id": "opencode",
+    "name": "OpenCode",
+    "files": [
+      {
+        "path": "~/.config/opencode/plugins/agentcue.js",
+        "content": "import { Plugin } from '@opencode/plugin';\nimport { spawn } from 'node:child_process';\nconst types = ['session.execution.started','session.execution.succeeded','session.execution.failed','session.execution.interrupted','permission.asked','permission.replied'];\nfunction deliver(event) {\n  return new Promise(resolve => {\n    const child = spawn(__AGENTCUE_EXECUTABLE_JSON__, ['--tool-hook','opencode'], {stdio:['pipe','ignore','ignore'],windowsHide:true});\n    const timer = setTimeout(() => child.kill(), 2000);\n    const done = () => { clearTimeout(timer); resolve(); };\n    child.on('error',done); child.on('exit',done); child.stdin.on('error',() => {});\n    child.stdin.end(JSON.stringify({hook_event_name:event.type,session_id:event.data.sessionID,\n      event_id:event.id,occurred_at:new Date(event.created).toISOString()}));\n  });\n}\nexport default Plugin.define({\n  id:'agentcue',\n  setup(ctx) {\n    const controller = new AbortController();\n    void (async () => {\n      try {\n        for await (const event of ctx.event.subscribe({types,signal:controller.signal})) await deliver(event);\n      } catch (error) { if (!controller.signal.aborted) console.warn('AgentCue event observer stopped'); }\n    })();\n    return () => controller.abort();\n  },\n});\n"
+      }
+    ],
+    "steps": [
+      "适用于 OpenCode 2 的 @opencode/plugin 接口。",
+      "将插件保存到全局配置目录 plugins/agentcue.js，或项目的 .opencode/plugins/agentcue.js；启用后重新加载。",
+      "保持 AgentCue 运行，开启来源读取；执行新任务验证。"
+    ],
+    "capabilityReason": "使用 execution 的明确开始、成功、失败、取消事件；permission.asked / replied 表示等待确认和恢复，不将 session.idle 当作成功。",
+    "commandReady": false,
+    "lastEventAt": null,
+    "enabled": true
+  }
+]

@@ -231,5 +231,114 @@
       "name": "Cursor",
       "mode": "turn"
     }
+  },
+  {
+    "id": "deepseek-harness",
+    "name": "DeepSeek Harness",
+    "sessionCapability": "detect-only",
+    "capabilityReason": "安装识别与任务事件接入分别显示；配置接入后运行新任务验证。",
+    "detect": {
+      "configPaths": [
+        {
+          "mac": "~/.dsh",
+          "win": "%USERPROFILE%/.dsh",
+          "linux": "~/.dsh"
+        }
+      ],
+      "processNames": [
+        "DeepSeek Harness",
+        "dsh"
+      ],
+      "apis": []
+    },
+    "sessionSource": {
+      "type": "none"
+    },
+    "eventMapping": {},
+    "heartbeat": {
+      "intervalSec": 60,
+      "probe": "file_mtime"
+    }
+  },
+  {
+    "id": "gemini-cli",
+    "name": "Gemini CLI",
+    "sessionCapability": "detect-only",
+    "capabilityReason": "安装识别与任务事件接入分别显示；配置接入后运行新任务验证。",
+    "detect": {
+      "configPaths": [
+        {
+          "mac": "~/.gemini",
+          "win": "%USERPROFILE%/.gemini",
+          "linux": "~/.gemini"
+        }
+      ],
+      "processNames": [
+        "gemini"
+      ],
+      "apis": []
+    },
+    "sessionSource": {
+      "type": "none"
+    },
+    "eventMapping": {},
+    "heartbeat": {
+      "intervalSec": 60,
+      "probe": "file_mtime"
+    }
+  },
+  {
+    "id": "opencode",
+    "name": "OpenCode",
+    "sessionCapability": "detect-only",
+    "capabilityReason": "安装识别与任务事件接入分别显示；配置接入后运行新任务验证。",
+    "detect": {
+      "configPaths": [
+        {
+          "mac": "~/.config/opencode",
+          "win": "%USERPROFILE%/.config/opencode",
+          "linux": "~/.config/opencode"
+        }
+      ],
+      "processNames": [
+        "opencode"
+      ],
+      "apis": []
+    },
+    "sessionSource": {
+      "type": "none"
+    },
+    "eventMapping": {},
+    "heartbeat": {
+      "intervalSec": 60,
+      "probe": "file_mtime"
+    }
+  },
+  {
+    "id": "qwen-code",
+    "name": "Qwen Code",
+    "sessionCapability": "detect-only",
+    "capabilityReason": "安装识别与任务事件接入分别显示；配置接入后运行新任务验证。",
+    "detect": {
+      "configPaths": [
+        {
+          "mac": "~/.qwen",
+          "win": "%USERPROFILE%/.qwen",
+          "linux": "~/.qwen"
+        }
+      ],
+      "processNames": [
+        "qwen"
+      ],
+      "apis": []
+    },
+    "sessionSource": {
+      "type": "none"
+    },
+    "eventMapping": {},
+    "heartbeat": {
+      "intervalSec": 60,
+      "probe": "file_mtime"
+    }
   }
 ]

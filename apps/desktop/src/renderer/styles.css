@@ -559,14 +559,14 @@ html[data-platform='darwin'] .rail-titlebar {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: var(--control-h);
-  padding: 0 16px;
+  min-height: 36px;
+  padding: 7px 14px;
   border: 1px solid var(--border-strong);
   border-radius: 9px;
   background: var(--surface);
-  font-size: var(--fs-sm);
+  font-size: var(--fs-md);
   font-weight: 500;
-  line-height: 1;
+  line-height: 20px;
   white-space: nowrap;
   transition:
     background 0.16s var(--ease),
@@ -607,8 +607,9 @@ html[data-platform='darwin'] .rail-titlebar {
 }
 .btn-small {
   min-height: var(--control-h-sm);
-  padding: 0 10px;
-  font-size: var(--fs-xs);
+  padding: 5px 10px;
+  font-size: var(--fs-sm);
+  line-height: 18px;
 }
 .btn[aria-busy='true'] {
   position: relative;
@@ -950,6 +951,11 @@ input[type='number'] {
   border-radius: var(--radius);
   background: var(--surface);
 }
+/* The panel owns the outer inset; terminal list rows must not add another one. */
+.panel > :is(.adapter, .tool-row, .notice):last-child {
+  padding-bottom: 0;
+}
+
 .section-head {
   display: flex;
   align-items: center;
@@ -1488,15 +1494,26 @@ button.task-open:hover .session-title {
 }
 .custom-form {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin-bottom: 18px;
+  gap: 12px;
 }
-.custom-form #custom-path {
-  grid-column: 1;
+.custom-form + .tool-row {
+  margin-top: 16px;
 }
-.custom-form button {
-  justify-self: start;
+.custom-form-row {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr);
+  align-items: start;
+  column-gap: 16px;
+}
+.custom-form-row > label {
+  padding-top: 8px;
+  color: var(--text-soft);
+}
+.custom-form-row > input {
+  width: 100%;
+}
+.custom-form-actions {
+  padding-left: 0;
 }
 
 /* ── 表单布局 ─────────────────────────────────────────── */
@@ -2275,14 +2292,31 @@ button.task-open:hover .session-title {
 /* ── 通知中心 ─────────────────────────────────────────── */
 .notice {
   display: grid;
-  grid-template-columns: 6px minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
   gap: 14px;
   border-top: 1px solid var(--border);
   padding: 10px 0;
 }
+.notice-content {
+  min-width: 0;
+}
+.notice-actions {
+  display: grid;
+  grid-template-columns: 84px 46px;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--control-h-sm);
+}
+.notice-actions .notice-view {
+  grid-column: 2;
+  color: var(--accent-text);
+}
+.notice-actions [data-read-notice] {
+  grid-column: 1;
+}
 .notice-dot {
-  margin-top: 7px;
+  flex: none;
   width: 6px;
   height: 6px;
   border-radius: 50%;
@@ -2296,7 +2330,10 @@ button.task-open:hover .session-title {
 }
 .notice-meta {
   display: flex;
-  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  min-height: var(--control-h-sm);
+  gap: 6px 10px;
   margin-bottom: 4px;
   color: var(--muted);
   font-size: 11px;
@@ -2309,7 +2346,7 @@ button.task-open:hover .session-title {
   line-height: 1.45;
 }
 .notice p {
-  margin: 0 0 6px;
+  margin: 0;
   color: var(--text-soft);
   font-size: var(--fs-sm);
   overflow-wrap: anywhere;
@@ -2713,22 +2750,19 @@ button.task-open:hover .session-title {
     --view-pad-x: 16px;
     padding-inline: 16px;
   }
-  .custom-form {
+  .custom-form-row {
     grid-template-columns: minmax(0, 1fr);
+    row-gap: 6px;
   }
-  .custom-form #custom-path {
-    grid-column: auto;
+  .custom-form-row > label {
+    padding-top: 0;
+  }
+  .custom-form-actions {
+    padding-left: 0;
   }
   .adapter .tool-icon {
     width: 28px;
     height: 28px;
-  }
-  .notice {
-    grid-template-columns: 5px minmax(0, 1fr);
-  }
-  .notice > .btn {
-    grid-column: 2;
-    justify-self: start;
   }
   .integration-method-body {
     padding-left: 20px;
@@ -2970,4 +3004,26 @@ button.task-open:hover .session-title {
     left: auto;
     right: 0;
   }
+}
+
+.custom-icon-picker {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.custom-icon-picker input {
+  flex: 1;
+  min-width: min(260px, 100%);
+}
+.custom-icon-picker [role='status']:empty {
+  display: none;
+}
+.custom-icon-picker [role='status']:not(:empty) {
+  flex-basis: 100%;
+}
+.custom-icon-picker img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
 }

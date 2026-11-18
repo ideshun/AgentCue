@@ -90,6 +90,7 @@ interface ToolSummary extends CoreToolSummary {
   hookLastEventAt?: string | null;
   /** 真实应用图标（data URL 或本机 API 地址）；缺失时不显示占位符。 */
   icon?: string | null;
+  iconError?: string;
 }
 interface HookIntegration {
   id: string;
@@ -128,7 +129,7 @@ interface McpSnippet {
   name: string;
   hint: string;
   json: string;
-  format?: 'json' | 'toml';
+  format?: 'json' | 'toml' | 'yaml';
   steps?: string[];
   commandReady?: boolean;
 }

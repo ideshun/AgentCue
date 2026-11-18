@@ -18,6 +18,7 @@ export const customToolSchema = z.object({
     .regex(/^[a-z0-9-]+$/, 'id 仅允许小写字母、数字与连字符'),
   name: z.string().min(1),
   configPath: z.string().min(1),
+  iconPath: z.string().max(4096).optional(),
 });
 
 /** 自定义工具类型 */

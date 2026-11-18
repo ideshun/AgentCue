@@ -169,3 +169,55 @@ async fn privacy_and_failed_transactions_leave_no_receipts_or_synthetic_side_eff
     assert!(f.drain().is_empty());
     f.close();
 }
+
+#[tokio::test]
+async fn extended_protocols_reach_the_same_task_store_and_keep_turns_separate() {
+    let f = Fixture::new();
+    for (tool, start, end) in [
+        ("gemini-cli", "BeforeAgent", "AfterAgent"),
+        ("qwen-code", "UserPromptSubmit", "Stop"),
+    ] {
+        let started=f.send(tool,json!({"hook_event_name":start,"session_id":"fixture","prompt":"检查代码","submitted_prompt":"检查代码"}),T0).await;
+        let ended = f
+            .send(
+                tool,
+                json!({"hook_event_name":end,"session_id":"fixture"}),
+                T1,
+            )
+            .await;
+        assert_eq!(started["sessionId"], ended["sessionId"]);
+        assert_eq!(ended["accepted"], true);
+    }
+    for turn in [1, 2] {
+        for (phase, seq, time) in [("turn/start", 1, T0), ("turn/end", 2, T1)] {
+            let result=f.send("deepseek-harness",json!({"session_id":"fixture","turn":turn,"event_id":format!("{turn}-{seq}"),"occurred_at":time,"hook_event_name":phase,"reason":{"kind":"completed"}}),time).await;
+            assert_eq!(result["accepted"], true);
+        }
+    }
+    for (i, phase) in [
+        "session.execution.started",
+        "permission.asked",
+        "permission.replied",
+        "session.execution.succeeded",
+    ]
+    .iter()
+    .enumerate()
+    {
+        let time = format!("2026-11-08T00:00:0{i}.000Z");
+        let result=f.send("opencode",json!({"session_id":"fixture","event_id":format!("event-{i}"),"occurred_at":time,"hook_event_name":phase}),&time).await;
+        assert_eq!(result["accepted"], true);
+    }
+    let count: i64 = f
+        .runtime
+        .db
+        .lock()
+        .unwrap()
+        .query_row(
+            "SELECT count(*) FROM sessions WHERE current_state='completed'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(count, 5);
+    f.close();
+}

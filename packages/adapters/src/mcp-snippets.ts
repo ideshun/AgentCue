@@ -5,7 +5,7 @@ export interface McpSnippet {
   hint: string;
   /** Kept for existing consumers; format indicates JSON versus TOML. */
   json: string;
-  format: 'json' | 'toml';
+  format: 'json' | 'toml' | 'yaml';
   steps: string[];
   commandReady: boolean;
 }
@@ -35,7 +35,7 @@ export function mcpSnippets(launch: string | McpLaunchConfig = 'awm-mcp'): McpSn
     hint: string,
     text: string,
     steps: string[],
-    format: 'json' | 'toml' = 'json',
+    format: 'json' | 'toml' | 'yaml' = 'json',
   ): McpSnippet => ({
     id,
     name,
@@ -105,6 +105,51 @@ export function mcpSnippets(launch: string | McpLaunchConfig = 'awm-mcp'): McpSn
       '.vscode/mcp.json',
       json({ servers: { 'ai-workflow-monitor': server } }),
       ['在项目的 .vscode/mcp.json 中添加 servers 条目。', '从 MCP 服务列表启动并信任 AgentCue。'],
+    ),
+    ...(['gemini-cli', 'qwen-code'] as const).map((id) => {
+      const gemini = id === 'gemini-cli';
+      return define(
+        id,
+        gemini ? 'Gemini CLI' : 'Qwen Code',
+        gemini
+          ? '~/.gemini/settings.json 或项目 .gemini/settings.json'
+          : '~/.qwen/settings.json 或项目 .qwen/settings.json',
+        json({
+          mcpServers: { 'ai-workflow-monitor': { command: server.command, args: server.args } },
+        }),
+        [
+          '将 mcpServers 条目添加到 settings.json，保留已有设置。',
+          `重启 ${gemini ? 'Gemini CLI' : 'Qwen Code'}，运行 /mcp 检查 AgentCue 连接及工具列表。`,
+        ],
+      );
+    }),
+    define(
+      'opencode',
+      'OpenCode',
+      'OpenCode 2：项目 opencode.jsonc 或 ~/.config/opencode/opencode.jsonc',
+      json({
+        mcp: {
+          servers: {
+            'ai-workflow-monitor': { type: 'local', command: [server.command, ...server.args] },
+          },
+        },
+      }),
+      [
+        '本配置适用于 OpenCode 2，添加到 mcp.servers 下；不要使用旧版 mcp 平铺格式。',
+        '重新加载 OpenCode，运行 opencode mcp list 检查连接。',
+      ],
+    ),
+    define(
+      'deepseek-harness',
+      'DeepSeek Harness',
+      '当前启用的 Cordis profile 插件列表（CLI 与桌面 profile 分别配置）',
+      `- id: mcp-agentcue\n  name: '@deepseek-ai/dsh-mcp-client'\n  config:\n    serverName: agentcue\n    transport: stdio\n    command: ${JSON.stringify(server.command)}\n    args: ${JSON.stringify(server.args)}\n`,
+      [
+        '将下方 YAML 条目添加到当前 profile 的插件列表，保留已有插件；不要整份覆盖配置。',
+        '确认已安装官方 @deepseek-ai/dsh-mcp-client 插件，重启对应 profile。',
+        '在客户端确认出现 mcp__agentcue__ 前缀的工具，再调用工具核验事件。',
+      ],
+      'yaml',
     ),
     define(
       'codex',

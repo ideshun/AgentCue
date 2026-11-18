@@ -33,6 +33,12 @@
     respondClose: (requestId, proceed) => void invoke('respond_close', { requestId, proceed }),
     showWindow: () => invoke('show_window'),
   });
+  void event.listen('tauri://drag-drop', ({ payload }) => {
+    const target = document.elementFromPoint(payload.position.x / devicePixelRatio, payload.position.y / devicePixelRatio);
+    if (target?.closest('[data-icon-drop]')) {
+      window.dispatchEvent(new CustomEvent('agentcue-icon-drop', { detail: payload.paths }));
+    }
+  });
   document.addEventListener('click', (click) => {
     const anchor = click.target instanceof Element && click.target.closest('a[target="_blank"]');
     if (!anchor || !/^https?:/.test(anchor.href)) return;

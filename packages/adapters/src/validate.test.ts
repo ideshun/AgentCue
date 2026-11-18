@@ -34,7 +34,7 @@ describe('validateManifestText', () => {
 });
 
 describe('mcpSnippets', () => {
-  it('覆盖客户端配置并区分 JSON 与 TOML', () => {
+  it('覆盖客户端配置并区分 JSON、TOML 与 YAML', () => {
     const snippets = mcpSnippets();
     expect(snippets.map((item) => item.id).sort()).toEqual([
       'claude-code',
@@ -43,11 +43,17 @@ describe('mcpSnippets', () => {
       'codebuddy',
       'codex',
       'cursor',
+      'deepseek-harness',
+      'gemini-cli',
+      'opencode',
+      'qwen-code',
       'vscode',
     ]);
     for (const snippet of snippets) {
       if (snippet.format === 'json') expect(() => JSON.parse(snippet.json)).not.toThrow();
-      else expect(snippet.json).toContain('[mcp_servers.ai-workflow-monitor]');
+      else if (snippet.format === 'toml')
+        expect(snippet.json).toContain('[mcp_servers.ai-workflow-monitor]');
+      else expect(snippet.json).toContain("name: '@deepseek-ai/dsh-mcp-client'");
     }
   });
 });

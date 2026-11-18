@@ -30,3 +30,5 @@ pub mod hooks;
 pub mod hook_cli;
 
 pub mod voice;
+
+pub mod icons;

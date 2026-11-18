@@ -112,7 +112,7 @@ const ROUTE_META: Record<RouteName, { title: string; subtitle: string }> = {
 };
 
 function currentRoute(): RouteName {
-  const raw = window.location.hash.replace(/^#\/?/, '');
+  const raw = window.location.hash.replace(/^#\/?/, '').split('?')[0];
   return raw === 'board' ||
     raw === 'office' ||
     raw === 'integrations' ||
@@ -585,6 +585,26 @@ function render(force = false): void {
   renderChrome();
   applyPending();
   if (state.route === 'office') positionOfficePopover();
+  revealIntegrationTarget();
+}
+
+let revealedIntegrationHash = '';
+
+/** @description: Wait for async tool regions, then open and reveal the requested tool once. */
+function revealIntegrationTarget(): void {
+  const hash = window.location.hash;
+  if (state.route !== 'integrations' || revealedIntegrationHash === hash) return;
+  const toolId = new URLSearchParams(hash.split('?')[1] ?? '').get('tool');
+  if (!toolId) return;
+  const section = document.getElementById(`integration-tool-${toolId}`);
+  if (!section) return;
+  const hooks = section.querySelector<HTMLDetailsElement>('details.integration-method');
+  if (hooks) {
+    hooks.open = true;
+    disclosureStates.set(hooks.dataset.disclosureKey ?? `integration-${toolId}-hooks`, true);
+  }
+  section.scrollIntoView({ block: 'start' });
+  revealedIntegrationHash = hash;
 }
 
 let settingsSectionId = '';
@@ -2216,24 +2236,44 @@ function bindEvents(): void {
             ranges: [...(workingSettings()?.quiet.ranges ?? []), { from: '22:30', to: '08:30' }],
           },
         });
+      } else if (action === 'pick-custom-icon') {
+        const result = (await desktopFeature('pick-tool-icon')) as { path: string } | null;
+        if (result) setCustomIcon(result.path);
+      } else if (action === 'clear-custom-icon') {
+        setCustomIcon('');
       } else if (action === 'add-custom-tool') {
         const id = inputValue('custom-id'),
           name = inputValue('custom-name'),
-          configPath = inputValue('custom-path');
+          configPath = inputValue('custom-path'),
+          iconPath = inputValue('custom-icon');
+        if (iconPath) await desktopFeature('read-tool-icon', { path: iconPath });
         if (!id || !name || !configPath) throw new Error('请填写工具 ID、显示名和路径');
-        if (state.settings?.scan.customTools.some((tool) => tool.id === id))
+        if (customEditingId && customEditingId !== id) throw new Error('编辑时不能修改工具 ID');
+        if (state.adapters.some((adapter) => adapter.id === id))
+          throw new Error('工具 ID 不能与内置工具重复');
+        if (
+          state.settings?.scan.customTools.some((tool) => tool.id === id) &&
+          customEditingId !== id
+        )
           throw new Error('该工具 ID 已存在');
         await saveSettings(() => ({
           scan: {
-            customTools: [...(state.settings?.scan.customTools ?? []), { id, name, configPath }],
+            customTools: [
+              ...(state.settings?.scan.customTools ?? []).filter((t) => t.id !== customEditingId),
+              { id, name, configPath, ...(iconPath ? { iconPath } : {}) },
+            ],
           },
         }));
-        for (const key of ['custom-id', 'custom-name', 'custom-path'])
+        for (const key of ['custom-id', 'custom-name', 'custom-path', 'custom-icon'])
           routeDrafts('adapters').delete(key);
-        for (const key of ['custom-id', 'custom-name', 'custom-path']) {
+        for (const key of ['custom-id', 'custom-name', 'custom-path', 'custom-icon']) {
           const input = document.getElementById(key);
           if (input instanceof HTMLInputElement) input.value = '';
         }
+        customEditingId = null;
+        setCustomIcon('');
+        const idInput = document.getElementById('custom-id');
+        if (idInput instanceof HTMLInputElement) idInput.readOnly = false;
         await window.awm?.scanNow();
         await refresh();
       } else if (action === 'copy-mcp') {
@@ -2583,6 +2623,7 @@ function bindEvents(): void {
     }
   });
   window.addEventListener('hashchange', () => {
+    revealedIntegrationHash = '';
     // 还原 hash 时触发的那次事件：已经停在设置页，不需要重新加载。
     if (restoringHash) {
       restoringHash = false;
@@ -2725,3 +2766,72 @@ if (document.readyState === 'loading')
     void main();
   });
 else void main();
+
+let customEditingId: string | null = null;
+let customIconRequest = 0;
+async function previewCustomIcon(path: string): Promise<void> {
+  const request = ++customIconRequest;
+  const image = document.getElementById('custom-icon-preview') as HTMLImageElement | null;
+  const error = document.getElementById('custom-icon-error');
+  if (image) image.hidden = true;
+  if (error) error.textContent = '';
+  if (!path) return;
+  try {
+    const result = (await desktopFeature('read-tool-icon', { path })) as { icon: string };
+    if (request !== customIconRequest) return;
+    if (image) {
+      image.onerror = () => {
+        image.hidden = true;
+        if (error) error.textContent = '图片无法解码，请选择其他图片';
+      };
+      image.src = result.icon;
+      image.hidden = false;
+    }
+  } catch (e) {
+    if (request === customIconRequest && error)
+      error.textContent = String(e instanceof Error ? e.message : e);
+  }
+}
+function setCustomIcon(path: string): void {
+  const input = document.getElementById('custom-icon');
+  if (!(input instanceof HTMLInputElement)) return;
+  input.value = path;
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  void previewCustomIcon(path);
+}
+window.addEventListener('agentcue-icon-drop', (event) => {
+  const paths = (event as CustomEvent<string[]>).detail;
+  if (paths.length !== 1) {
+    toast('请一次拖入一张图片');
+    return;
+  }
+  setCustomIcon(paths[0]);
+});
+document.addEventListener('change', (event) => {
+  const input = event.target;
+  if (input instanceof HTMLInputElement && input.id === 'custom-icon')
+    void previewCustomIcon(input.value.trim());
+});
+document.addEventListener('click', (event) => {
+  const node =
+    event.target instanceof Element
+      ? event.target.closest<HTMLElement>('[data-edit-custom]')
+      : null;
+  const tool = state.settings?.scan.customTools.find((t) => t.id === node?.dataset.editCustom);
+  if (!tool) return;
+  customEditingId = tool.id;
+  for (const [id, value] of [
+    ['custom-id', tool.id],
+    ['custom-name', tool.name],
+    ['custom-path', tool.configPath],
+  ]) {
+    const input = document.getElementById(id);
+    if (input instanceof HTMLInputElement) {
+      input.value = value;
+      if (id === 'custom-id') input.readOnly = true;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  }
+  setCustomIcon(tool.iconPath ?? '');
+  document.getElementById('custom-name')?.focus();
+});
