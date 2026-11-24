@@ -78,6 +78,76 @@ impl Fixture {
     }
 }
 #[tokio::test]
+async fn notification_pages_filter_before_paging_and_keep_a_stable_cursor() {
+    let f = Fixture::new().await;
+    let insert = |db: &Connection, id: &str, level: &str| {
+        db.execute(
+            "INSERT INTO notifications (notification_id, ts, title, body, level) VALUES (?1, '2026-01-01T00:00:00Z', 'Synthetic', 'Synthetic', ?2)",
+            [id, level],
+        ).unwrap();
+    };
+    {
+        let db = f.runtime.db.lock().unwrap();
+        insert(&db, "old-attention", "attention");
+        for index in 0..101 {
+            insert(&db, &format!("info-{index}"), "info");
+        }
+    }
+    let path = "/api/v1/notifications/page";
+    let filtered: Value = f
+        .get(&format!("{path}?level=attention"))
+        .await
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(
+        filtered["data"]["items"][0]["notificationId"],
+        "old-attention"
+    );
+    assert_eq!(filtered["data"]["totalUnread"], 102);
+    assert_eq!(filtered["data"]["unread"], 1);
+    assert_eq!(filtered["data"]["hasMore"], false);
+
+    let first: Value = f
+        .get(&format!("{path}?limit=100"))
+        .await
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(first["data"]["hasMore"], true);
+    let before = first["data"]["items"][99]["notificationId"]
+        .as_str()
+        .unwrap();
+    insert(&f.runtime.db.lock().unwrap(), "new-info", "info");
+    let next: Value = f
+        .get(&format!("{path}?limit=100&before={before}"))
+        .await
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(next["data"]["items"].as_array().unwrap().len(), 2);
+    assert_eq!(next["data"]["items"][0]["notificationId"], "info-0");
+    assert_eq!(next["data"]["items"][1]["notificationId"], "old-attention");
+    assert_eq!(next["data"]["hasMore"], false);
+    assert!(
+        f.post("/api/v1/notifications/read", json!({"level":"attention"}))
+            .await
+            .status()
+            .is_success()
+    );
+    let read: Value = f
+        .get(&format!("{path}?level=attention"))
+        .await
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(read["data"]["totalUnread"], 102);
+    assert_eq!(read["data"]["unread"], 0);
+    assert_eq!(f.get(&format!("{path}?level=invalid")).await.status(), 400);
+    f.close().await;
+}
+
+#[tokio::test]
 async fn authentication_cors_and_json_errors_are_explicit() {
     let f = Fixture::new().await;
     assert_eq!(
@@ -145,6 +215,11 @@ async fn authentication_cors_and_json_errors_are_explicit() {
         !serde_json::to_string(&audit)
             .unwrap()
             .contains(&f.handle.token)
+    );
+    assert!(
+        audit
+            .iter()
+            .all(|row| !row["action"].as_str().unwrap_or("").starts_with("GET "))
     );
     f.close().await;
 }
@@ -239,6 +314,22 @@ async fn stream_tickets_are_single_use_and_shutdown_closes_connections() {
         }
     }
     assert!(saw);
+    for i in 0..300 {
+        f.runtime.emit("board.updated", json!({"seq": i}));
+    }
+    let mut saw_resync = false;
+    for _ in 0..10 {
+        let chunk = tokio::time::timeout(Duration::from_secs(1), stream.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        if String::from_utf8_lossy(&chunk).contains("stream.resync") {
+            saw_resync = true;
+            break;
+        }
+    }
+    assert!(saw_resync, "lagged SSE stream should emit stream.resync");
     f.handle.close().await.unwrap();
     let closed = tokio::time::timeout(Duration::from_secs(1), async {
         while let Some(Ok(_)) = stream.next().await {}

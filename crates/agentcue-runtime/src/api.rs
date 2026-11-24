@@ -28,6 +28,14 @@ use tokio::{
     task::JoinHandle,
 };
 
+fn notification_level(level: Option<&str>) -> control::Result<Option<&str>> {
+    match level {
+        None | Some("") => Ok(None),
+        Some("info" | "attention") => Ok(level),
+        _ => Err(ControlError::invalid("通知级别无效")),
+    }
+}
+
 #[derive(Default)]
 struct Gate {
     tickets: HashMap<String, Instant>,
@@ -224,7 +232,9 @@ async fn handle(state: &Arc<ApiState>, request: Request) -> Response {
         Ok(value) => value,
         Err(error) => failure(error),
     };
-    if state.runtime.config()["privacy"]["auditLog"] == true {
+    if matches!(method, Method::POST | Method::PUT | Method::DELETE)
+        && state.runtime.config()["privacy"]["auditLog"] == true
+    {
         // Never persist URLs, identifiers, request contents, bearer tokens or credentials in audits.
         if let Ok(db) = state.runtime.db.lock() {
             let _ = db.execute(
@@ -269,7 +279,7 @@ fn event_stream(state: &ApiState) -> Response {
                 _=heartbeat.tick()=>SseEvent::default().event("heartbeat").data(json!({"ts":queries::now()}).to_string()),
                 next=events.recv()=>match next {
                     Ok(value)=>SseEvent::default().event(value["type"].as_str().unwrap_or("board.updated")).data(value.to_string()),
-                    Err(broadcast::error::RecvError::Lagged(_))=>SseEvent::default().event("settings.changed").data(json!({"type":"settings.changed","data":{},"ts":queries::now()}).to_string()),
+                    Err(broadcast::error::RecvError::Lagged(_))=>SseEvent::default().event("stream.resync").data(json!({"type":"stream.resync","data":{},"ts":queries::now()}).to_string()),
                     Err(broadcast::error::RecvError::Closed)=>return None,
                 }
             };
@@ -595,6 +605,32 @@ async fn route(
                 Sql::Integer(control::limit(q, "offset", 0, 0, i64::MAX as usize)? as i64)
             ]
         )?),
+        ("GET", "/api/v1/notifications/page") => {
+            let level = notification_level(q.get("level").map(String::as_str))?;
+            let limit = control::limit(q, "limit", 100, 1, 500)?;
+            let before = q.get("before").map(String::as_str);
+            let mut items = queries::rows(
+                &db,
+                "SELECT notification_id AS notificationId,ts,title,body,level,read,session_id AS sessionId
+                 FROM notifications
+                 WHERE (?1 IS NULL OR level = ?1)
+                 AND (?2 IS NULL OR (julianday(ts), rowid) < (
+                     SELECT julianday(ts),rowid FROM notifications WHERE notification_id = ?2))
+                 ORDER BY julianday(ts) DESC,rowid DESC LIMIT ?3",
+                vec![level.map_or(Sql::Null, |v| Sql::Text(v.into())),
+                     before.map_or(Sql::Null, |v| Sql::Text(v.into())),
+                     Sql::Integer((limit + 1) as i64)],
+            )?;
+            let has_more = items.len() > limit;
+            items.truncate(limit);
+            let (total_unread, unread): (i64, i64) = db.query_row(
+                "SELECT COUNT(*), COUNT(CASE WHEN ?1 IS NULL OR level = ?1 THEN 1 END)
+                 FROM notifications WHERE read = 0",
+                [level],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )?;
+            json!({"items": items, "totalUnread":total_unread, "unread":unread, "hasMore":has_more})
+        }
         ("POST", "/api/v1/notifications/read") => {
             if let Some(id) = body.get("notificationId") {
                 db.execute(
@@ -603,7 +639,18 @@ async fn route(
                         .ok_or_else(|| ControlError::invalid("通知编号无效"))?],
                 )?;
             } else {
-                db.execute("UPDATE notifications SET read=1", [])?;
+                let level = notification_level(
+                    body.get("level")
+                        .map(|v| {
+                            v.as_str()
+                                .ok_or_else(|| ControlError::invalid("通知级别无效"))
+                        })
+                        .transpose()?,
+                )?;
+                db.execute(
+                    "UPDATE notifications SET read=1 WHERE read=0 AND (?1 IS NULL OR level=?1)",
+                    [level],
+                )?;
             }
             runtime.emit("notifications.updated", json!({}));
             json!({"ok":true})

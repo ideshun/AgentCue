@@ -124,6 +124,13 @@ interface NotificationItem {
   read: number;
   sessionId?: string | null;
 }
+type NoticeLevel = '' | 'attention' | 'info';
+interface NotificationPage {
+  items: NotificationItem[];
+  unread: number;
+  totalUnread: number;
+  hasMore: boolean;
+}
 interface McpSnippet {
   id: string;
   name: string;
@@ -293,6 +300,7 @@ const Api = {
       'model.progress',
       'voice.status',
       'maintenance.error',
+      'stream.resync',
     ]) {
       source.addEventListener(type, (event) => {
         try {

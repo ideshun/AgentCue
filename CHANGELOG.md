@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.4 · Stable
+
+- 通知分页改为先按级别筛选再分页，支持按级别“全部标为已读”与稳定游标翻页。
+- 改进实时事件流（SSE）滞后恢复（`stream.resync`），避免重连时误触发无关状态刷新。
+- 历史清理同时清理过期审计日志（`audit_log`），且仅对写入类 API 记录审计日志；修复文件增量采集时的大小与时间戳校验。
+- 优化桌面端导航文案、任务看板日期/工具筛选联动、自定义工具表单校验及通知列表布局。
+- 详细变更与验证边界见 [Release 说明](docs/releases/v1.0.4.md)。
+
 ## 1.0.3 · Stable
 
 - 新增 DeepSeek Harness、OpenCode 2、Gemini CLI、Qwen Code 任务事件接入及 MCP 配置指引。

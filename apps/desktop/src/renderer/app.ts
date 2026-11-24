@@ -15,6 +15,9 @@ const state: AppState = {
   rules: [],
   notifications: [],
   noticeHasMore: false,
+  noticeLoading: true,
+  noticeUnread: 0,
+  noticeTotalUnread: 0,
   boardLoading: false,
   noticeLevelFilter: '',
   mcpSnippets: [],
@@ -102,13 +105,13 @@ interface ControlDraft {
 }
 const drafts = new Map<RouteName, Map<string, ControlDraft>>();
 const ROUTE_META: Record<RouteName, { title: string; subtitle: string }> = {
-  overview: { title: '总览', subtitle: 'AI Agent 任务状态' },
-  office: { title: '办公室', subtitle: '每个工位对应一个工具，实时查看工作状态。' },
-  board: { title: '任务看板', subtitle: '按状态查看所有任务。' },
-  notifications: { title: '通知中心', subtitle: '展示所有提醒记录' },
-  integrations: { title: '播报接入', subtitle: '将 AgentCue 接入 AI 工具' },
-  adapters: { title: '工具与扩展', subtitle: '系统已安装的 AI 工具' },
-  settings: { title: '设置', subtitle: '调整提醒方式、扫描频率和隐私选项。' },
+  overview: { title: '总览', subtitle: '掌握各工具运行状态与待处理任务' },
+  office: { title: '办公室', subtitle: '实时查看各 AI 工具的工位状态与当前任务' },
+  board: { title: '任务看板', subtitle: '按状态追踪、筛选与归档全部任务' },
+  notifications: { title: '通知中心', subtitle: '查看历史提醒与待确认消息' },
+  integrations: { title: '工具接入', subtitle: '配置 Hooks 事件推送与 MCP 桥接' },
+  adapters: { title: '工具管理', subtitle: '管理本机已识别的 AI 工具' },
+  settings: { title: '设置', subtitle: '自定义语音播报、免打扰时段与隐私偏好' },
 };
 
 function currentRoute(): RouteName {
@@ -589,6 +592,7 @@ function render(force = false): void {
 }
 
 let revealedIntegrationHash = '';
+let appliedBoardHash = '';
 
 /** @description: Wait for async tool regions, then open and reveal the requested tool once. */
 function revealIntegrationTarget(): void {
@@ -604,6 +608,7 @@ function revealIntegrationTarget(): void {
     disclosureStates.set(hooks.dataset.disclosureKey ?? `integration-${toolId}-hooks`, true);
   }
   section.scrollIntoView({ block: 'start' });
+  document.getElementById(`integration-title-${toolId}`)?.focus({ preventScroll: true });
   revealedIntegrationHash = hash;
 }
 
@@ -639,7 +644,7 @@ function renderChrome(): void {
   paintSettingsNav();
   const badge = document.getElementById('nav-notice-badge');
   if (badge) {
-    const unread = state.notifications.filter((item) => !item.read).length;
+    const unread = state.noticeTotalUnread;
     badge.textContent = String(unread);
     badge.hidden = !unread;
   }
@@ -776,12 +781,43 @@ function boardUrl(group?: BoardGroupId, cursor?: string, limit?: number): string
   return `/api/v1/board?${params}`;
 }
 
-/** 通知刷新取「当前已加载数量」为上限（100–500）：后台刷新不把已展开的更早记录截断。 */
-function noticeRequestLimit(): number {
-  return Math.min(Math.max(state.notifications.length, 100), 500);
+let noticeWindowVersion = 0;
+
+function notificationsUrl(level: NoticeLevel, limit: number, before?: string): string {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (level) params.set('level', level);
+  if (before) params.set('before', before);
+  return `/api/v1/notifications/page?${params}`;
 }
-function notificationsUrl(): string {
-  return `/api/v1/notifications?limit=${noticeRequestLimit()}`;
+
+/** Preserve the expanded window on refresh, using bounded requests at a stable anchor. */
+async function refreshNotifications(
+  get: (url: string) => Promise<NotificationPage>,
+  level: NoticeLevel,
+  limit: number,
+): Promise<NotificationPage> {
+  const first = await get(notificationsUrl(level, Math.min(limit, 500)));
+  const items = [...first.items];
+  let hasMore = first.hasMore;
+  while (hasMore && items.length > 0 && items.length < limit) {
+    const next = await get(
+      notificationsUrl(level, Math.min(500, limit - items.length), items.at(-1)!.notificationId),
+    );
+    if (!next.items.length) {
+      hasMore = false;
+      break;
+    }
+    items.push(...next.items);
+    hasMore = next.hasMore;
+  }
+  return { ...first, items, hasMore };
+}
+
+function restoreNoticeActionFocus(startedOnAction: boolean, targetId: string): void {
+  if (!startedOnAction || currentRoute() !== 'notifications') return;
+  const focused = document.activeElement;
+  if (focused && focused !== document.body && focused !== document.getElementById('view')) return;
+  (document.getElementById(targetId) ?? document.getElementById('notice-level-filter'))?.focus();
 }
 
 /** @description: 从新游标重读已展开的各列，移除已迁移/归档的记录，保留加载深度。 */
@@ -856,6 +892,17 @@ async function refresh(background = false): Promise<void> {
       state.nativeVoicesLoading = false;
     }
     state.route = route;
+    if (route === 'board' && appliedBoardHash !== window.location.hash) {
+      appliedBoardHash = window.location.hash;
+      const toolId = new URLSearchParams(appliedBoardHash.split('?')[1]).get('tool');
+      if (toolId) {
+        state.boardQuery = { q: '', toolId };
+        state.boardDateError = '';
+        state.board = null;
+        boardCalendar = null;
+        ++boardWindowVersion;
+      }
+    }
     if (changedRoute && (route === 'board' || route === 'overview')) state.board = null;
     state.boardLoading = (route === 'board' || route === 'overview') && state.board === null;
     if (['overview', 'board', 'office', 'adapters', 'notifications'].includes(route))
@@ -863,6 +910,7 @@ async function refresh(background = false): Promise<void> {
     if (renderedRoute !== route) render();
     const sequence = ++loadSequence;
     const windowVersion = boardWindowVersion;
+    const noticeVersion = noticeWindowVersion;
     const requests: Array<{
       key: RefreshKey;
       version: number;
@@ -874,7 +922,12 @@ async function refresh(background = false): Promise<void> {
       if (path === 'desktop:preferences') return desktopFeature('preferences') as Promise<T>;
       return Api.get<T>(path);
     };
-    const add = <T>(key: RefreshKey, path: string, commit: (value: T) => void): void => {
+    const add = <T>(
+      key: RefreshKey,
+      path: string,
+      commit: (value: T) => void,
+      load?: () => Promise<T>,
+    ): void => {
       const version = refreshVersions.get(key) ?? 0;
       const cached = refreshCache.get(key);
       if (
@@ -888,7 +941,11 @@ async function refresh(background = false): Promise<void> {
       requests.push({
         key,
         version,
-        promise: key === 'board' ? refreshBoard(sequence, get<BoardResponse>) : get<T>(path),
+        promise: load
+          ? load()
+          : key === 'board'
+            ? refreshBoard(sequence, get<BoardResponse>)
+            : get<T>(path),
         commit: (value) => commit(value as T),
       });
     };
@@ -943,11 +1000,28 @@ async function refresh(background = false): Promise<void> {
       add<ToolSummary[]>('tools', '/api/v1/tools', (value) => {
         state.tools = value;
       });
-    add<NotificationItem[]>('notifications', notificationsUrl(), (value) => {
-      state.notifications = value;
-      // 拉满请求条数视为还有更早记录；不足则已到底。
-      state.noticeHasMore = value.length >= noticeRequestLimit();
-    });
+    const inNotices = route === 'notifications';
+    const noticeLevel = inNotices ? state.noticeLevelFilter : '';
+    const noticeLimit = inNotices ? Math.max(state.notifications.length, 100) : 1;
+    add<NotificationPage>(
+      'notifications',
+      notificationsUrl(noticeLevel, noticeLimit),
+      (page) => {
+        if (noticeVersion !== noticeWindowVersion) {
+          invalidateResources('notifications');
+          scheduleRefresh();
+          return;
+        }
+        state.noticeTotalUnread = page.totalUnread;
+        if (inNotices) {
+          state.notifications = page.items;
+          state.noticeHasMore = page.hasMore;
+          state.noticeUnread = page.unread;
+          state.noticeLoading = false;
+        }
+      },
+      () => refreshNotifications(get<NotificationPage>, noticeLevel, noticeLimit),
+    );
     add<Settings>('settings', '/api/v1/settings', (value) => {
       // 设置页可能有未保存的预览：服务端的新值作为基准，未保存字段覆盖回去。
       if (!settingsSaveCount) rebasePendingSettings(value);
@@ -994,6 +1068,8 @@ async function refresh(background = false): Promise<void> {
       add<VoiceRule[]>('rules', '/api/v1/voice/rules', (value) => {
         state.rules = value;
       });
+    }
+    if (route === 'integrations' || route === 'office') {
       add<McpSnippet[]>('snippets', '/api/v1/mcp/snippets', (value) => {
         state.mcpSnippets = value;
       });
@@ -1014,7 +1090,7 @@ async function refresh(background = false): Promise<void> {
     if (requests.some((request) => request.key === 'tools')) state.toolsLoading = false;
     if (route === 'office') syncOfficeSelection(state);
     state.boardLoading = false;
-    render();
+    render(inNotices && !background);
   } finally {
     refreshesInFlight -= 1;
     // 自动读取最多约 40 次/分钟，给 Hooks、手动操作和 MCP 留出限流余量。
@@ -1803,7 +1879,14 @@ function closeBoardCalendar(restoreFocus = false): void {
 function selectBoardDate(value: string): void {
   if (!boardCalendar) return;
   const field = boardCalendar.field;
-  state.boardQuery[field] = value;
+  const query = { ...state.boardQuery, [field]: value };
+  if (query.from && query.to && query.from > query.to) {
+    state.boardDateError = '开始日期不能晚于结束日期，请调整日期范围。';
+    closeBoardCalendar(true);
+    return;
+  }
+  state.boardDateError = '';
+  state.boardQuery = query;
   saveUiPreferences('board', state.boardQuery);
   state.board = null;
   closeBoardCalendar(true);
@@ -2042,11 +2125,7 @@ function bindEvents(): void {
     }
     const officeBoard = target.closest<HTMLElement>('[data-office-board]');
     if (officeBoard?.dataset.officeBoard) {
-      state.boardQuery = { q: '', toolId: officeBoard.dataset.officeBoard };
-      state.board = null;
-      routeDrafts('board').delete('board-search');
-      routeDrafts('board').delete('board-tool');
-      navigateTo('board');
+      window.location.hash = boardToolHref(officeBoard.dataset.officeBoard);
       return;
     }
     const task = target.closest<HTMLElement>('[data-task-event]');
@@ -2087,15 +2166,19 @@ function bindEvents(): void {
     }
     const remove = target.closest<HTMLElement>('[data-remove-custom]');
     if (remove?.dataset.removeCustom) {
+      if (pendingActions.has('save-custom-tool')) return;
+      const id = remove.dataset.removeCustom;
       void perform('remove-custom', '[data-remove-custom]', async () => {
         await saveSettings(() => ({
           scan: {
-            customTools:
-              state.settings?.scan.customTools.filter(
-                (tool) => tool.id !== remove.dataset.removeCustom,
-              ) ?? [],
+            customTools: state.settings?.scan.customTools.filter((tool) => tool.id !== id) ?? [],
           },
         }));
+        if (state.customEditingId === id) {
+          resetCustomToolForm();
+          render(true);
+          document.getElementById('custom-id')?.focus();
+        }
         await window.awm?.scanNow();
         await refresh();
       });
@@ -2150,10 +2233,16 @@ function bindEvents(): void {
     }
     const notice = target.closest<HTMLElement>('[data-read-notice]');
     if (notice?.dataset.readNotice) {
-      void perform('read-notice', '[data-read-notice]', async () => {
-        await Api.post('/api/v1/notifications/read', { notificationId: notice.dataset.readNotice });
+      const id = notice.dataset.readNotice;
+      const wasFocused = event.detail === 0 || document.activeElement === notice;
+      void perform('read-notice', `#${CSS.escape(notice.id)}`, async () => {
+        await Api.post('/api/v1/notifications/read', { notificationId: id });
         invalidateResources('office', 'notifications');
         await refresh();
+        const targetId = document.getElementById(`notice-view-${id}`)
+          ? `notice-view-${id}`
+          : `notice-${id}`;
+        restoreNoticeActionFocus(wasFocused, targetId);
       });
       return;
     }
@@ -2183,6 +2272,7 @@ function bindEvents(): void {
       action === 'download-model' || action === 'cancel-model'
         ? `[data-action="${action}"][data-model-kind="${modelKind}"]`
         : `[data-action="${action}"]`;
+    const actionWasFocused = event.detail === 0 || document.activeElement === actionNode;
     void perform(actionKey, actionSelector, async () => {
       if (action === 'save-settings') {
         // 失败提示与状态在 commitPendingSettings 里统一给出，不抛给 perform。
@@ -2241,41 +2331,12 @@ function bindEvents(): void {
         if (result) setCustomIcon(result.path);
       } else if (action === 'clear-custom-icon') {
         setCustomIcon('');
-      } else if (action === 'add-custom-tool') {
-        const id = inputValue('custom-id'),
-          name = inputValue('custom-name'),
-          configPath = inputValue('custom-path'),
-          iconPath = inputValue('custom-icon');
-        if (iconPath) await desktopFeature('read-tool-icon', { path: iconPath });
-        if (!id || !name || !configPath) throw new Error('请填写工具 ID、显示名和路径');
-        if (customEditingId && customEditingId !== id) throw new Error('编辑时不能修改工具 ID');
-        if (state.adapters.some((adapter) => adapter.id === id))
-          throw new Error('工具 ID 不能与内置工具重复');
-        if (
-          state.settings?.scan.customTools.some((tool) => tool.id === id) &&
-          customEditingId !== id
-        )
-          throw new Error('该工具 ID 已存在');
-        await saveSettings(() => ({
-          scan: {
-            customTools: [
-              ...(state.settings?.scan.customTools ?? []).filter((t) => t.id !== customEditingId),
-              { id, name, configPath, ...(iconPath ? { iconPath } : {}) },
-            ],
-          },
-        }));
-        for (const key of ['custom-id', 'custom-name', 'custom-path', 'custom-icon'])
-          routeDrafts('adapters').delete(key);
-        for (const key of ['custom-id', 'custom-name', 'custom-path', 'custom-icon']) {
-          const input = document.getElementById(key);
-          if (input instanceof HTMLInputElement) input.value = '';
-        }
-        customEditingId = null;
-        setCustomIcon('');
-        const idInput = document.getElementById('custom-id');
-        if (idInput instanceof HTMLInputElement) idInput.readOnly = false;
-        await window.awm?.scanNow();
-        await refresh();
+      } else if (action === 'cancel-custom-tool') {
+        if (pendingActions.has('save-custom-tool')) return;
+        const editId = state.customEditingId;
+        resetCustomToolForm();
+        render(true);
+        document.getElementById(`custom-edit-${editId}`)?.focus();
       } else if (action === 'copy-mcp') {
         await copyMcpSnippet(actionNode?.dataset.mcpId ?? '');
         toast('已复制 MCP 配置');
@@ -2305,20 +2366,32 @@ function bindEvents(): void {
         );
         await refresh();
       } else if (action === 'mark-all-read') {
-        await Api.post('/api/v1/notifications/read', {});
+        await Api.post('/api/v1/notifications/read', { level: state.noticeLevelFilter });
         invalidateResources('office', 'notifications');
         await refresh();
+        restoreNoticeActionFocus(actionWasFocused, 'notice-level-filter');
       } else if (action === 'load-notices') {
-        // 向后翻一页更早的通知：按 id 去重后追加；不足一页说明已到底。
-        const page = 50;
-        const more = await Api.get<NotificationItem[]>(
-          `/api/v1/notifications?limit=${page}&offset=${state.notifications.length}`,
-        );
-        const known = new Set(state.notifications.map((item) => item.notificationId));
-        const appended = more.filter((item) => !known.has(item.notificationId));
-        state.notifications = [...state.notifications, ...appended];
-        state.noticeHasMore = more.length >= page;
+        const version = noticeWindowVersion;
+        const level = state.noticeLevelFilter;
+        const before = state.notifications.at(-1)?.notificationId;
+        if (!before) return;
+        const page = await Api.get<NotificationPage>(notificationsUrl(level, 50, before));
+        if (
+          currentRoute() !== 'notifications' ||
+          version !== noticeWindowVersion ||
+          before !== state.notifications.at(-1)?.notificationId
+        )
+          return;
+        ++noticeWindowVersion;
+        state.notifications = [...state.notifications, ...page.items];
+        state.noticeUnread = page.unread;
+        state.noticeTotalUnread = page.totalUnread;
+        state.noticeHasMore = page.hasMore;
         render(true);
+        restoreNoticeActionFocus(
+          actionWasFocused,
+          page.items[0] ? `notice-${page.items[0].notificationId}` : 'notice-level-filter',
+        );
       } else if (action === 'export-events') {
         // 主进程带 Content-Disposition；这里用带鉴权的 fetch 转 blob 下载。
         if (!Api.config) throw new Error('控制 API 尚未初始化');
@@ -2336,6 +2409,7 @@ function bindEvents(): void {
         toast('事件已导出为 JSON');
       } else if (action === 'clear-board') {
         boardCalendar = null;
+        state.boardDateError = '';
         state.boardQuery = { q: '', toolId: '' };
         saveUiPreferences('board', state.boardQuery);
         for (const key of ['board-from', 'board-to', 'board-order'])
@@ -2426,6 +2500,8 @@ function bindEvents(): void {
     ))
       return;
     if (control.hasAttribute('data-draft') || control.dataset.setting) rememberControl(control);
+    const customField = customToolFields.find((field) => field === control.id);
+    if (customField && state.customErrors?.[customField]) setCustomToolError(customField, '');
     if (control.id === 'kokoro-voice-search') {
       state.kokoroVoiceSearch = control.value;
       render(true);
@@ -2481,10 +2557,8 @@ function bindEvents(): void {
       routeDrafts('settings').delete(control.id);
       return;
     }
-    if (['board-from', 'board-to', 'board-order'].includes(control.id)) {
-      if (control.id === 'board-from') state.boardQuery.from = control.value;
-      else if (control.id === 'board-to') state.boardQuery.to = control.value;
-      else state.boardQuery.order = control.value === 'asc' ? 'asc' : 'desc';
+    if (control.id === 'board-order') {
+      state.boardQuery.order = control.value === 'asc' ? 'asc' : 'desc';
       saveUiPreferences('board', state.boardQuery);
       state.board = null;
       void refresh();
@@ -2500,7 +2574,14 @@ function bindEvents(): void {
     if (control.id === 'notice-level-filter') {
       state.noticeLevelFilter =
         control.value === 'attention' || control.value === 'info' ? control.value : '';
+      ++noticeWindowVersion;
+      state.notifications = [];
+      state.noticeUnread = 0;
+      state.noticeHasMore = false;
+      state.noticeLoading = true;
+      delete state.sectionErrors.notifications;
       render(true);
+      void refresh();
       return;
     }
     if (control.id === 'mcp-transport') {
@@ -2624,6 +2705,7 @@ function bindEvents(): void {
   });
   window.addEventListener('hashchange', () => {
     revealedIntegrationHash = '';
+    appliedBoardHash = '';
     // 还原 hash 时触发的那次事件：已经停在设置页，不需要重新加载。
     if (restoringHash) {
       restoringHash = false;
@@ -2725,6 +2807,24 @@ async function openStream(): Promise<void> {
     else if (type === 'settings.changed') invalidateResources('settings', 'rules', 'office');
     else if (type === 'tools.updated' || type === 'scan.completed')
       invalidateResources('tools', 'board', 'overview', 'hooks', 'office');
+    else if (type === 'stream.resync')
+      invalidateResources(
+        'pronunciation',
+        'desktop',
+        'maintenance',
+        'playback',
+        'board',
+        'overview',
+        'office',
+        'tools',
+        'adapters',
+        'notifications',
+        'settings',
+        'rules',
+        'snippets',
+        'servers',
+        'hooks',
+      );
     scheduleRefresh();
   });
   stream.onopen = () => {
@@ -2767,7 +2867,89 @@ if (document.readyState === 'loading')
   });
 else void main();
 
-let customEditingId: string | null = null;
+const customToolFields: CustomToolField[] = [
+  'custom-id',
+  'custom-name',
+  'custom-path',
+  'custom-icon',
+];
+
+function resetCustomToolForm(): void {
+  for (const id of customToolFields) {
+    const input = document.getElementById(id);
+    if (input instanceof HTMLInputElement) input.value = '';
+    routeDrafts('adapters').delete(id);
+  }
+  delete state.customEditingId;
+  state.customErrors = {};
+  ++customIconRequest;
+}
+
+function setCustomToolError(field: CustomToolField, message: string): void {
+  state.customErrors ??= {};
+  if (message) state.customErrors[field] = message;
+  else delete state.customErrors[field];
+  const input = document.getElementById(field);
+  if (message) input?.setAttribute('aria-invalid', 'true');
+  else input?.removeAttribute('aria-invalid');
+  const error = document.getElementById(`${field}-validation`);
+  if (error) error.textContent = message;
+}
+
+document.addEventListener('submit', (event) => {
+  if (!(event.target instanceof HTMLFormElement) || event.target.id !== 'custom-tool-form') return;
+  event.preventDefault();
+  if (pendingActions.has('save-custom-tool') || !state.settings) return;
+
+  const id = inputValue('custom-id');
+  const name = inputValue('custom-name');
+  const configPath = inputValue('custom-path');
+  const iconPath = inputValue('custom-icon');
+  const editingId = state.customEditingId;
+  const errors: Partial<Record<CustomToolField, string>> = {};
+  if (!/^[a-z0-9-]+$/.test(id))
+    errors['custom-id'] = '请输入由小写字母、数字或连字符组成的工具编号。';
+  else if (editingId && id !== editingId) errors['custom-id'] = '编辑时无法更改工具编号。';
+  else if (state.adapters.some((adapter) => adapter.id === id))
+    errors['custom-id'] = '该编号已被内置工具使用，请换一个。';
+  else if (id !== editingId && state.settings.scan.customTools.some((tool) => tool.id === id))
+    errors['custom-id'] = '该编号已被自定义工具使用，请换一个。';
+  if (!name) errors['custom-name'] = '请输入工具名称。';
+  if (!configPath) errors['custom-path'] = '请输入配置路径。';
+  if (iconPath.length > 4096) errors['custom-icon'] = '图标路径过长。';
+  for (const field of customToolFields) setCustomToolError(field, errors[field] ?? '');
+  const invalidField = customToolFields.find((field) => errors[field]);
+  if (invalidField) {
+    document.getElementById(invalidField)?.focus();
+    return;
+  }
+
+  void perform('save-custom-tool', '#custom-tool-save', async () => {
+    if (iconPath) {
+      try {
+        await desktopFeature('read-tool-icon', { path: iconPath });
+      } catch (error) {
+        setCustomToolError('custom-icon', errorMessage(error));
+        document.getElementById('custom-icon')?.focus();
+        return;
+      }
+    }
+    await saveSettings(() => ({
+      scan: {
+        customTools: [
+          ...(state.settings?.scan.customTools ?? []).filter((tool) => tool.id !== editingId),
+          { id, name, configPath, ...(iconPath ? { iconPath } : {}) },
+        ],
+      },
+    }));
+    resetCustomToolForm();
+    render(true);
+    if (currentRoute() === 'adapters')
+      document.getElementById(editingId ? `custom-edit-${editingId}` : 'custom-id')?.focus();
+    await window.awm?.scanNow();
+    await refresh();
+  });
+});
 let customIconRequest = 0;
 async function previewCustomIcon(path: string): Promise<void> {
   const request = ++customIconRequest;
@@ -2818,8 +3000,10 @@ document.addEventListener('click', (event) => {
       ? event.target.closest<HTMLElement>('[data-edit-custom]')
       : null;
   const tool = state.settings?.scan.customTools.find((t) => t.id === node?.dataset.editCustom);
-  if (!tool) return;
-  customEditingId = tool.id;
+  if (!tool || pendingActions.has('save-custom-tool')) return;
+  resetCustomToolForm();
+  state.customEditingId = tool.id;
+  render(true);
   for (const [id, value] of [
     ['custom-id', tool.id],
     ['custom-name', tool.name],
@@ -2828,7 +3012,6 @@ document.addEventListener('click', (event) => {
     const input = document.getElementById(id);
     if (input instanceof HTMLInputElement) {
       input.value = value;
-      if (id === 'custom-id') input.readOnly = true;
       input.dispatchEvent(new Event('input', { bubbles: true }));
     }
   }

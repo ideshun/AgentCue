@@ -81,6 +81,57 @@ fn cleanup_preview_does_not_delete_and_unresolved_tasks_are_retained() {
     let report = data::report(&runtime).unwrap().to_string();
     assert!(!report.contains("PRIVATE CONTENT"));
     assert!(!report.contains(&root.to_string_lossy().to_string()));
+
+    {
+        let db = runtime.db.lock().unwrap();
+        db.execute(
+            "INSERT INTO audit_log(ts,actor,action,result) VALUES('2020-01-01T00:00:00Z','api','POST settings','200')",
+            [],
+        )
+        .unwrap();
+        db.execute(
+            "INSERT INTO audit_log(ts,actor,action,result) VALUES('2099-01-01T00:00:00Z','api','POST settings','200')",
+            [],
+        )
+        .unwrap();
+    }
+    data::cleanup(&runtime, 30, false).unwrap();
+    assert_eq!(
+        runtime
+            .db
+            .lock()
+            .unwrap()
+            .query_row(
+                "SELECT count(*) FROM audit_log WHERE ts='2020-01-01T00:00:00Z'",
+                [],
+                |r| r.get::<_, i64>(0)
+            )
+            .unwrap(),
+        1
+    );
+    data::cleanup(&runtime, 30, true).unwrap();
+    {
+        let db = runtime.db.lock().unwrap();
+        assert_eq!(
+            db.query_row(
+                "SELECT count(*) FROM audit_log WHERE ts='2020-01-01T00:00:00Z'",
+                [],
+                |r| r.get::<_, i64>(0)
+            )
+            .unwrap(),
+            0
+        );
+        assert_eq!(
+            db.query_row(
+                "SELECT count(*) FROM audit_log WHERE ts='2099-01-01T00:00:00Z'",
+                [],
+                |r| r.get::<_, i64>(0)
+            )
+            .unwrap(),
+            1
+        );
+    }
+
     drop(runtime);
     std::fs::remove_dir_all(root).unwrap();
 }

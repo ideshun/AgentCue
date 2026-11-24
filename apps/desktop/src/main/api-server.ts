@@ -303,14 +303,20 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
       // 周期心跳：睡眠/网络切换产生的半开连接，靠周期写入抛错或返回 false 被清理。
       client.heartbeat = setInterval(() => {
         try {
-          if (!client.res.write(`event: heartbeat\ndata: ${JSON.stringify({ ts: new Date().toISOString() })}\n\n`))
+          if (
+            !client.res.write(
+              `event: heartbeat\ndata: ${JSON.stringify({ ts: new Date().toISOString() })}\n\n`,
+            )
+          )
             dropClient(client);
         } catch {
           dropClient(client);
         }
       }, SSE_HEARTBEAT_MS);
       client.heartbeat.unref();
-      client.res.write(`event: heartbeat\ndata: ${JSON.stringify({ ts: new Date().toISOString() })}\n\n`);
+      client.res.write(
+        `event: heartbeat\ndata: ${JSON.stringify({ ts: new Date().toISOString() })}\n\n`,
+      );
       req.on('close', () => dropClient(client));
       res.on?.('error', () => dropClient(client));
       return;
@@ -325,7 +331,13 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
     }
 
     // 限流：Hook 投递与查询/控制分桶
-    if (hitRateLimit(pathname === '/api/v1/integrations/hooks' && method === 'POST' ? HOOK_BUCKET : CONTROL_BUCKET)) {
+    if (
+      hitRateLimit(
+        pathname === '/api/v1/integrations/hooks' && method === 'POST'
+          ? HOOK_BUCKET
+          : CONTROL_BUCKET,
+      )
+    ) {
       sendJson(res, 429, {
         success: false,
         error: { code: 'RATE_LIMITED', message: '请求过于频繁' },
@@ -581,10 +593,32 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
       return;
     }
 
+    if (pathname === '/api/v1/notifications/page' && method === 'GET') {
+      const { limit } = listNotificationsInputSchema.parse({
+        limit: Number(url.searchParams.get('limit') ?? 100),
+      });
+      const level = url.searchParams.get('level');
+      if (level !== null && level !== '' && level !== 'attention' && level !== 'info')
+        throw new RangeError('通知级别无效');
+      sendJson(res, 200, {
+        success: true,
+        data: facade.notificationPage(
+          limit,
+          level || undefined,
+          url.searchParams.get('before') ?? undefined,
+        ),
+      });
+      return;
+    }
+
     if (pathname === '/api/v1/notifications/read' && method === 'POST') {
       const body = await readObjectBody(req);
+      const level = body.level;
+      if (level !== undefined && level !== '' && level !== 'attention' && level !== 'info')
+        throw new RangeError('通知级别无效');
       await facade.markNotificationRead(
         typeof body.notificationId === 'string' ? body.notificationId : undefined,
+        level || undefined,
       );
       sendJson(res, 200, { success: true, data: { ok: true } });
       return;
@@ -679,7 +713,10 @@ export async function startApiServer(options: ApiServerOptions): Promise<ApiServ
     if (pathname === '/api/v1/voice/test' && method === 'POST') {
       const body = await readObjectBody(req);
       const text = typeof body.text === 'string' ? body.text : '这是一条测试播报';
-      sendJson(res, 200, { success: true, data: await options.speakTest(text.slice(0, TEST_TEXT_LIMIT)) });
+      sendJson(res, 200, {
+        success: true,
+        data: await options.speakTest(text.slice(0, TEST_TEXT_LIMIT)),
+      });
       return;
     }
 

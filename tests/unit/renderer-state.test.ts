@@ -279,16 +279,18 @@ describe('integration tool navigation', () => {
       document.getElementById = () => null;
       revealIntegrationTarget();
       globalThis.jumpCount = 0;
+      globalThis.focusCount = 0;
       globalThis.hookDetails = {open:false, dataset:{disclosureKey:"integration-deepseek-harness-hooks"}};
       document.getElementById = id => id === 'integration-tool-deepseek-harness' ? {
         querySelector: () => hookDetails,
         scrollIntoView: () => jumpCount++
-      } : null;
+      } : id === 'integration-title-deepseek-harness' ? {focus: () => focusCount++} : null;
       revealIntegrationTarget();
       revealIntegrationTarget();
     `,
     );
     expect(evaluate(context, 'jumpCount')).toBe(1);
+    expect(evaluate(context, 'focusCount')).toBe(1);
     expect(evaluate(context, 'hookDetails.open')).toBe(true);
     expect(evaluate(context, 'disclosureStates.get("integration-deepseek-harness-hooks")')).toBe(
       true,
@@ -861,6 +863,8 @@ describe('renderer hook integrations', () => {
         throw new Error('synthetic hooks unavailable');
       if (requestPath === '/api/v1/settings') return structuredClone(settings);
       if (requestPath === '/api/v1/voice/voices') return { voices: [] };
+      if (requestPath.startsWith('/api/v1/notifications/page?'))
+        return { items: [], unread: 0, totalUnread: 0, hasMore: false };
       return [];
     };
     evaluate(
@@ -887,6 +891,8 @@ describe('renderer hook integrations', () => {
         });
       if (requestPath === '/api/v1/settings') return structuredClone(settings);
       if (requestPath === '/api/v1/voice/voices') return { voices: [] };
+      if (requestPath.startsWith('/api/v1/notifications/page?'))
+        return { items: [], unread: 0, totalUnread: 0, hasMore: false };
       return [];
     };
     evaluate(
@@ -2133,6 +2139,8 @@ describe('renderer request order', () => {
       if (requestPath.startsWith('/api/v1/board?')) return { groups: [], generatedAt: 'synthetic' };
       if (requestPath === '/api/v1/settings') return structuredClone(settings);
       if (requestPath === '/api/v1/voice/voices') return { voices: [] };
+      if (requestPath.startsWith('/api/v1/notifications/page?'))
+        return { items: [], unread: 0, totalUnread: 0, hasMore: false };
       return [];
     };
     context.subscribe = (_ticket: string, callback: typeof emit) => {
@@ -2153,6 +2161,24 @@ describe('renderer request order', () => {
     );
     return { context, requests, delays, emit: (type: string) => emit(type, {}) };
   }
+
+  it('opens a tool board without the previous search and date filters', async () => {
+    const f = refreshFixture();
+    evaluate(
+      f.context,
+      `
+      state.boardQuery = {q:'old', toolId:'old', from:'2026-01-01', order:'asc'};
+      window.location.hash = boardToolHref('cursor');
+    `,
+    );
+    await evaluate(f.context, 'refresh()');
+    const request = f.requests.find((url) => url.startsWith('/api/v1/board?'));
+    expect(request).toContain('toolId=cursor');
+    expect(request).not.toMatch(/(?:q|from|order)=/);
+    evaluate(f.context, "state.boardQuery.q = 'new'");
+    await evaluate(f.context, 'refresh()');
+    expect(evaluate(f.context, 'state.boardQuery.q')).toBe('new');
+  });
 
   it('coalesces 25 overview events within one minute and reuses stable settings/tools', async () => {
     const f = refreshFixture();
@@ -2192,6 +2218,18 @@ describe('renderer request order', () => {
     f.emit('board.updated');
     await evaluate(f.context, 'refresh(true)');
     expect(f.requests).toHaveLength(0);
+  });
+
+  it('invalidates cached resources across views when stream.resync arrives', async () => {
+    const f = refreshFixture('board');
+    await evaluate(f.context, 'refresh()');
+    f.requests.length = 0;
+    f.context.clock = 10_000;
+    f.emit('stream.resync');
+    await evaluate(f.context, 'refresh(true)');
+    expect(f.requests.some((url) => url.startsWith('/api/v1/board?'))).toBe(true);
+    expect(f.requests).toContain('/api/v1/tools');
+    expect(f.requests).toContain('/api/v1/settings');
   });
 
   it('retains invalidations received during an in-flight refresh and retries failed sections', async () => {
@@ -2415,6 +2453,23 @@ describe('broadcast scope and calendar regressions', () => {
       ),
     ).toEqual(actions);
   });
+  it('rejects an inverted board range and focuses its date trigger', () => {
+    const context = renderer();
+    evaluate(
+      context,
+      `
+      state.boardQuery = {q:'', toolId:'', from:'2026-01-02', to:'2026-01-30'};
+      boardCalendar = {field:'from', month:'2026-02', focus:'2026-02-01'};
+      globalThis.dateFocus = '';
+      document.getElementById = (id) => ({focus: () => {dateFocus = id}});
+      selectBoardDate('2026-02-01');
+    `,
+    );
+    expect(evaluate(context, 'state.boardQuery.from')).toBe('2026-01-02');
+    expect(evaluate(context, 'dateFocus')).toBe('board-from');
+    expect(evaluate(context, 'state.boardDateError')).toContain('开始日期不能晚于结束日期');
+  });
+
   it('renders a Monday-first leap-month calendar with accessible selected dates', () => {
     const context = renderer();
     const html = evaluate<string>(

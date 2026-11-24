@@ -325,6 +325,9 @@ function officeTasksForTab(employee: OfficeEmployee): { tasks: BoardItem[]; tota
 
 function renderOfficeInspector(employee: OfficeEmployee, state: AppState): string {
   const { tool, workload, status } = employee;
+  const hasIntegration =
+    state.hookIntegrations.some((item) => item.id === tool.toolId) ||
+    state.mcpSnippets.some((item) => item.id === tool.toolId);
   const counts = workload?.counts;
   const preview = officeTasksForTab(employee);
   const totals = Object.fromEntries(
@@ -347,7 +350,7 @@ function renderOfficeInspector(employee: OfficeEmployee, state: AppState): strin
       .join('')}</div>
     <div class="office-task-list" data-scroll-key="office-tasks-${esc(tool.toolId)}-${officeUi.tab}">${preview.tasks.length ? preview.tasks.map((task) => `<button class="office-task" id="office-task-${esc(task.sessionId)}" type="button" data-session="${esc(task.sessionId)}"><span class="office-task-title">${esc(displayTaskTitle(task, state.tools))}</span><span class="office-task-meta"><span class="badge" data-state="${esc(task.currentState ?? 'unknown')}">${esc(stateLabel(task.currentState ?? 'unknown'))}</span><span>${esc(fmtRelative(task.updatedAt))}</span><span aria-hidden="true">↗</span></span></button>`).join('') : `<p class="office-task-empty">${!workload ? '正在加载任务…' : officeUi.tab === 'active' ? '暂无进行中的任务。' : officeUi.tab === 'issues' ? '暂无需要确认的任务。' : '还没有结束的任务。'}</p>`}</div>
     ${preview.total > preview.tasks.length ? `<p class="office-preview-note">${preview.tasks.length} 条，共 ${preview.total} 条</p>` : ''}
-    <div class="office-dialog-actions"><button class="btn btn-primary" type="button" id="office-board-${esc(tool.toolId)}" data-office-board="${esc(tool.toolId)}">任务看板 ↗</button><a class="btn btn-ghost" href="${esc(integrationToolHref(tool.toolId))}">接入设置</a></div>
+    <div class="office-dialog-actions"><button class="btn btn-primary" type="button" id="office-board-${esc(tool.toolId)}" data-office-board="${esc(tool.toolId)}">任务看板 ↗</button>${hasIntegration ? `<a class="btn btn-ghost" href="${esc(integrationToolHref(tool.toolId))}">接入设置</a>` : ''}</div>
   </section>`;
 }
 

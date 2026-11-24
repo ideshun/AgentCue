@@ -285,11 +285,15 @@ function readBoardFilters(): BoardFilters {
   const saved = readUiPreferences('board');
   const text = (key: string, max = 200) =>
     typeof saved[key] === 'string' ? (saved[key] as string).slice(0, max) : '';
+  const from = text('from', 10);
+  const to = text('to', 10);
+  const validFrom = calendarDate(from) ? from : '';
+  const validTo = calendarDate(to) ? to : '';
   return {
     q: text('q'),
     toolId: text('toolId'),
-    from: calendarDate(text('from', 10)) ? text('from', 10) : '',
-    to: calendarDate(text('to', 10)) ? text('to', 10) : '',
+    from: validFrom,
+    to: validFrom && validTo < validFrom ? '' : validTo,
     order: saved.order === 'asc' ? 'asc' : 'desc',
   };
 }
@@ -332,5 +336,5 @@ function renderBoardDatePicker(field: BoardDateField, value: string, label: stri
     }).join('');
     panel = `<div id="calendar-${field}" class="calendar-panel" role="dialog" aria-label="选择${label}"><div class="calendar-heading"><button type="button" id="calendar-prev" class="icon-btn" data-calendar-month="-1" aria-label="上个月"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m12 5-5 5 5 5"/></svg></button><strong aria-live="polite">${month.getFullYear()}年 ${month.getMonth() + 1}月</strong><button type="button" id="calendar-next" class="icon-btn" data-calendar-month="1" aria-label="下个月"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg></button></div><div class="calendar-weekdays" aria-hidden="true">${['一', '二', '三', '四', '五', '六', '日'].map((day) => `<span>${day}</span>`).join('')}</div><div class="calendar-days">${days}</div><div class="calendar-footer"><button type="button" class="btn btn-ghost btn-small" data-calendar-clear>清除日期</button><button type="button" class="btn btn-ghost btn-small" data-calendar-day="${today}">今天</button></div></div>`;
   }
-  return `<div class="board-date-picker"><button id="board-${field}" type="button" class="board-date-trigger${value ? ' has-value' : ''}" data-date-open="${field}" aria-haspopup="dialog" aria-expanded="${open}"${open ? ` aria-controls="calendar-${field}"` : ''}><span>${label}</span><strong>${value ? esc(value.replace(/-/g, '/')) : '不限日期'}</strong><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="4.5" width="14" height="13" rx="2"/><path d="M6.5 2.5v4m7-4v4M3 9h14"/></svg></button>${panel}</div>`;
+  return `<div class="board-date-picker"><button id="board-${field}" type="button" class="board-date-trigger${value ? ' has-value' : ''}" data-date-open="${field}" aria-haspopup="dialog"${state.boardDateError ? ' aria-describedby="board-date-error"' : ''} aria-expanded="${open}"${open ? ` aria-controls="calendar-${field}"` : ''}><span>${label}</span><strong>${value ? esc(value.replace(/-/g, '/')) : '不限日期'}</strong><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="4.5" width="14" height="13" rx="2"/><path d="M6.5 2.5v4m7-4v4M3 9h14"/></svg></button>${panel}</div>`;
 }

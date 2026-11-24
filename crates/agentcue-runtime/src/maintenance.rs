@@ -322,17 +322,25 @@ pub fn cleanup(runtime: &Runtime, days: u64, apply: bool) -> Result<Value> {
         [&before],
         |r| r.get(0),
     )?;
-    if apply && count > 0 {
+    if apply {
         let tx = db.transaction()?;
-        for table in ["notifications", "state_events"] {
-            tx.execute(&format!("DELETE FROM {table} WHERE session_id IN (SELECT session_id FROM sessions WHERE {OLD})"),[&before])?;
+        if count > 0 {
+            for table in ["notifications", "state_events"] {
+                tx.execute(&format!("DELETE FROM {table} WHERE session_id IN (SELECT session_id FROM sessions WHERE {OLD})"),[&before])?;
+            }
+            tx.execute(&format!("DELETE FROM sessions WHERE {OLD}"), [&before])?;
+            if audit {
+                tx.execute("INSERT INTO audit_log(ts,actor,action,result) VALUES(?1,'human','history.cleanup',?2)",params![queries::now(),format!("{count} terminal sessions")])?;
+            }
         }
-        tx.execute(&format!("DELETE FROM sessions WHERE {OLD}"), [&before])?;
-        if audit {
-            tx.execute("INSERT INTO audit_log(ts,actor,action,result) VALUES(?1,'human','history.cleanup',?2)",params![queries::now(),format!("{count} terminal sessions")])?;
-        }
+        tx.execute(
+            "DELETE FROM audit_log WHERE julianday(ts)<julianday(?1)",
+            [&before],
+        )?;
         tx.commit()?;
-        runtime.emit("board.updated", json!({}));
+        if count > 0 {
+            runtime.emit("board.updated", json!({}));
+        }
     }
     Ok(json!({"count":count,"days":days,"applied":apply}))
 }

@@ -1,7 +1,7 @@
 /**
  * notifications 表 DAO（FR-24 通知中心）。
  */
-import { desc, eq } from 'drizzle-orm';
+import { and, count, desc, eq, lt, or } from 'drizzle-orm';
 import type { AppDb } from '../db';
 import { notifications } from '../schema';
 
@@ -43,11 +43,7 @@ export function appendNotification(db: AppDb, input: AppendNotificationInput): N
  * @param offset 跳过条数，供「加载更多」向后翻页
  * @returns 通知列表
  */
-export function listNotifications(
-  db: AppDb,
-  limit = 100,
-  offset = 0,
-): NotificationRow[] {
+export function listNotifications(db: AppDb, limit = 100, offset = 0): NotificationRow[] {
   return db
     .select()
     .from(notifications)
@@ -57,15 +53,74 @@ export function listNotifications(
     .all();
 }
 
+/** Filter before paging and count unread records across the entire matching history. */
+export function notificationPage(
+  db: AppDb,
+  limit: number,
+  level?: AppendNotificationInput['level'],
+  before?: string,
+) {
+  const scope = level ? eq(notifications.level, level) : undefined;
+  const anchor = before
+    ? db.select().from(notifications).where(eq(notifications.notificationId, before)).get()
+    : undefined;
+  const items =
+    before && !anchor
+      ? []
+      : db
+          .select()
+          .from(notifications)
+          .where(
+            and(
+              scope,
+              anchor
+                ? or(
+                    lt(notifications.ts, anchor.ts),
+                    and(
+                      eq(notifications.ts, anchor.ts),
+                      lt(notifications.notificationId, anchor.notificationId),
+                    ),
+                  )
+                : undefined,
+            ),
+          )
+          .orderBy(desc(notifications.ts), desc(notifications.notificationId))
+          .limit(limit + 1)
+          .all();
+  const totalUnread = db
+    .select({ total: count() })
+    .from(notifications)
+    .where(eq(notifications.read, 0))
+    .get()!.total;
+  const unread = scope
+    ? db
+        .select({ total: count() })
+        .from(notifications)
+        .where(and(eq(notifications.read, 0), scope))
+        .get()!.total
+    : totalUnread;
+  return { items: items.slice(0, limit), totalUnread, unread, hasMore: items.length > limit };
+}
+
 /**
  * 标记已读。id 为空则全部已读。
  * @param db 数据库句柄
  * @param notificationId 通知 id
  */
-export function markNotificationRead(db: AppDb, notificationId?: string): void {
+export function markNotificationRead(
+  db: AppDb,
+  notificationId?: string,
+  level?: AppendNotificationInput['level'],
+): void {
   if (notificationId) {
-    db.update(notifications).set({ read: 1 }).where(eq(notifications.notificationId, notificationId)).run();
+    db.update(notifications)
+      .set({ read: 1 })
+      .where(eq(notifications.notificationId, notificationId))
+      .run();
     return;
   }
-  db.update(notifications).set({ read: 1 }).run();
+  db.update(notifications)
+    .set({ read: 1 })
+    .where(level ? eq(notifications.level, level) : undefined)
+    .run();
 }

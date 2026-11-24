@@ -1,7 +1,11 @@
 /** Native views. Dynamic text is escaped before it reaches HTML. */
 type RouteName =
   'overview' | 'office' | 'board' | 'integrations' | 'adapters' | 'settings' | 'notifications';
+type CustomToolField = 'custom-id' | 'custom-name' | 'custom-path' | 'custom-icon';
+
 interface AppState {
+  customEditingId?: string;
+  customErrors?: Partial<Record<CustomToolField, string>>;
   setupDismissed?: boolean;
   setupToolId?: string;
   desktopPreferences?: DesktopPreferences;
@@ -17,6 +21,7 @@ interface AppState {
   sessions: SessionSummary[];
   board: BoardResponse | null;
   boardQuery: BoardFilters;
+  boardDateError?: string;
   kokoroVoiceSearch: string;
   adapters: AdapterManifest[];
   tools: ToolSummary[];
@@ -26,8 +31,11 @@ interface AppState {
   notifications: NotificationItem[];
   /** 通知首页之外还有更早的记录可加载。 */
   noticeHasMore: boolean;
+  noticeLoading: boolean;
+  noticeUnread: number;
+  noticeTotalUnread: number;
   boardLoading: boolean;
-  noticeLevelFilter: '' | 'attention' | 'info';
+  noticeLevelFilter: NoticeLevel;
   mcpSnippets: McpSnippet[];
   mcpServers: McpServerItem[];
   hookIntegrations: HookIntegration[];
@@ -123,10 +131,14 @@ function capabilityLabel(capability?: string): string {
     ? '已识别任务状态'
     : capability === 'metadata'
       ? '只能看历史'
-      : '检测到工具配置';
+      : '仅检测安装状态';
 }
 
 /** @description: Link to the matching tool rather than the former settings section. */
+function boardToolHref(toolId: string): string {
+  return `#/board?tool=${encodeURIComponent(toolId)}`;
+}
+
 function integrationToolHref(toolId: string): string {
   return `#/integrations?tool=${encodeURIComponent(toolId)}`;
 }
@@ -230,7 +242,7 @@ function toolCoverage(tool: ToolSummary, settings: Settings | null) {
     kind: 'detect-only',
     label: '仅识别安装',
     detail: '暂时不能提供任务事件',
-    route: '#/integrations',
+    route: '#/adapters',
   };
 }
 
@@ -249,10 +261,10 @@ function toolRow(tool: ToolSummary, settings: Settings | null): string {
   const coverage = toolCoverage(tool, settings);
   const icon = toolMark(tool);
   const iconSlot = icon || '<span class="tool-icon-slot" aria-hidden="true"></span>';
-  const hasReceivedEvents = coverage.kind === 'received' || coverage.kind === 'reading';
-  const needsIntegration = coverage.kind === 'waiting' || coverage.kind === 'detect-only';
-  const href = hasReceivedEvents
-    ? '#/board'
+  const canViewTasks = ['received', 'reading', 'available', 'history'].includes(coverage.kind);
+  const needsIntegration = coverage.kind === 'waiting';
+  const href = canViewTasks
+    ? boardToolHref(tool.toolId)
     : coverage.route === '#/integrations'
       ? integrationToolHref(tool.toolId)
       : coverage.route;
@@ -353,14 +365,14 @@ function renderOverview(state: AppState): string {
       (item): item is BoardItem & { currentState: TaskState } => item.currentState !== null,
     ) ?? [];
   const metrics: Array<[string, string, string]> = [
-    ['等你处理', value(waiting), 'waiting_human'],
+    ['待处理', value(waiting), 'waiting_human'],
     ['进行中', value(summary?.counts.running), 'running'],
     ['已完成', value(summary?.counts.completed), 'completed'],
   ];
-  return `${renderOnboarding(state)}<section class="overview-summary" data-region="overview-stats"><div class="overview-summary-copy"><h2>${(waiting ?? 0) > 0 ? `有 ${value(waiting)} 个任务需要你介入` : '任务状态'}</h2><p>${esc(sourceStatus)}</p></div><div class="overview-metrics">${metrics.map(([label, count, stateName]) => `<div class="overview-metric"><span class="overview-metric-value" data-state="${stateName}">${count}</span><span>${label}</span></div>`).join('')}</div></section>
-    <section class="panel overview-priority" data-region="overview-attention"><div class="section-head"><div><h2>需要处理</h2><p class="muted">需要确认、失败或超时的任务。</p></div><a class="text-link" href="#/board">查看全部任务 ↗</a></div>${sectionError(state, 'board')}${attentionContent}</section>
-    <div class="overview-grid"><section class="panel overview-running" data-region="overview-running"><div class="section-head"><div><h2>进行中</h2><p class="muted">正在运行的任务，实时更新。</p></div><span class="count-pill">${running?.total ?? (pending ? '…' : '—')}</span></div>${runningGroup.length ? `<div class="session-list">${runningGroup.map((item) => sessionRow(item, true, state.tools)).join('')}</div>` : `<div class="overview-empty overview-empty--compact"><strong>${pending ? '正在同步' : '目前没有进行中的任务'}</strong><p>${pending ? '正在读取当前状态。' : '开始运行后会自动出现在这里。'}</p></div>`}</section>
-    <section class="panel overview-tools" data-region="overview-tools"><div class="section-head"><div><h2>任务来源</h2><p class="muted">识别到的工具及其接入状态。</p></div><a class="text-link" href="#/adapters">工具详情 ↗</a></div>${sectionError(state, 'tools')}${installed.length ? `<div class="source-list">${installed.map((tool) => toolRow(tool, state.settings)).join('')}</div>` : `<div class="overview-empty overview-empty--compact"><strong>${state.sectionErrors.tools ? '工具状态暂时不可用' : state.toolsLoading ? '正在检查本机工具' : '还没发现本机工具'}</strong><p>${state.sectionErrors.tools ? '稍后刷新再试。' : state.toolsLoading ? '检查完成后会显示可用的任务来源。' : '点击右上角“扫描工具”检查。'}</p></div>`}<div class="panel-foot"><span>识别到 ${installed.length} 个工具</span><span>${scan ? `最近扫描 ${esc(fmtTime(scan.finishedAt))}` : '尚未扫描'}</span></div></section></div>`;
+  return `${renderOnboarding(state)}<section class="overview-summary" data-region="overview-stats"><div class="overview-summary-copy"><h2>${(waiting ?? 0) > 0 ? `有 ${value(waiting)} 个任务需要你介入` : '任务状态正常'}</h2><p>${esc(sourceStatus)}</p></div><div class="overview-metrics">${metrics.map(([label, count, stateName]) => `<div class="overview-metric"><span class="overview-metric-value" data-state="${stateName}">${count}</span><span>${label}</span></div>`).join('')}</div></section>
+    <section class="panel overview-priority" data-region="overview-attention"><div class="section-head"><div><h2>需要处理</h2><p class="muted">等待确认、失败或超时的任务</p></div><a class="text-link" href="#/board">查看全部任务 ↗</a></div>${sectionError(state, 'board')}${attentionContent}</section>
+    <div class="overview-grid"><section class="panel overview-running" data-region="overview-running"><div class="section-head"><div><h2>进行中</h2><p class="muted">正在运行的任务，实时更新</p></div><span class="count-pill">${running?.total ?? (pending ? '…' : '—')}</span></div>${runningGroup.length ? `<div class="session-list">${runningGroup.map((item) => sessionRow(item, true, state.tools)).join('')}</div>` : `<div class="overview-empty overview-empty--compact"><strong>${pending ? '正在同步' : '暂无进行中的任务'}</strong><p>${pending ? '正在读取当前状态…' : '开始运行后会自动出现在这里'}</p></div>`}</section>
+    <section class="panel overview-tools" data-region="overview-tools"><div class="section-head"><div><h2>任务来源</h2><p class="muted">已识别的工具及其接入状态</p></div><a class="text-link" href="#/adapters">工具管理 ↗</a></div>${sectionError(state, 'tools')}${installed.length ? `<div class="source-list">${installed.map((tool) => toolRow(tool, state.settings)).join('')}</div>` : `<div class="overview-empty overview-empty--compact"><strong>${state.sectionErrors.tools ? '工具状态暂时不可用' : state.toolsLoading ? '正在检查本机工具' : '暂未发现本机工具'}</strong><p>${state.sectionErrors.tools ? '请稍后刷新再试' : state.toolsLoading ? '检查完成后会显示可用的任务来源' : '点击右上角“扫描工具”检查'}</p></div>`}<div class="panel-foot"><span>已识别 ${installed.length} 个工具</span><span>${scan ? `最近扫描 ${esc(fmtTime(scan.finishedAt))}` : '尚未扫描'}</span></div></section></div>`;
 }
 
 /** @description: Board cards expose record actions without claiming to control another app. */
@@ -390,9 +402,9 @@ function taskActions(sessionId: string, currentState: TaskState | null): string 
 /** @description: Per-column counts and cursors remain independent. */
 function renderBoard(state: AppState): string {
   const columns: Array<{ id: BoardGroupId; title: string; hint: string; tone: string }> = [
-    { id: 'attention', title: '等你处理', hint: '需要你确认', tone: 'attention' },
+    { id: 'attention', title: '待处理', hint: '需要你确认', tone: 'attention' },
     { id: 'running', title: '进行中', hint: '正在运行的任务', tone: 'running' },
-    { id: 'failed', title: '有问题', hint: '失败或超时的任务', tone: 'failed' },
+    { id: 'failed', title: '异常', hint: '失败或超时的任务', tone: 'failed' },
     { id: 'completed', title: '已结束', hint: '已完成、取消或归档的任务', tone: 'ok' },
   ];
   const renderColumn = (id: BoardGroupId, title: string, hint: string, tone: string): string => {
@@ -400,8 +412,8 @@ function renderBoard(state: AppState): string {
     const pending = !group && state.boardLoading && !state.sectionErrors.board;
     return `<section class="column${id === 'history' ? ' history-column' : ''}" data-region="board-${id}" data-tone="${tone}"><header class="column-head"><span class="column-dot" data-tone="${tone}" aria-hidden="true"></span><div><h2>${title}<span class="count-pill">${group?.total ?? (pending ? '…' : '—')}</span></h2>${hint ? `<p>${hint}</p>` : ''}</div></header><div class="column-body" data-scroll-key="board-${id}">${group?.items.length ? group.items.map((item) => boardCard(item, state.tools)).join('') : `<div class="column-empty">${group ? '暂无任务' : state.sectionErrors.board ? '列表加载失败' : '正在加载…'}</div>`}</div>${group?.nextCursor ? `<button class="btn btn-more" type="button" data-load-group="${id}" data-cursor="${esc(group.nextCursor)}" aria-label="加载更多，已显示 ${group.items.length} 条，共 ${group.total} 条"><span>加载更多</span><span class="btn-more-count">${group.items.length} / ${group.total}</span></button>` : ''}</section>`;
   };
-  return `<div class="board-filterbar" data-region="board-toolbar"><div class="search-control"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="7" r="4.5" /><path d="M10.5 10.5 14 14" /></svg><input id="board-search" data-draft type="search" aria-label="搜索任务" placeholder="搜索任务标题、工具或 ID" value="${esc(state.boardQuery.q)}" /></div><span class="filterbar-sep" aria-hidden="true"></span><select id="board-tool" data-draft aria-label="筛选工具"><option value="">全部工具</option>${state.tools.map((tool) => `<option value="${esc(tool.toolId)}" ${state.boardQuery.toolId === tool.toolId ? 'selected' : ''}>${esc(tool.name)}</option>`).join('')}</select><button class="btn btn-ghost btn-small" type="button" data-action="clear-board">重置筛选</button></div><div class="board-secondary" data-region="board-secondary">${renderBoardDatePicker('from', state.boardQuery.from ?? '', '开始日期')}${renderBoardDatePicker('to', state.boardQuery.to ?? '', '结束日期')}<label class="sr-only" for="board-order">排序</label><select id="board-order" data-draft><option value="desc" ${state.boardQuery.order !== 'asc' ? 'selected' : ''}>最近更新优先</option><option value="asc" ${state.boardQuery.order === 'asc' ? 'selected' : ''}>较早更新优先</option></select><button class="btn btn-ghost btn-small" type="button" data-feature="archive-ended">归档已结束的任务</button></div>
-    <div data-region="board-feedback">${sectionError(state, 'board')}<p class="board-hint">当前操作只会更改 AgentCue 里的记录，不会影响原工具。</p></div>
+  return `<div class="board-filterbar" data-region="board-toolbar"><div class="search-control"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="7" r="4.5" /><path d="M10.5 10.5 14 14" /></svg><input id="board-search" type="search" aria-label="搜索任务" placeholder="搜索任务标题、工具或 ID" value="${esc(state.boardQuery.q)}" /></div><span class="filterbar-sep" aria-hidden="true"></span><select id="board-tool" aria-label="筛选工具"><option value="">全部工具</option>${state.tools.map((tool) => `<option value="${esc(tool.toolId)}" ${state.boardQuery.toolId === tool.toolId ? 'selected' : ''}>${esc(tool.name)}</option>`).join('')}</select><button class="btn btn-ghost btn-small" type="button" data-action="clear-board">重置筛选</button></div><div class="board-secondary" data-region="board-secondary">${renderBoardDatePicker('from', state.boardQuery.from ?? '', '开始日期')}${renderBoardDatePicker('to', state.boardQuery.to ?? '', '结束日期')}<label class="sr-only" for="board-order">排序</label><select id="board-order"><option value="desc" ${state.boardQuery.order !== 'asc' ? 'selected' : ''}>最近更新优先</option><option value="asc" ${state.boardQuery.order === 'asc' ? 'selected' : ''}>较早更新优先</option></select><button class="btn btn-ghost btn-small" type="button" data-feature="archive-ended">归档已结束的任务</button></div>
+    <div data-region="board-feedback">${state.boardDateError ? `<p class="field-error" id="board-date-error" role="alert">${esc(state.boardDateError)}</p>` : ''}${sectionError(state, 'board')}<p class="board-hint">当前操作只会更改 AgentCue 里的记录，不会影响原工具。</p></div>
     <div class="board">${columns.map((column) => renderColumn(column.id, column.title, column.hint, column.tone)).join('')}</div>
     ${renderColumn('history', '历史记录', '', 'neutral')}`;
 }
@@ -430,17 +442,58 @@ function renderAdapters(state: AppState): string {
               tool?.sessionCapability ??
               adapter.sessionCapability ??
               (Object.keys(adapter.eventMapping).length ? 'events' : 'detect-only');
-            return `<article class="adapter">${toolMark({ ...tool, toolId: adapter.id })}<div class="adapter-info"><div class="adapter-name">${esc(adapter.name)}${tool?.host ? `<span class="muted">${esc(tool.host)} 扩展</span>` : ''}<span class="badge" data-state="${status === 'running' ? 'running' : 'idle'}">${esc(detectLabel(status))}</span>${ignored ? '<span class="badge">已忽略</span>' : ''}</div><div class="capability-label">${esc(capabilityLabel(capability))}${tool?.version ? ` · v${esc(tool.version)}` : ''}</div><p class="muted">${esc(tool?.capabilityReason ?? (capability === 'metadata' ? '只能看到历史记录，看不到当前状态。' : capability === 'detect-only' ? '这个工具暂时无法读取任务。' : '正在读取这个工具的任务记录。'))}</p>${tool ? toolHookStatus({ ...tool, ignored }, state.settings) : ''}<details data-disclosure-key="adapter-path-${esc(adapter.id)}"><summary>查看检测路径</summary><code class="adapter-path">${esc(adapterPath(adapter))}</code></details></div><button class="btn btn-ghost" type="button" data-toggle-ignore="${esc(adapter.id)}" data-ignored="${ignored}">${ignored ? '恢复扫描' : '忽略'}</button></article>`;
+            return `<article class="adapter">${toolMark({ ...tool, toolId: adapter.id })}<div class="adapter-info"><div class="adapter-name">${esc(adapter.name)}${tool?.host ? `<span class="muted">${esc(tool.host)} 扩展</span>` : ''}<span class="badge" data-state="${status === 'running' ? 'running' : 'idle'}">${esc(detectLabel(status))}</span>${ignored ? '<span class="badge">已忽略</span>' : ''}</div><div class="capability-label">${esc(capability === 'detect-only' && status === 'installed' ? '检测到工具配置' : capabilityLabel(capability))}${tool?.version ? ` · v${esc(tool.version)}` : ''}</div><p class="muted">${esc(tool?.capabilityReason ?? (capability === 'metadata' ? '只能看到历史记录，看不到当前状态。' : capability === 'detect-only' ? '这个工具暂时无法读取任务。' : '正在读取这个工具的任务记录。'))}</p>${tool ? toolHookStatus({ ...tool, ignored }, state.settings) : ''}<details data-disclosure-key="adapter-path-${esc(adapter.id)}"><summary>查看检测路径</summary><code class="adapter-path">${esc(adapterPath(adapter))}</code></details></div><button class="btn btn-ghost" type="button" data-toggle-ignore="${esc(adapter.id)}" data-ignored="${ignored}">${ignored ? '恢复扫描' : '忽略'}</button></article>`;
           })
           .join('')
       : '<div class="empty">工具列表还没加载好，请重新扫描。</div>'
   }</section>
-    <section class="panel" data-region="adapters-custom"><div class="section-head"><div><h2>自定义工具</h2><p class="muted">填写工具路径，检查 AgentCue 接入状态。</p></div></div><div class="custom-form">
-      <div class="custom-form-row"><label for="custom-id">工具编号</label><input id="custom-id" data-draft placeholder="推荐小写字母和连字符，如 codebuddy" /></div>
-      <div class="custom-form-row"><label for="custom-name">工具名称</label><input id="custom-name" data-draft placeholder="工具显示名称" /></div>
-      <div class="custom-form-row"><label for="custom-path">配置路径</label><input id="custom-path" data-draft placeholder="如 ~/.my-tool" /></div>
-      <div class="custom-form-row"><label for="custom-icon">图标路径</label><div class="custom-icon-picker" data-icon-drop><input id="custom-icon" data-draft placeholder="图标路径，支持将图片拖到这里自动填充" /><button class="btn btn-primary" type="button" data-action="pick-custom-icon">选择图标</button><button class="btn btn-ghost" type="button" data-action="clear-custom-icon">清除</button><img id="custom-icon-preview" class="tool-icon" alt="图标预览" hidden /><span id="custom-icon-error" class="muted" role="status"></span></div></div>
-      <div class="custom-form-actions"><button class="btn btn-primary" type="button" data-action="add-custom-tool">保存工具</button></div></div>${(state.settings?.scan.customTools ?? []).map((tool) => `<div class="tool-row">${toolMark(state.tools.find((t) => t.toolId === tool.id) ?? {})}<div class="tool-info"><strong>${esc(tool.name)}</strong><code>${esc(tool.configPath)}</code>${tool.iconPath ? `<small>${esc(tool.iconPath)}</small>` : ''}${state.tools.find((t) => t.toolId === tool.id)?.iconError ? `<small role="status">${esc(state.tools.find((t) => t.toolId === tool.id)?.iconError ?? '')}</small>` : ''}</div><button class="btn btn-ghost" type="button" data-edit-custom="${esc(tool.id)}">编辑</button><button class="btn btn-ghost" type="button" data-remove-custom="${esc(tool.id)}">移除</button></div>`).join('')}</section>`;
+    <section class="panel" data-region="adapters-custom"><div class="section-head"><div><h2>自定义工具</h2><p class="muted">填写工具路径，检查 AgentCue 接入状态。</p></div></div>${renderCustomToolForm(state)}${(state.settings?.scan.customTools ?? []).map((tool) => `<div class="tool-row">${toolMark(state.tools.find((t) => t.toolId === tool.id) ?? {})}<div class="tool-info"><strong>${esc(tool.name)}</strong><code>${esc(tool.configPath)}</code>${tool.iconPath ? `<small>${esc(tool.iconPath)}</small>` : ''}${state.tools.find((t) => t.toolId === tool.id)?.iconError ? `<small role="status">${esc(state.tools.find((t) => t.toolId === tool.id)?.iconError ?? '')}</small>` : ''}</div><button class="btn btn-ghost" type="button" id="custom-edit-${esc(tool.id)}" data-edit-custom="${esc(tool.id)}">编辑</button><button class="btn btn-ghost" type="button" data-remove-custom="${esc(tool.id)}">移除</button></div>`).join('')}</section>`;
+}
+
+function renderCustomToolForm(state: AppState): string {
+  const editing = state.settings?.scan.customTools.find(
+    (tool) => tool.id === state.customEditingId,
+  );
+  const fields: Array<{ id: CustomToolField; label: string; placeholder: string; hint: string }> = [
+    {
+      id: 'custom-id',
+      label: '工具编号',
+      placeholder: '推荐小写字母和连字符，如 codebuddy',
+      hint: '仅允许小写字母、数字和连字符。',
+    },
+    { id: 'custom-name', label: '工具名称', placeholder: '工具显示名称', hint: '' },
+    {
+      id: 'custom-path',
+      label: '配置路径',
+      placeholder: '如 ~/.my-tool',
+      hint: '填写本机配置文件或目录的路径。',
+    },
+    {
+      id: 'custom-icon',
+      label: '图标路径',
+      placeholder: '图标路径，支持将图片拖到这里自动填充',
+      hint: '',
+    },
+  ];
+  return `<form class="custom-form" id="custom-tool-form" novalidate>
+    ${editing ? `<p class="muted">正在编辑 ${esc(editing.name)}</p>` : ''}
+    ${fields
+      .map(({ id, label, placeholder, hint }) => {
+        const icon = id === 'custom-icon';
+        const error = state.customErrors?.[id] ?? '';
+        const readonly = id === 'custom-id' && editing;
+        const descriptions = [hint && `${id}-hint`, `${id}-validation`, icon && 'custom-icon-error']
+          .filter(Boolean)
+          .join(' ');
+        const input = `<input id="${id}" data-draft placeholder="${esc(placeholder)}" aria-describedby="${descriptions}"${error ? ' aria-invalid="true"' : ''}${icon ? ' maxlength="4096"' : readonly ? ' readonly' : ' required'}${id === 'custom-id' ? ' pattern="[a-z0-9\\-]+"' : ''} />`;
+        const control = icon
+          ? `<div class="custom-icon-picker" data-icon-drop>${input}<button class="btn btn-primary" type="button" data-action="pick-custom-icon">选择图标</button><button class="btn btn-ghost" type="button" data-action="clear-custom-icon">清除</button><img id="custom-icon-preview" class="tool-icon" alt="图标预览" hidden /><span id="custom-icon-error" class="field-error" role="status"></span></div>`
+          : input;
+        return `<div class="custom-form-row"><label for="${id}">${label}${icon ? '' : '<span class="custom-required" aria-hidden="true"> *</span>'}</label><div class="custom-form-control">${control}${hint ? `<p class="field-hint" id="${id}-hint">${hint}</p>` : ''}<p class="field-error" id="${id}-validation" role="alert">${esc(error)}</p></div></div>`;
+      })
+      .join('')}
+    <div class="custom-form-actions"><button id="custom-tool-save" class="btn btn-primary" type="submit"${state.settings ? '' : ' disabled'}>${editing ? '保存修改' : '保存工具'}</button>${editing ? '<button class="btn btn-ghost" type="button" data-action="cancel-custom-tool">取消编辑</button>' : ''}</div>
+    </form>`;
 }
 
 /**
@@ -1023,9 +1076,9 @@ function renderSettings(
   const privacy = `${settingRow('scan.autoIntervalHours', '多久重新扫描一次', '单位：小时。任务状态不受影响，仍然实时更新。', `<input id="__ID__" class="control-input control-input--short" type="number" min="1" max="24" data-setting="scan.autoIntervalHours" value="${settings.scan.autoIntervalHours}" />`)}${settingRow('privacy.sessionFileRead', '读取本机任务记录', '关掉以后 AgentCue 不再读取任务数据，已保存的历史也会藏起来。', toggle('privacy.sessionFileRead', settings.privacy.sessionFileRead))}${settingRow('privacy.auditLog', '记录操作日志', '日志只记操作本身，不含对话内容和密码。', toggle('privacy.auditLog', settings.privacy.auditLog))}<div class="panel-note">任务记录和设置默认保存在本机。只有启用并配置云语音后，播报文字才会发送给所选服务；不会自动上传完整会话内容。扫描只读取已声明的本机来源。</div><div class="settings-actions"><button class="btn btn-ghost btn-small" type="button" data-action="export-events">导出事件记录</button><span class="muted">最多 500 条，只有时间和原因，没有对话内容。</span></div>`;
   // 四个互斥分区减少长页查找；低频外部 MCP 配置归入「隐私与高级」。
   return `<nav class="settings-nav" aria-label="设置分区" data-region="settings-nav"><div class="settings-nav-inner"><div class="settings-tablist" role="tablist" aria-label="设置分区">${[
-    ['voice', '语音'],
+    ['voice', '语音播报'],
     ['quiet', '免打扰'],
-    ['rules', '播报规则'],
+    ['rules', '提醒规则'],
     ['advanced', '隐私与高级'],
     ...(window.awm?.desktopFeature ? [['app', '应用与数据']] : []),
   ]
@@ -1128,7 +1181,7 @@ function renderIntegrations(state: AppState): string {
           .map(([id, tool]) => {
             const missingHooks = state.sectionErrors.hooks ? '加载失败' : '未提供';
             const missingMcp = state.sectionErrors.snippets ? '加载失败' : '未提供';
-            return `<section class="panel integration-tool" id="integration-tool-${esc(id)}" data-region="integration-${esc(id)}" aria-labelledby="integration-title-${esc(id)}"><div class="section-head"><h2 id="integration-title-${esc(id)}">${esc(tool.name)}</h2></div>
+            return `<section class="panel integration-tool" id="integration-tool-${esc(id)}" data-region="integration-${esc(id)}" aria-labelledby="integration-title-${esc(id)}"><div class="section-head"><h2 id="integration-title-${esc(id)}" tabindex="-1">${esc(tool.name)}</h2></div>
           ${renderIntegrationDiagnostics(state, id, tool.hook)}
           ${tool.hook || state.sectionErrors.hooks ? `<details class="integration-method" data-disclosure-key="integration-${esc(id)}-hooks"><summary><span class="integration-method-name">Hooks 接入</span><span class="integration-method-description">推送任务事件</span>${tool.hook ? renderHookStatus(tool.hook) : `<span class="badge">${missingHooks}</span>`}</summary><div class="integration-method-body">${tool.hook ? renderHookIntegration(tool.hook) : `<p class="muted">${state.sectionErrors.hooks ? 'Hooks 配置未能加载，请刷新后重试。' : '当前未提供此工具的 Hooks 接入配置。'}</p>`}</div></details>` : ''}
           ${tool.mcp || state.sectionErrors.snippets ? `<details class="integration-method" data-disclosure-key="integration-${esc(id)}-mcp"><summary><span class="integration-method-name">MCP 接入</span><span class="integration-method-description">连接 AgentCue 工具</span><span class="badge" ${tool.mcp?.commandReady === false ? 'data-state="failed"' : ''}>${tool.mcp ? (tool.mcp.commandReady === false ? '入口不可用' : '配置指引') : missingMcp}</span></summary><div class="integration-method-body">${tool.mcp ? renderMcpSnippet(tool.mcp, state.mcpValidation) : `<p class="muted">${state.sectionErrors.snippets ? 'MCP 配置未能加载，请刷新后重试。' : '当前未提供此工具的 MCP 接入配置。'}</p>`}</div></details>` : ''}
@@ -1235,17 +1288,36 @@ function noticeLevelLabel(level: string): string {
 
 function renderNotifications(state: AppState): string {
   const filter = state.noticeLevelFilter;
-  const shown = filter
-    ? state.notifications.filter((n) => n.level === filter)
-    : state.notifications;
-  const unread = state.notifications.filter((n) => !n.read).length;
-  const chips: Array<['' | 'attention' | 'info', string]> = [
+  const chips: Array<[NoticeLevel, string]> = [
     ['', '全部'],
     ['attention', '需要处理'],
     ['info', '普通'],
   ];
-  // 头部操作区：级别筛选与「全部已读」（复用主进程已有的批量已读端点）。
-  return `<section class="panel" data-region="notifications"><div class="section-head"><div><h2>最近通知${unread ? `<span class="count-pill">${unread} 未读</span>` : ''}</h2></div><div class="section-head-actions"><select id="notice-level-filter" aria-label="按级别筛选">${chips.map(([v, l]) => `<option value="${v}" ${filter === v ? 'selected' : ''}>${l}</option>`).join('')}</select>${unread ? `<button class="btn btn-ghost btn-small" type="button" data-action="mark-all-read">全部标为已读</button>` : ''}</div></div>${sectionError(state, 'notifications')}${shown.length ? shown.map((item) => `<article class="notice${item.read ? ' is-read' : ''}" data-notice-level="${esc(item.level)}"><div class="notice-content"><div class="notice-meta"><span class="notice-dot" aria-hidden="true"></span><span>${esc(fmtRelative(item.ts))}</span><span>${item.read ? '已读' : '未读'}</span><span class="badge" data-level="${esc(item.level)}">${esc(noticeLevelLabel(item.level))}</span></div><h3>${esc(item.title)}</h3><p>${esc(item.body)}</p></div><div class="notice-actions">${item.read ? '' : `<button class="btn btn-ghost btn-small" type="button" data-read-notice="${esc(item.notificationId)}">标为已读</button>`}${item.sessionId ? `<button class="btn btn-ghost btn-small notice-view" type="button" data-session="${esc(item.sessionId)}">查看</button>` : ''}</div></article>`).join('') : `<div class="empty">${filter ? '这个类别下没有通知。' : '还没有通知。任务需要你时会出现在这里。'}</div>`}${state.noticeHasMore ? `<button class="btn btn-more" type="button" data-action="load-notices">加载更多（已显示 ${state.notifications.length} 条）</button>` : ''}</section>`;
+  const rows = state.notifications
+    .map((item) => {
+      const id = esc(item.notificationId);
+      const read = item.read
+        ? ''
+        : `<button id="notice-read-${id}" class="btn btn-ghost btn-small" type="button" data-read-notice="${id}" aria-label="标为已读：${esc(item.title)}">标为已读</button>`;
+      const view = item.sessionId
+        ? `<button id="notice-view-${id}" class="btn btn-ghost btn-small notice-view" type="button" data-session="${esc(item.sessionId)}" aria-label="查看：${esc(item.title)}">查看</button>`
+        : '';
+      return `<article id="notice-${id}" class="notice${item.read ? ' is-read' : ''}" data-notice-level="${esc(item.level)}" aria-labelledby="notice-title-${id}" tabindex="-1">
+      <div class="notice-meta"><span class="notice-dot" aria-hidden="true"></span><span>${esc(fmtRelative(item.ts))}</span><span>${item.read ? '已读' : '未读'}</span><span class="badge" data-level="${esc(item.level)}">${esc(noticeLevelLabel(item.level))}</span></div>
+      <div class="notice-content"><h3 id="notice-title-${id}">${esc(item.title)}</h3><p>${esc(item.body)}</p></div>
+      ${read || view ? `<div class="notice-actions">${read}${view}</div>` : ''}
+    </article>`;
+    })
+    .join('');
+  const empty = state.noticeLoading
+    ? '正在读取通知…'
+    : filter
+      ? '这个类别下没有通知。'
+      : '还没有通知。任务需要你时会出现在这里。';
+  const markAll = state.noticeUnread
+    ? `<button id="notice-read-all" class="btn btn-ghost btn-small" type="button" data-action="mark-all-read">${filter ? '此类别全部标为已读' : '全部标为已读'}</button>`
+    : '';
+  return `<section class="panel" data-region="notifications"><div class="section-head"><h2>最近通知<span id="notice-unread" role="status">${state.noticeUnread ? `<span class="count-pill">${state.noticeUnread} 未读</span>` : '<span class="sr-only">没有未读通知</span>'}</span></h2><div class="section-head-actions"><select id="notice-level-filter" aria-label="按级别筛选">${chips.map(([v, l]) => `<option value="${v}" ${filter === v ? 'selected' : ''}>${l}</option>`).join('')}</select>${markAll}</div></div>${sectionError(state, 'notifications')}${rows || (state.sectionErrors.notifications ? '' : `<div class="empty">${empty}</div>`)}${state.noticeHasMore ? `<button id="notice-more" class="btn btn-more" type="button" data-action="load-notices">加载更多（已显示 ${state.notifications.length} 条）</button>` : ''}</section>`;
 }
 
 /** @description: The drawer uses descriptive recording actions and an append-only timeline. */

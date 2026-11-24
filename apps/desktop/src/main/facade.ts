@@ -42,6 +42,7 @@ import {
   listTools,
   listVoiceRules,
   markNotificationRead,
+  notificationPage,
   upsertMcpServer,
   upsertVoiceRule,
   type McpServerRow,
@@ -174,16 +175,16 @@ export class DesktopFacade implements EngineFacade {
         counts: Object.fromEntries(
           TASK_STATES.map((state) => [state, countSessions(db, { toolId: tool.toolId, state })]),
         ) as Record<TaskState, number>,
-        tasks: groups.flatMap((states) =>
-          listSessions(db, { toolId: tool.toolId, states, limit: 5 }),
-        ).map((row) => ({
-          kind: 'session' as const,
-          sessionId: row.sessionId,
-          toolId: row.toolId,
-          title: row.title,
-          currentState: row.currentState as TaskState,
-          updatedAt: row.updatedAt,
-        })),
+        tasks: groups
+          .flatMap((states) => listSessions(db, { toolId: tool.toolId, states, limit: 5 }))
+          .map((row) => ({
+            kind: 'session' as const,
+            sessionId: row.sessionId,
+            toolId: row.toolId,
+            title: row.title,
+            currentState: row.currentState as TaskState,
+            updatedAt: row.updatedAt,
+          })),
       })),
       generatedAt: new Date().toISOString(),
     };
@@ -499,6 +500,10 @@ export class DesktopFacade implements EngineFacade {
     return listNotifications(this.engine.database, limit, offset);
   }
 
+  notificationPage(limit: number, level?: 'attention' | 'info', before?: string) {
+    return notificationPage(this.engine.database, limit, level, before);
+  }
+
   /**
    * 写入一条通知。
    * @param input 通知内容
@@ -517,8 +522,8 @@ export class DesktopFacade implements EngineFacade {
    * 标记通知已读。
    * @param notificationId 空则全部已读
    */
-  async markNotificationRead(notificationId?: string): Promise<void> {
-    markNotificationRead(this.engine.database, notificationId);
+  async markNotificationRead(notificationId?: string, level?: 'attention' | 'info'): Promise<void> {
+    markNotificationRead(this.engine.database, notificationId, level);
   }
 
   /**

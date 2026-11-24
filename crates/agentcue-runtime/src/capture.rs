@@ -383,7 +383,9 @@ pub async fn file(
         return Ok(empty());
     }
     let after = handle.metadata().await.map_err(|_| "来源文件信息不可用")?;
-    if after.len() != stat.len() || after.modified().ok() != stat.modified().ok() {
+    if after.len() < stat.len()
+        || (after.len() == stat.len() && after.modified().ok() != stat.modified().ok())
+    {
         return Ok(empty());
     }
     let cp = Checkpoint {

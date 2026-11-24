@@ -16,7 +16,12 @@ import {
 } from './sessions';
 import { listTimeline } from './events';
 import { persistTransition } from './transition';
-import { appendNotification, listNotifications, markNotificationRead } from './notifications';
+import {
+  appendNotification,
+  listNotifications,
+  markNotificationRead,
+  notificationPage,
+} from './notifications';
 import { listMcpServers, upsertMcpServer } from './mcp-servers';
 
 /** 构造标准事件 */
@@ -253,6 +258,23 @@ describe('notifications 与 mcp_servers', () => {
     const third = listNotifications(handle.db, 3, 6).map((row) => row.title);
     expect([...first, ...second, ...third]).toHaveLength(7);
     expect(new Set([...first, ...second, ...third]).size).toBe(7);
+  });
+
+  it('按级别筛选整段历史，并仅将匹配的通知标为已读', () => {
+    const { db } = createDatabase(':memory:');
+    appendNotification(db, { title: 'attention', body: 'b', level: 'attention' });
+    for (let index = 0; index < 4; index += 1)
+      appendNotification(db, { title: `info ${index}`, body: 'b', level: 'info' });
+    const first = notificationPage(db, 2, 'info');
+    expect(first).toMatchObject({ unread: 4, totalUnread: 5, hasMore: true });
+    const next = notificationPage(db, 2, 'info', first.items[1]!.notificationId);
+    expect(new Set([...first.items, ...next.items].map((item) => item.notificationId)).size).toBe(
+      4,
+    );
+    expect(next.hasMore).toBe(false);
+    markNotificationRead(db, undefined, 'info');
+    expect(notificationPage(db, 1, 'info')).toMatchObject({ unread: 0, totalUnread: 1 });
+    expect(notificationPage(db, 1, 'attention')).toMatchObject({ unread: 1, totalUnread: 1 });
   });
 
   it('写入外部 MCP Server', () => {
