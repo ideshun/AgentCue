@@ -164,17 +164,14 @@ pub fn binary(name: &str) -> Option<PathBuf> {
             let Ok(stat) = p.metadata() else {
                 return false;
             };
-            if !stat.is_file() {
-                return false;
-            }
             #[cfg(unix)]
             {
                 use std::os::unix::fs::PermissionsExt;
-                stat.permissions().mode() & 0o111 != 0
+                stat.is_file() && stat.permissions().mode() & 0o111 != 0
             }
             #[cfg(not(unix))]
             {
-                true
+                stat.is_file()
             }
         })
 }
